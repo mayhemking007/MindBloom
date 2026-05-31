@@ -1,0 +1,39 @@
+{
+  "name": "mindbloom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MindBloom example app for memo-grafter.",
+  "type": "module",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @mindbloom/api\" \"npm run dev -w @mindbloom/web\"",
+    "dev:api": "npm run dev -w @mindbloom/api",
+    "dev:web": "npm run dev -w @mindbloom/web",
+    "build": "npm run build --workspaces --if-present",
+    "build:api": "npm run build -w @mindbloom/api",
+    "build:web": "npm run build -w @mindbloom/web",
+    "typecheck": "tsc -b",
+    "lint": "npm run lint --workspaces --if-present",
+    "start:api": "npm run start -w @mindbloom/api"
+  },
+  "keywords": [
+    "memo-grafter",
+    "journaling",
+    "react",
+    "express",
+    "pgvector"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.env
+.env.local
+.env.*.local
+apps/web/dist
+apps/api/dist
+packages/shared/dist
+.DS_Store
+*.log
+*.tsbuildinfo
+PLAN.md
+docs
