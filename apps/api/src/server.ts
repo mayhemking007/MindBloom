@@ -1,53 +1,29 @@
-import "dotenv/config";
+import { createServer } from "node:http";
 
-import cors from "cors";
-import express from "express";
-import { z } from "zod";
-import {
-  getDateStamp,
-  getTodaySessionId,
-  type HealthResponse,
-  type TodaySessionResponse,
-} from "@mindbloom/shared";
+import { createApp } from "./app.js";
+import { apiPort } from "./config/env.js";
+import { shutdownAgents } from "./lib/agent.js";
 
-const envSchema = z.object({
-  API_PORT: z.coerce.number().int().positive().default(4000),
-  PORT: z.coerce.number().int().positive().optional(),
-  CORS_ORIGIN: z.string().default("http://localhost:5173"),
+const app = createApp();
+const server = createServer(app);
+
+server.listen(apiPort, () => {
+  console.log(`MindBloom API listening on http://localhost:${apiPort}`);
 });
 
-const env = envSchema.parse(process.env);
-const app = express();
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  console.log(`Received ${signal}; shutting down MindBloom API.`);
 
-app.use(express.json());
-app.use(
-  cors({
-    origin: env.CORS_ORIGIN,
-  }),
-);
+  server.close(async (error) => {
+    if (error) {
+      console.error("HTTP server shutdown failed", error);
+      process.exitCode = 1;
+    }
 
-app.get("/health", (_req, res) => {
-  const response: HealthResponse = {
-    ok: true,
-    service: "mindbloom-api",
-    version: "0.1.0",
-  };
+    await shutdownAgents();
+    process.exit();
+  });
+}
 
-  res.json(response);
-});
-
-app.get("/api/session/today", (_req, res) => {
-  const now = new Date();
-  const response: TodaySessionResponse = {
-    sessionId: getTodaySessionId(now),
-    date: getDateStamp(now),
-  };
-
-  res.json(response);
-});
-
-const port = env.PORT ?? env.API_PORT;
-
-app.listen(port, () => {
-  console.log(`MindBloom API listening on http://localhost:${port}`);
-});
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
