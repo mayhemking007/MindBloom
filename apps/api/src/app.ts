@@ -8,6 +8,7 @@ import {
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./http/errors.js";
 import { getDateStamp, getTodaySessionId } from "./lib/sessionStore.js";
+import { chatRouter } from "./routes/chat.js";
 
 export function createApp() {
   const app = express();
@@ -38,6 +39,8 @@ export function createApp() {
 
     res.json(response);
   });
+
+  app.use("/api/chat", chatRouter);
 
   app.use(notFoundHandler());
   app.use(errorHandler());

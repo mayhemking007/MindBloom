@@ -9,6 +9,28 @@ export interface TodaySessionResponse {
   date: string;
 }
 
+export interface ChatRequest {
+  sessionId: string;
+  message: string;
+}
+
+export interface TopicPill {
+  id: string;
+  label: string;
+  topicOrder: number;
+}
+
+export interface ChatResponse {
+  reply: string;
+  topicPills: TopicPill[];
+}
+
+export interface ApiErrorResponse {
+  error: {
+    message: string;
+  };
+}
+
 export function getSessionIdForDate(date: string): string {
   return `mindbloom-session-${date}`;
 }
