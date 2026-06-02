@@ -1,4 +1,6 @@
 import type {
+  BloomRequest,
+  BloomResponse,
   ChatRequest,
   ChatResponse,
   TodaySessionResponse,
@@ -38,4 +40,19 @@ export async function sendChatMessage(
   });
 
   return parseJsonResponse<ChatResponse>(response);
+}
+
+export async function generateBloom(
+  sessionId: string,
+): Promise<BloomResponse> {
+  const payload: BloomRequest = { sessionId };
+  const response = await fetch(`${apiBaseUrl}/api/bloom`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseJsonResponse<BloomResponse>(response);
 }

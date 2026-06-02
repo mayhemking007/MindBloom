@@ -1,6 +1,8 @@
 import { Send, Settings } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+import { BloomOverlay } from "../bloom/BloomOverlay";
+import { useBloom } from "../../hooks/useBloom";
 import { useChat } from "../../hooks/useChat";
 import { BloomCTA } from "./BloomCTA";
 import { ChatBubble } from "./ChatBubble";
@@ -25,8 +27,14 @@ export function ChatInterface() {
     topicPills,
     userMessageCount,
   } = useChat();
+  const {
+    bloomData,
+    error: bloomError,
+    generateBloom,
+    loading: bloomLoading,
+  } = useBloom(sessionId);
   const [draft, setDraft] = useState("");
-  const [bloomNotice, setBloomNotice] = useState(false);
+  const [bloomOpen, setBloomOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -44,6 +52,13 @@ export function ChatInterface() {
     const message = draft;
     setDraft("");
     await sendMessage(message);
+  }
+
+  function handleBloom() {
+    setBloomOpen(true);
+    if (!bloomData && !bloomLoading) {
+      void generateBloom();
+    }
   }
 
   return (
@@ -86,12 +101,7 @@ export function ChatInterface() {
         <div className="space-y-3">
           {topicPills.length > 0 ? <TopicPills topics={topicPills} /> : null}
           {userMessageCount >= 5 ? (
-            <BloomCTA onBloom={() => setBloomNotice(true)} />
-          ) : null}
-          {bloomNotice ? (
-            <p className="text-center text-[12px] text-bloom-text-tertiary">
-              Your Bloom will open here in Phase 7.
-            </p>
+            <BloomCTA onBloom={handleBloom} />
           ) : null}
           {error ? (
             <p className="rounded-bloom-sm border border-coral-border bg-coral-bg px-3 py-2 text-[12px] text-coral-text">
@@ -120,6 +130,13 @@ export function ChatInterface() {
           </form>
         </div>
       </div>
+      <BloomOverlay
+        bloomData={bloomData}
+        error={bloomError}
+        loading={bloomLoading}
+        onClose={() => setBloomOpen(false)}
+        open={bloomOpen}
+      />
     </main>
   );
 }
