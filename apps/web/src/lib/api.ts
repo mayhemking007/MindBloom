@@ -3,6 +3,7 @@ import type {
   BloomResponse,
   ChatRequest,
   ChatResponse,
+  GraphSnapshotResponse,
   TodaySessionResponse,
 } from "@mindbloom/shared";
 
@@ -55,4 +56,12 @@ export async function generateBloom(
   });
 
   return parseJsonResponse<BloomResponse>(response);
+}
+
+export async function getSnapshot(
+  sessionId: string,
+): Promise<GraphSnapshotResponse> {
+  const params = new URLSearchParams({ sessionId });
+  const response = await fetch(`${apiBaseUrl}/api/snapshot?${params}`);
+  return parseJsonResponse<GraphSnapshotResponse>(response);
 }
