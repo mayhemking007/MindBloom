@@ -8,6 +8,7 @@ import {
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./http/errors.js";
 import { getDateStamp, getTodaySessionId } from "./lib/sessionStore.js";
+import { bloomRouter } from "./routes/bloom.js";
 import { chatRouter } from "./routes/chat.js";
 import { recallRouter } from "./routes/recall.js";
 import { snapshotRouter } from "./routes/snapshot.js";
@@ -43,6 +44,7 @@ export function createApp() {
   });
 
   app.use("/api/chat", chatRouter);
+  app.use("/api/bloom", bloomRouter);
   app.use("/api/snapshot", snapshotRouter);
   app.use("/api/recall", recallRouter);
 

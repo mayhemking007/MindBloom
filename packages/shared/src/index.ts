@@ -116,6 +116,30 @@ export interface RecallResponse {
   tokenCount: number;
 }
 
+export interface BloomRequest {
+  sessionId: string;
+}
+
+export interface BloomInsights {
+  mood: string;
+  moodArc: string;
+  archetype: string;
+  archetypeCaption: string;
+  sessionSong: string;
+  wordOfDay: string;
+  wordOfDayCopy: string;
+  recurringThread: string;
+  shareableTagline: string;
+}
+
+export interface BloomResponse {
+  insights: BloomInsights;
+  snapshot: GraphSnapshotResponse;
+  topWord: string;
+  sessionId: string;
+  capturedAt: string;
+}
+
 export function getSessionIdForDate(date: string): string {
   return `mindbloom-session-${date}`;
 }

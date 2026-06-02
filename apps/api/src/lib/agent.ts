@@ -1,17 +1,18 @@
+import { MemoGrafterAgent } from "../../../../node_modules/memo-grafter/dist/MemoGrafterAgent.js";
 import {
-  AnthropicLLMAdapter,
-  MemoGrafterAgent,
   OpenAIEmbedAdapter,
-} from "memo-grafter";
+  OpenAILLMAdapter,
+} from "../../../../node_modules/memo-grafter/dist/adapters/OpenAIAdapter.js";
+import type { MemoGrafterAgent as MemoGrafterAgentType } from "memo-grafter";
 
 import { env } from "../config/env.js";
 import { journalingSystemPrompt } from "./prompts.js";
 
-const agentCache = new Map<string, MemoGrafterAgent>();
+const agentCache = new Map<string, MemoGrafterAgentType>();
 
 export async function getAgentForSession(
   sessionId: string,
-): Promise<MemoGrafterAgent> {
+): Promise<MemoGrafterAgentType> {
   const cachedAgent = agentCache.get(sessionId);
   if (cachedAgent) {
     return cachedAgent;
@@ -23,7 +24,7 @@ export async function getAgentForSession(
     db: {
       connectionString: env.DATABASE_URL,
     },
-    llm: new AnthropicLLMAdapter("claude-sonnet-4-20250514"),
+    llm: new OpenAILLMAdapter("gpt-4o-mini"),
     embedder: new OpenAIEmbedAdapter("text-embedding-3-small"),
     systemPrompt: journalingSystemPrompt,
     drift: {
