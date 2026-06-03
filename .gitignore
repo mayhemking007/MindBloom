@@ -4,6 +4,8 @@ coverage
 .env
 .env.local
 .env.*.local
+apps/api/.env
+apps/web/.env
 apps/web/dist
 apps/api/dist
 packages/shared/dist

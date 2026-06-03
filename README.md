@@ -10,21 +10,23 @@ MindBloom is a TypeScript example app for `memo-grafter`. It will pair an Expres
 
 ## Local Setup
 
-1. Copy `.env.example` to `.env`.
-2. Point `DATABASE_URL` at your local Postgres or Neon database.
-3. Enable pgvector:
+1. Copy `apps/api/.env.example` to `apps/api/.env`.
+2. Copy `apps/web/.env.example` to `apps/web/.env`.
+3. Point `DATABASE_URL` at your local Postgres or Neon database and add your `OPENAI_API_KEY` in `apps/api/.env`.
+4. Point `VITE_API_BASE_URL` at the API URL in `apps/web/.env`.
+5. Enable pgvector:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-4. Install dependencies:
+6. Install dependencies:
 
 ```bash
 npm install
 ```
 
-5. Start both apps:
+7. Start both apps:
 
 ```bash
 npm run dev
