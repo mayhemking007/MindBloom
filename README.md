@@ -34,6 +34,23 @@ npm run dev
 
 The API defaults to `http://localhost:4000` and the web app defaults to `http://localhost:5173`.
 
+## Testing
+
+The default test suite uses mocks and does not require a real OpenAI key, Postgres, or pgvector.
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run check:boundaries
+npm run build
+npm run test:e2e
+```
+
+The Playwright suite builds and previews the web app, then mocks API responses at a 390px mobile viewport.
+
+For a real integration check, configure `apps/api/.env`, enable pgvector, start the app, send several journal messages, generate a Bloom, inspect the Map, and generate a weekly Reflection from saved sessions.
+
 ## Deployment Shape
 
 - Render: deploys `apps/api` through the root `render.yaml`.

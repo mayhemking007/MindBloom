@@ -6,8 +6,8 @@ import { getAgentForSession } from "../lib/agent.js";
 import { normalizeRecallResult } from "../lib/graphNormalizer.js";
 
 const recallQuerySchema = z.object({
-  sessionId: z.string().trim().min(1, "sessionId is required"),
-  q: z.string().trim().min(1, "q is required"),
+  sessionId: z.string().trim().min(1, "sessionId is required").max(128),
+  q: z.string().trim().min(1, "q is required").max(2000),
   limit: z.coerce.number().int().positive().max(50).default(6),
   minSimilarity: z.coerce.number().min(0).max(1).default(0.5),
   tokenBudget: z.coerce.number().int().positive().max(8000).default(800),

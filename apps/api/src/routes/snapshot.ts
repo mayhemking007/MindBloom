@@ -6,7 +6,7 @@ import { getAgentForSession } from "../lib/agent.js";
 import { normalizeGraphSnapshot } from "../lib/graphNormalizer.js";
 
 const snapshotQuerySchema = z.object({
-  sessionId: z.string().trim().min(1, "sessionId is required"),
+  sessionId: z.string().trim().min(1, "sessionId is required").max(128),
 });
 
 export const snapshotRouter = Router();

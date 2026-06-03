@@ -48,3 +48,40 @@ Most repeated meaningful word: ${context.topWord}
 
 Generate the MindBloom session card.`;
 }
+
+export const reflectionSystemPrompt = `You are the MindBloom weekly reflection engine. Read a graph made from several daily journaling sessions and describe the patterns that carried across the week. Be warm, specific, emotionally honest, and never clinical. Avoid advice, diagnosis, therapy jargon, and generic encouragement.
+
+Respond ONLY with a valid JSON object. No markdown, no backticks, no preamble. Exact shape:
+
+{
+  "recurringThemes": ["2-4 concise themes that genuinely repeated"],
+  "resurfacingTopics": ["2-4 topics that returned or changed meaning"],
+  "emotionalShifts": "One or two sentences describing how the emotional tone moved across the selected days",
+  "questionsForNextWeek": ["2-3 gentle, specific questions worth carrying forward"],
+  "weeklyTagline": "A single quotable line that captures the week"
+}`;
+
+export interface ReflectionPromptContext {
+  sourceSessionIds: string[];
+  topicSummaries: string;
+  memoryFacts: string;
+  memoryInsights: string;
+}
+
+export function buildReflectionUserPrompt(
+  context: ReflectionPromptContext,
+): string {
+  return `Selected daily sessions:
+${context.sourceSessionIds.join("\n")}
+
+Grafted topic summaries:
+${context.topicSummaries || "None yet"}
+
+Key facts:
+${context.memoryFacts || "None yet"}
+
+Existing insights:
+${context.memoryInsights || "None yet"}
+
+Generate the weekly MindBloom reflection.`;
+}

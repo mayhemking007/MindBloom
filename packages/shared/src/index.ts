@@ -140,6 +140,35 @@ export interface BloomResponse {
   capturedAt: string;
 }
 
+export interface ReflectRequest {
+  sourceSessionIds: string[];
+  reflectionSessionId?: string;
+}
+
+export interface ReflectionInsights {
+  recurringThemes: string[];
+  resurfacingTopics: string[];
+  emotionalShifts: string;
+  questionsForNextWeek: string[];
+  weeklyTagline: string;
+}
+
+export interface GraftedSource {
+  reflectionNodeId: string;
+  sourceSessionId: string;
+  sourceNodeId: string;
+  graftedAt: string;
+}
+
+export interface ReflectResponse {
+  reflectionSessionId: string;
+  sourceSessionIds: string[];
+  insights: ReflectionInsights;
+  snapshot: GraphSnapshotResponse;
+  graftedSources: GraftedSource[];
+  capturedAt: string;
+}
+
 export function getSessionIdForDate(date: string): string {
   return `mindbloom-session-${date}`;
 }
@@ -150,4 +179,22 @@ export function getDateStamp(date = new Date()): string {
 
 export function getTodaySessionId(date = new Date()): string {
   return getSessionIdForDate(getDateStamp(date));
+}
+
+export function getIsoWeekStamp(date = new Date()): string {
+  const utcDate = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  const day = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(
+    ((utcDate.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+  );
+
+  return `${utcDate.getUTCFullYear()}-${String(week).padStart(2, "0")}`;
+}
+
+export function getReflectionSessionId(date = new Date()): string {
+  return `mindbloom-reflection-${getIsoWeekStamp(date)}`;
 }

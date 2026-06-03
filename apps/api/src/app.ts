@@ -11,12 +11,13 @@ import { getDateStamp, getTodaySessionId } from "./lib/sessionStore.js";
 import { bloomRouter } from "./routes/bloom.js";
 import { chatRouter } from "./routes/chat.js";
 import { recallRouter } from "./routes/recall.js";
+import { reflectRouter } from "./routes/reflect.js";
 import { snapshotRouter } from "./routes/snapshot.js";
 
 export function createApp() {
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "64kb" }));
   app.use(
     cors({
       origin: env.CORS_ORIGIN,
@@ -47,6 +48,7 @@ export function createApp() {
   app.use("/api/bloom", bloomRouter);
   app.use("/api/snapshot", snapshotRouter);
   app.use("/api/recall", recallRouter);
+  app.use("/api/reflect", reflectRouter);
 
   app.use(notFoundHandler());
   app.use(errorHandler());

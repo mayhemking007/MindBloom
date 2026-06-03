@@ -4,6 +4,8 @@ import type {
   ChatRequest,
   ChatResponse,
   GraphSnapshotResponse,
+  ReflectRequest,
+  ReflectResponse,
   TodaySessionResponse,
 } from "@mindbloom/shared";
 
@@ -64,4 +66,18 @@ export async function getSnapshot(
   const params = new URLSearchParams({ sessionId });
   const response = await fetch(`${apiBaseUrl}/api/snapshot?${params}`);
   return parseJsonResponse<GraphSnapshotResponse>(response);
+}
+
+export async function generateReflection(
+  payload: ReflectRequest,
+): Promise<ReflectResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/reflect`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseJsonResponse<ReflectResponse>(response);
 }

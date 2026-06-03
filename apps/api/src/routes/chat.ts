@@ -6,8 +6,8 @@ import { ApiError } from "../http/errors.js";
 import { getAgentForSession } from "../lib/agent.js";
 
 const chatRequestSchema = z.object({
-  sessionId: z.string().trim().min(1, "sessionId is required"),
-  message: z.string().trim().min(1, "message is required"),
+  sessionId: z.string().trim().min(1, "sessionId is required").max(128),
+  message: z.string().trim().min(1, "message is required").max(8000),
 });
 
 export const chatRouter = Router();

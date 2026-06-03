@@ -14,7 +14,7 @@ import { openai } from "../lib/openai.js";
 import { bloomSystemPrompt, buildBloomUserPrompt } from "../lib/prompts.js";
 
 const bloomRequestSchema = z.object({
-  sessionId: z.string().trim().min(1, "sessionId is required"),
+  sessionId: z.string().trim().min(1, "sessionId is required").max(128),
 });
 
 export const bloomRouter = Router();
