@@ -14,6 +14,7 @@ import type {
   ReflectRequest,
   ReflectResponse,
   TodaySessionResponse,
+  UpdateEntryRequest,
   UpsertEntryDocumentRequest,
 } from "@mindbloom/shared";
 
@@ -34,14 +35,15 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-const demoOwnerHeaders = {
-  "x-mindbloom-owner-kind": "demo",
+const ownerHeaders = {
+  "x-mindbloom-owner-kind": "authenticated",
+  "x-mindbloom-owner-id": "local-web-user",
 };
 
 function jsonHeaders() {
   return {
     "Content-Type": "application/json",
-    ...demoOwnerHeaders,
+    ...ownerHeaders,
   };
 }
 
@@ -103,9 +105,21 @@ export async function generateReflection(
 
 export async function listEntries(): Promise<EntryListResponse> {
   const response = await fetch(`${apiBaseUrl}/api/entries`, {
-    headers: demoOwnerHeaders,
+    headers: ownerHeaders,
   });
   return parseJsonResponse<EntryListResponse>(response);
+}
+
+export async function updateEntry(
+  entryId: string,
+  payload: UpdateEntryRequest,
+): Promise<EntryResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}`, {
+    method: "PATCH",
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<EntryResponse>(response);
 }
 
 export async function createEntry(
@@ -123,7 +137,7 @@ export async function getEntryDocument(
   entryId: string,
 ): Promise<EntryDocumentResponse> {
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/document`, {
-    headers: demoOwnerHeaders,
+    headers: ownerHeaders,
   });
   return parseJsonResponse<EntryDocumentResponse>(response);
 }
@@ -144,7 +158,7 @@ export async function listEntryMessages(
   entryId: string,
 ): Promise<EntryMessagesResponse> {
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages`, {
-    headers: demoOwnerHeaders,
+    headers: ownerHeaders,
   });
   return parseJsonResponse<EntryMessagesResponse>(response);
 }

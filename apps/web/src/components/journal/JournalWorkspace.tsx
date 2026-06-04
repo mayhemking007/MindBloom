@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Lightbulb,
@@ -10,12 +11,17 @@ import {
   PenLine,
   Plus,
   Send,
+  Settings,
   Sparkles,
+  StickyNote,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   EntryDayGroup,
+  EntryMode,
   EntryMessage,
+  EntryPurpose,
   JournalEntry,
   TopicPill,
 } from "@mindbloom/shared";
@@ -28,6 +34,7 @@ import {
   listEntryMessages,
   saveEntryDocument,
   sendChatMessage,
+  updateEntry,
 } from "../../lib/api";
 
 const purposeLabels: Record<JournalEntry["purpose"], string> = {
@@ -40,6 +47,18 @@ const modeLabels: Record<JournalEntry["mode"], string> = {
   classic: "Classic",
   chat: "Bloom",
   mixed: "Mixed",
+};
+
+const purposeDescriptions: Record<EntryPurpose, string> = {
+  journal: "Capture what happened and how it felt.",
+  idea: "Shape a thought into something clearer.",
+  brainstorm: "Let messy possibilities spread out.",
+};
+
+const modeDescriptions: Record<EntryMode, string> = {
+  classic: "Start with quiet notepad-style writing.",
+  chat: "Start by talking through it with Bloom.",
+  mixed: "Write freely and keep Bloom close.",
 };
 
 function formatDay(date: string): string {
@@ -171,8 +190,202 @@ function EntrySidebar({
             </div>
           )}
         </div>
+
+        <div className="border-t border-bloom-border px-3 py-3">
+          <div className="grid grid-cols-3 gap-1">
+            {[
+              { label: "Notes", icon: StickyNote },
+              { label: "Calendar", icon: CalendarDays },
+              { label: "Settings", icon: Settings },
+            ].map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-bloom-sm text-[11px] text-bloom-text-tertiary hover:bg-gray-bg hover:text-bloom-text-secondary"
+                  aria-label={item.label}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </aside>
+  );
+}
+
+interface CreateEntryPanelProps {
+  isOpen: boolean;
+  isCreating: boolean;
+  onClose: () => void;
+  onCreate: (input: {
+    title: string;
+    purpose: EntryPurpose;
+    mode: EntryMode;
+    startingPrompt: string;
+  }) => void;
+}
+
+function CreateEntryPanel({
+  isOpen,
+  isCreating,
+  onClose,
+  onCreate,
+}: CreateEntryPanelProps) {
+  const [title, setTitle] = useState("");
+  const [purpose, setPurpose] = useState<EntryPurpose>("journal");
+  const [mode, setMode] = useState<EntryMode>("classic");
+  const [startingPrompt, setStartingPrompt] = useState("");
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/20 p-3 md:items-center md:justify-center">
+      <section
+        className="max-h-[92dvh] w-full overflow-y-auto rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[560px]"
+        aria-label="Create journal entry"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-bloom-border px-5 py-4">
+          <div>
+            <h2 className="font-serif text-[26px] leading-tight">New entry</h2>
+            <p className="mt-1 text-[13px] text-bloom-text-secondary">
+              Choose the kind of thinking you want to do.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg"
+            aria-label="Close new entry"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-5 py-5">
+          <div>
+            <label
+              className="text-[12px] font-medium text-bloom-text-secondary"
+              htmlFor="new-entry-title"
+            >
+              Title
+            </label>
+            <input
+              id="new-entry-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Untitled entry"
+              className="mt-2 h-11 w-full rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 text-[14px] outline-none focus:border-bloom-border-mid"
+            />
+          </div>
+
+          <fieldset>
+            <legend className="text-[12px] font-medium text-bloom-text-secondary">
+              Purpose
+            </legend>
+            <div className="mt-2 grid gap-2 md:grid-cols-3">
+              {(Object.keys(purposeLabels) as EntryPurpose[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setPurpose(item)}
+                  className={[
+                    "rounded-bloom-sm border px-3 py-3 text-left transition-colors",
+                    purpose === item
+                      ? "border-bloom-accent bg-bloom-accent-bg text-bloom-accent-text"
+                      : "border-bloom-border bg-bloom-bg text-bloom-text-secondary hover:border-bloom-border-mid",
+                  ].join(" ")}
+                >
+                  <span className="block text-[13px] font-semibold">
+                    {purposeLabels[item]}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-4">
+                    {purposeDescriptions[item]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="text-[12px] font-medium text-bloom-text-secondary">
+              Starting mode
+            </legend>
+            <div className="mt-2 grid gap-2 md:grid-cols-3">
+              {(Object.keys(modeLabels) as EntryMode[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setMode(item)}
+                  className={[
+                    "rounded-bloom-sm border px-3 py-3 text-left transition-colors",
+                    mode === item
+                      ? "border-teal-border bg-teal-bg text-teal-text"
+                      : "border-bloom-border bg-bloom-bg text-bloom-text-secondary hover:border-bloom-border-mid",
+                  ].join(" ")}
+                >
+                  <span className="block text-[13px] font-semibold">
+                    {modeLabels[item]}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-4">
+                    {modeDescriptions[item]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <div>
+            <label
+              className="text-[12px] font-medium text-bloom-text-secondary"
+              htmlFor="new-entry-prompt"
+            >
+              Starting thought
+            </label>
+            <textarea
+              id="new-entry-prompt"
+              value={startingPrompt}
+              onChange={(event) => setStartingPrompt(event.target.value)}
+              placeholder="Optional. Drop in a thought, prompt, or question to begin with."
+              rows={3}
+              className="mt-2 w-full resize-none rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 py-3 text-[14px] leading-6 outline-none focus:border-bloom-border-mid"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-bloom-border px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 rounded-bloom-sm border border-bloom-border px-4 text-[13px] font-medium text-bloom-text-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={isCreating}
+            onClick={() =>
+              onCreate({
+                title: title.trim() || "Untitled entry",
+                purpose,
+                mode,
+                startingPrompt,
+              })
+            }
+            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isCreating ? "Creating" : "Create entry"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -337,10 +550,14 @@ export function JournalWorkspace() {
   const [messages, setMessages] = useState<EntryMessage[]>([]);
   const [topicPills, setTopicPills] = useState<TopicPill[]>([]);
   const [isEntryDrawerOpen, setEntryDrawerOpen] = useState(false);
+  const [isCreatePanelOpen, setCreatePanelOpen] = useState(false);
   const [isBloomOpen, setBloomOpen] = useState(true);
   const [isLoading, setLoading] = useState(true);
+  const [isCreating, setCreating] = useState(false);
   const [isSaving, setSaving] = useState(false);
   const [isSending, setSending] = useState(false);
+  const [isEditingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const autosaveTimer = useRef<number | null>(null);
 
@@ -427,6 +644,7 @@ export function JournalWorkspace() {
         }
         setDocumentDraft(documentResponse.document?.content ?? "");
         setMessages(messageResponse.messages);
+        setTitleDraft(entry.title);
       } catch (loadError) {
         if (isMounted) {
           setError(
@@ -469,22 +687,66 @@ export function JournalWorkspace() {
     };
   }, [documentDraft, selectedEntry?.id]);
 
-  async function handleCreateEntry() {
+  async function handleCreateEntry(input: {
+    title: string;
+    purpose: EntryPurpose;
+    mode: EntryMode;
+    startingPrompt: string;
+  }) {
+    setCreating(true);
     setError(null);
     try {
       const created = await createEntry({
-        title: "Untitled entry",
-        purpose: "journal",
-        mode: "classic",
+        title: input.title,
+        purpose: input.purpose,
+        mode: input.mode,
       });
+      if (input.startingPrompt.trim()) {
+        await saveEntryDocument(created.entry.id, {
+          content: input.startingPrompt.trim(),
+        });
+      }
       await refreshEntries(created.entry.id);
       setSelectedEntry(created.entry);
       setEntryDrawerOpen(false);
+      setCreatePanelOpen(false);
     } catch (createError) {
       setError(
         createError instanceof Error
           ? createError.message
           : "MindBloom could not create a new entry.",
+      );
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleTitleSave() {
+    if (!selectedEntry) {
+      return;
+    }
+
+    const nextTitle = titleDraft.trim() || "Untitled entry";
+    setError(null);
+    try {
+      const response = await updateEntry(selectedEntry.id, {
+        title: nextTitle,
+      });
+      setSelectedEntry(response.entry);
+      setGroups((currentGroups) =>
+        currentGroups.map((group) => ({
+          ...group,
+          entries: group.entries.map((entry) =>
+            entry.id === response.entry.id ? response.entry : entry,
+          ),
+        })),
+      );
+      setEditingTitle(false);
+    } catch (titleError) {
+      setError(
+        titleError instanceof Error
+          ? titleError.message
+          : "MindBloom could not rename this entry.",
       );
     }
   }
@@ -560,7 +822,7 @@ export function JournalWorkspace() {
           groups={groups}
           selectedEntryId={selectedEntry?.id ?? null}
           onSelectEntry={setSelectedEntry}
-          onCreateEntry={handleCreateEntry}
+          onCreateEntry={() => setCreatePanelOpen(true)}
           isOpen={isEntryDrawerOpen}
           onClose={() => setEntryDrawerOpen(false)}
         />
@@ -607,11 +869,57 @@ export function JournalWorkspace() {
             ) : (
               <>
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="label-text">Classic writing</p>
-                    <h1 className="mt-1 font-serif text-[30px] leading-tight md:text-[38px]">
+                    {isEditingTitle && selectedEntry ? (
+                      <div className="mt-2 flex max-w-[680px] gap-2">
+                        <label className="sr-only" htmlFor="entry-title">
+                          Entry title
+                        </label>
+                        <input
+                          id="entry-title"
+                          value={titleDraft}
+                          onChange={(event) => setTitleDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              handleTitleSave();
+                            }
+                            if (event.key === "Escape") {
+                              setTitleDraft(selectedEntry.title);
+                              setEditingTitle(false);
+                            }
+                          }}
+                          className="h-11 min-w-0 flex-1 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[18px] font-medium outline-none focus:border-bloom-border-mid"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleTitleSave}
+                          className="h-11 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white"
+                        >
+                          Save title
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedEntry) {
+                            setTitleDraft(selectedEntry.title);
+                            setEditingTitle(true);
+                          }
+                        }}
+                        className="mt-1 block max-w-full text-left font-serif text-[30px] leading-tight hover:text-bloom-accent md:text-[38px]"
+                      >
+                        <span className="block truncate">
+                          {selectedEntry?.title ??
+                            "Write freely, ask Bloom when needed."}
+                        </span>
+                      </button>
+                    )}
+                    <p className="mt-2 text-[13px] text-bloom-text-secondary">
                       Write freely, ask Bloom when needed.
-                    </h1>
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -670,6 +978,13 @@ export function JournalWorkspace() {
           <MessageCircle className="h-5 w-5" aria-hidden="true" />
         )}
       </button>
+
+      <CreateEntryPanel
+        isOpen={isCreatePanelOpen}
+        isCreating={isCreating}
+        onClose={() => setCreatePanelOpen(false)}
+        onCreate={handleCreateEntry}
+      />
     </main>
   );
 }

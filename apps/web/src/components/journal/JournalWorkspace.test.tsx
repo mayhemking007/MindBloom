@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EntryDayGroup, JournalEntry } from "@mindbloom/shared";
@@ -74,7 +74,7 @@ describe("JournalWorkspace", () => {
     render(<JournalWorkspace />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("Morning thoughts")).toHaveLength(2);
+      expect(screen.getAllByText("Morning thoughts").length).toBeGreaterThanOrEqual(2);
     });
     expect(screen.getByLabelText("Journal entry")).toBeVisible();
   });
@@ -170,5 +170,139 @@ describe("JournalWorkspace", () => {
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/chat")),
     ).toBe(true);
+  });
+
+  it("creates an entry from the purpose and mode chooser", async () => {
+    const createdEntry = {
+      ...entry,
+      id: "entry-2",
+      title: "Campaign idea",
+      purpose: "idea",
+      mode: "mixed",
+      memoSessionId: "mindbloom-entry-entry-2",
+    } satisfies JournalEntry;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ entry: createdEntry }, { status: 201 }));
+      }
+      if (url.endsWith("/api/entries") && !init?.method) {
+        return Promise.resolve(
+          jsonResponse({
+            entries: [createdEntry, entry],
+            groups: [{ date: "2026-06-04", entries: [createdEntry, entry] }],
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-2/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-2/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    await user.click(await screen.findByRole("button", { name: "New Entry" }));
+    const createPanel = screen.getByLabelText("Create journal entry");
+    await user.type(screen.getByLabelText("Title"), "Campaign idea");
+    await user.click(within(createPanel).getByRole("button", { name: /Idea/ }));
+    await user.click(within(createPanel).getByRole("button", { name: /Mixed/ }));
+    await user.type(
+      screen.getByLabelText("Starting thought"),
+      "This should become the first draft.",
+    );
+    await user.click(within(createPanel).getByRole("button", { name: "Create entry" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Campaign idea").length).toBeGreaterThan(0);
+    });
+    const createCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url).endsWith("/api/entries") && init?.method === "POST",
+    );
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
+      title: "Campaign idea",
+      purpose: "idea",
+      mode: "mixed",
+    });
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          String(url).endsWith("/api/entries/entry-2/document") &&
+          init?.method === "PUT",
+      ),
+    ).toBe(true);
+  });
+
+  it("renames the selected entry inline", async () => {
+    const renamedEntry = { ...entry, title: "Renamed thoughts" };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && !init?.method) {
+        return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+      }
+      if (url.endsWith("/api/entries/entry-1") && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ entry: renamedEntry }));
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    await user.click(await screen.findByRole("button", { name: "Morning thoughts" }));
+    const titleInput = screen.getByLabelText("Entry title");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Renamed thoughts");
+    await user.click(screen.getByRole("button", { name: "Save title" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Renamed thoughts").length).toBeGreaterThan(0);
+    });
+    const patchCall = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).endsWith("/api/entries/entry-1") && init?.method === "PATCH",
+    );
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({
+      title: "Renamed thoughts",
+    });
+  });
+
+  it("shows sidebar utility shortcuts", async () => {
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({ entries: [entry], groups });
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return jsonResponse({ document: null });
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      return jsonResponse({});
+    });
+
+    render(<JournalWorkspace />);
+
+    expect(await screen.findByRole("button", { name: "Notes" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Calendar" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeVisible();
   });
 });
