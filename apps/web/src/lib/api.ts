@@ -3,10 +3,18 @@ import type {
   BloomResponse,
   ChatRequest,
   ChatResponse,
+  CreateEntryMessageRequest,
+  CreateEntryRequest,
+  EntryDocumentResponse,
+  EntryListResponse,
+  EntryMessageResponse,
+  EntryMessagesResponse,
+  EntryResponse,
   GraphSnapshotResponse,
   ReflectRequest,
   ReflectResponse,
   TodaySessionResponse,
+  UpsertEntryDocumentRequest,
 } from "@mindbloom/shared";
 
 export const apiBaseUrl =
@@ -24,6 +32,17 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   }
 
   return data as T;
+}
+
+const demoOwnerHeaders = {
+  "x-mindbloom-owner-kind": "demo",
+};
+
+function jsonHeaders() {
+  return {
+    "Content-Type": "application/json",
+    ...demoOwnerHeaders,
+  };
 }
 
 export async function getTodaySession(): Promise<TodaySessionResponse> {
@@ -80,4 +99,64 @@ export async function generateReflection(
   });
 
   return parseJsonResponse<ReflectResponse>(response);
+}
+
+export async function listEntries(): Promise<EntryListResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries`, {
+    headers: demoOwnerHeaders,
+  });
+  return parseJsonResponse<EntryListResponse>(response);
+}
+
+export async function createEntry(
+  payload: CreateEntryRequest,
+): Promise<EntryResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<EntryResponse>(response);
+}
+
+export async function getEntryDocument(
+  entryId: string,
+): Promise<EntryDocumentResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/document`, {
+    headers: demoOwnerHeaders,
+  });
+  return parseJsonResponse<EntryDocumentResponse>(response);
+}
+
+export async function saveEntryDocument(
+  entryId: string,
+  payload: UpsertEntryDocumentRequest,
+): Promise<EntryDocumentResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/document`, {
+    method: "PUT",
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<EntryDocumentResponse>(response);
+}
+
+export async function listEntryMessages(
+  entryId: string,
+): Promise<EntryMessagesResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages`, {
+    headers: demoOwnerHeaders,
+  });
+  return parseJsonResponse<EntryMessagesResponse>(response);
+}
+
+export async function createEntryMessage(
+  entryId: string,
+  payload: CreateEntryMessageRequest,
+): Promise<EntryMessageResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<EntryMessageResponse>(response);
 }

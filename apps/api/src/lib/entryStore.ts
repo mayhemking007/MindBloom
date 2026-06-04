@@ -214,6 +214,14 @@ export class InMemoryEntryStore {
 
   upsertDocument(input: UpsertDocumentInput): EntryDocument {
     const existing = this.documents.get(input.entryId);
+    if (
+      existing &&
+      existing.content === input.content &&
+      input.lastIngestedVersion === undefined
+    ) {
+      return existing;
+    }
+
     const timestamp = nowIso();
     const document: EntryDocument = {
       id: existing?.id ?? randomUUID(),

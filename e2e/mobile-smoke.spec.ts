@@ -9,6 +9,28 @@ const emptySnapshot = {
   capturedAt: "2026-06-03T10:00:00.000Z",
 };
 
+const entry = {
+  id: "entry-1",
+  ownerId: "demo-local",
+  ownerKind: "demo",
+  title: "Morning thoughts",
+  purpose: "journal",
+  mode: "classic",
+  status: "draft",
+  memoSessionId: "mindbloom-entry-entry-1",
+  createdAt: "2026-06-03T10:00:00.000Z",
+  updatedAt: "2026-06-03T10:00:00.000Z",
+  completedAt: null,
+  allowFutureContext: true,
+};
+
+const entryGroups = [
+  {
+    date: "2026-06-03",
+    entries: [entry],
+  },
+];
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/session/today", async (route) => {
     await route.fulfill({
@@ -22,14 +44,77 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/snapshot**", async (route) => {
     await route.fulfill({ json: emptySnapshot });
   });
+
+  await page.route("**/api/entries", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({ status: 201, json: { entry } });
+      return;
+    }
+
+    await route.fulfill({
+      json: {
+        entries: [entry],
+        groups: entryGroups,
+      },
+    });
+  });
+
+  await page.route("**/api/entries/entry-1/document", async (route) => {
+    if (route.request().method() === "PUT") {
+      await route.fulfill({
+        json: {
+          document: {
+            id: "document-1",
+            entryId: "entry-1",
+            content: JSON.parse(route.request().postData() ?? "{}").content ?? "",
+            version: 1,
+            lastIngestedVersion: null,
+            createdAt: "2026-06-03T10:00:00.000Z",
+            updatedAt: "2026-06-03T10:00:00.000Z",
+          },
+        },
+      });
+      return;
+    }
+
+    await route.fulfill({
+      json: {
+        document: null,
+      },
+    });
+  });
+
+  await page.route("**/api/entries/entry-1/messages", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      await route.fulfill({
+        status: 201,
+        json: {
+          message: {
+            id: `${body.role}-message`,
+            entryId: "entry-1",
+            role: body.role,
+            content: body.content,
+            createdAt: "2026-06-03T10:00:00.000Z",
+          },
+        },
+      });
+      return;
+    }
+
+    await route.fulfill({ json: { messages: [] } });
+  });
 });
 
 test("navigation and empty states render without overlap", async ({
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "MindBloom" })).toBeVisible();
-  await expect(page.getByPlaceholder("Write a thought...")).toBeVisible();
+  await expect(page.getByText("Write freely, ask Bloom when needed.")).toBeVisible();
+  await expect(page.getByLabel("Journal entry")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Morning thoughts Journal · Classic" }),
+  ).toBeVisible();
   await expect(page.getByRole("navigation")).toBeVisible();
 
   await page.getByRole("link", { name: "Map" }).click();
@@ -42,49 +127,21 @@ test("navigation and empty states render without overlap", async ({
   await expect(page.getByText("A reflection needs a few days")).toBeVisible();
 });
 
-test("Bloom overlay renders from mocked API response", async ({ page }) => {
-  await page.route("**/api/bloom", async (route) => {
+test("Bloom sidebar sends a message from the current entry", async ({ page }) => {
+  await page.route("**/api/chat", async (route) => {
     await route.fulfill({
       json: {
-        sessionId: "mindbloom-session-2026-06-03",
-        capturedAt: "2026-06-03T10:00:00.000Z",
-        topWord: "space",
-        insights: {
-          mood: "A busy mind finding space",
-          moodArc: "The session softened as the thought became clearer.",
-          archetype: "The Patient Noticer",
-          archetypeCaption: "You stayed with what kept returning.",
-          sessionSong: "A quiet indie track with a gentle final chorus.",
-          wordOfDay: "space",
-          wordOfDayCopy: "It was what the day kept asking for.",
-          recurringThread: "You wanted more room around your thoughts.",
-          shareableTagline: "I made a little room for myself today.",
-        },
-        snapshot: emptySnapshot,
+        reply: "You are finding the first thread.",
+        topicPills: [{ id: "theme-1", label: "Starting point", topicOrder: 1 }],
       },
     });
   });
 
-  await page.addInitScript(() => {
-    sessionStorage.setItem(
-      "mindbloom:chat:mindbloom-session-2026-06-03",
-      JSON.stringify({
-        messages: [
-          { id: "1", role: "user", content: "one" },
-          { id: "2", role: "user", content: "two" },
-          { id: "3", role: "user", content: "three" },
-          { id: "4", role: "user", content: "four" },
-          { id: "5", role: "user", content: "five" },
-        ],
-        topicPills: [],
-      }),
-    );
-  });
-
   await page.goto("/");
-  await page.getByRole("button", { name: "Bloom My Mind See your session, differently" }).click();
-  await expect(page.getByText("Your MindBloom")).toBeVisible();
-  await expect(page.getByText("A busy mind finding space")).toBeVisible();
+  await page.getByLabel("Ask Bloom").fill("Help me start");
+  await page.getByLabel("Ask Bloom").press("Enter");
+  await expect(page.getByText("You are finding the first thread.")).toBeVisible();
+  await expect(page.getByText("Starting point")).toBeVisible();
 });
 
 test("desktop layout uses a sidebar and wider map workspace", async ({

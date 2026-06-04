@@ -1,5 +1,5 @@
-import { ChatInterface } from "../components/chat/ChatInterface";
+import { JournalWorkspace } from "../components/journal/JournalWorkspace";
 
 export function TodayPage() {
-  return <ChatInterface />;
+  return <JournalWorkspace />;
 }

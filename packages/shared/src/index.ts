@@ -194,6 +194,23 @@ export interface EntryMessageResponse {
   message: EntryMessage;
 }
 
+export interface IngestEntryRequest {
+  content?: string;
+  force?: boolean;
+}
+
+export type EntryIngestSkippedReason =
+  | "no-document"
+  | "empty-document"
+  | "unchanged-document";
+
+export interface EntryIngestResponse {
+  document: EntryDocument | null;
+  ingested: boolean;
+  skippedReason?: EntryIngestSkippedReason;
+  topicPills: TopicPill[];
+}
+
 export interface GraftOrigin {
   sourceSessionId: string;
   sourceNodeId: string;

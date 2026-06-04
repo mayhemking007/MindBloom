@@ -54,10 +54,15 @@ describe("InMemoryEntryStore", () => {
       entryId: entry.id,
       content: "Second pass",
     });
+    const repeatedDraft = store.upsertDocument({
+      entryId: entry.id,
+      content: "Second pass",
+    });
     const ingested = store.markDocumentIngested(entry.id, secondDraft.version);
 
     expect(firstDraft.version).toBe(1);
     expect(secondDraft.version).toBe(2);
+    expect(repeatedDraft.version).toBe(2);
     expect(ingested?.lastIngestedVersion).toBe(2);
   });
 
