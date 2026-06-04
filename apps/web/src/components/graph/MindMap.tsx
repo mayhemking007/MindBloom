@@ -55,6 +55,8 @@ function resolveNodeId(value: string | number | SimNode | undefined): string {
 }
 
 export function MindMap({ nodes, edges }: MindMapProps) {
+  const containerRef = useRef<HTMLElement | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 390, height: 560 });
   const [simNodes, setSimNodes] = useState<SimNode[]>([]);
   const [simEdges, setSimEdges] = useState<SimEdge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -69,14 +71,34 @@ export function MindMap({ nodes, edges }: MindMapProps) {
   }, []);
 
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const updateDimensions = () => {
+      const width = Math.max(390, Math.floor(container.clientWidth));
+      setDimensions({
+        width,
+        height: width >= 760 ? 660 : 560,
+      });
+    };
+
+    updateDimensions();
+    const observer = new ResizeObserver(updateDimensions);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (nodes.length === 0) {
       setSimNodes([]);
       setSimEdges([]);
       return;
     }
 
-    const width = 390;
-    const height = 560;
+    const { width, height } = dimensions;
     const nextNodes: SimNode[] = nodes.map((node) => ({ ...node }));
     const nextEdges: SimEdge[] = edges.map((edge) => ({
       source: edge.sourceId,
@@ -121,7 +143,7 @@ export function MindMap({ nodes, edges }: MindMapProps) {
     return () => {
       simulation.stop();
     };
-  }, [edges, nodes]);
+  }, [dimensions, edges, nodes]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -149,7 +171,7 @@ export function MindMap({ nodes, edges }: MindMapProps) {
 
   if (nodes.length === 0) {
     return (
-      <section className="grid min-h-[560px] place-items-center rounded-bloom border border-bloom-border bg-bloom-surface">
+      <section ref={containerRef} className="grid min-h-[560px] place-items-center rounded-bloom border border-bloom-border bg-bloom-surface md:min-h-[660px]">
         <div className="px-8 text-center">
           <div className="mx-auto mb-4 h-10 w-10 rounded-full border border-bloom-border-mid bg-gray-bg" />
           <p className="font-serif text-[18px] text-bloom-text-primary">
@@ -164,12 +186,12 @@ export function MindMap({ nodes, edges }: MindMapProps) {
   }
 
   return (
-    <section className="relative min-h-[560px] overflow-hidden rounded-bloom border border-bloom-border bg-bloom-surface">
+    <section ref={containerRef} className="relative min-h-[560px] overflow-hidden rounded-bloom border border-bloom-border bg-bloom-surface md:min-h-[660px]">
       <svg
-        viewBox="0 0 390 560"
+        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
         role="img"
         aria-label="Full session mind map"
-        className="h-[560px] w-full"
+        className="h-[560px] w-full md:h-[660px]"
         onClick={() => setSelectedNodeId(null)}
       >
         {simEdges.map((edge, index) => {

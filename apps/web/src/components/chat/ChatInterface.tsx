@@ -62,8 +62,8 @@ export function ChatInterface() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col bg-bloom-bg">
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-bloom-border bg-bloom-bg px-4">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[760px] flex-col bg-bloom-bg md:border-x md:border-bloom-border">
+      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-bloom-border bg-bloom-bg px-4 md:px-6">
         <div>
           <h1 className="font-serif text-[24px] font-normal leading-none">
             MindBloom
@@ -81,7 +81,7 @@ export function ChatInterface() {
         </button>
       </header>
 
-      <section className="flex-1 overflow-y-auto px-4 pb-[186px] pt-4">
+      <section className="flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-6 md:pt-6">
         <div className="flex flex-col gap-2.5">
           {messages.map((message) => (
             <ChatBubble key={message.id} message={message} />
@@ -97,7 +97,7 @@ export function ChatInterface() {
         </div>
       </section>
 
-      <div className="fixed bottom-[60px] left-1/2 z-20 w-full max-w-[420px] -translate-x-1/2 border-t border-bloom-border bg-bloom-bg px-4 pb-3 pt-3">
+      <div className="sticky bottom-[60px] z-20 w-full border-t border-bloom-border bg-bloom-bg px-4 pb-3 pt-3 md:bottom-0 md:px-6">
         <div className="space-y-3">
           {topicPills.length > 0 ? <TopicPills topics={topicPills} /> : null}
           {userMessageCount >= 5 ? (

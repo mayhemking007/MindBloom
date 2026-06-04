@@ -1,10 +1,10 @@
 # MindBloom
 
-MindBloom is a TypeScript example app for `memo-grafter`. It will pair an Express API with a React frontend and PostgreSQL/pgvector storage.
+MindBloom is a TypeScript example app for `memo-grafter` and a journal-first writing product. It helps people journal, capture ideas, and brainstorm through classic writing, an optional Bloom assistant, notes, mind maps, and shareable reflection cards.
 
 ## Workspace
 
-- `apps/api`: Express API for `memo-grafter`, model calls, and graph endpoints.
+- `apps/api`: Express API for `memo-grafter`, OpenAI calls, journal entries, notes, reflections, and graph endpoints.
 - `apps/web`: React/Vite frontend.
 - `packages/shared`: shared types and utilities used by both apps.
 
@@ -47,9 +47,17 @@ npm run build
 npm run test:e2e
 ```
 
-The Playwright suite builds and previews the web app, then mocks API responses at a 390px mobile viewport.
+The Playwright suite builds and previews the web app, then mocks API responses across mobile and desktop viewports.
 
-For a real integration check, configure `apps/api/.env`, enable pgvector, start the app, send several journal messages, generate a Bloom, inspect the Map, and generate a weekly Reflection from saved sessions.
+For a real integration check, configure `apps/api/.env`, enable pgvector, start the app, create a journal entry, write in classic mode or ask Bloom for help, inspect the Mind Map, save a Note, and generate an entry Reflection.
+
+## Memo-Grafter Usage
+
+- `ingestText()` ingests classic journal text and notes without generating an assistant response.
+- `invoke()` powers conversational Bloom assistance.
+- `getActiveNodes()` provides current user-facing themes.
+- `getGraphSnapshot()` powers Mind Map and reflection snapshots.
+- `graftByRelevance()` will support selective brought-in context from previous entries.
 
 ## Deployment Shape
 

@@ -10,6 +10,7 @@ import { errorHandler, notFoundHandler } from "./http/errors.js";
 import { getDateStamp, getTodaySessionId } from "./lib/sessionStore.js";
 import { bloomRouter } from "./routes/bloom.js";
 import { chatRouter } from "./routes/chat.js";
+import { entriesRouter } from "./routes/entries.js";
 import { recallRouter } from "./routes/recall.js";
 import { reflectRouter } from "./routes/reflect.js";
 import { snapshotRouter } from "./routes/snapshot.js";
@@ -45,6 +46,7 @@ export function createApp() {
   });
 
   app.use("/api/chat", chatRouter);
+  app.use("/api/entries", entriesRouter);
   app.use("/api/bloom", bloomRouter);
   app.use("/api/snapshot", snapshotRouter);
   app.use("/api/recall", recallRouter);

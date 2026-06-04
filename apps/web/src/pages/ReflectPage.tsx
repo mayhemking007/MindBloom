@@ -16,10 +16,10 @@ export function ReflectPage() {
   } = useReflection();
 
   return (
-    <main className="min-h-dvh px-4 pb-6 pt-5">
+    <main className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-6 pt-5 md:px-8 md:pt-8">
       <header className="mb-5">
         <p className="label-text">Weekly</p>
-        <h1 className="mt-1 font-serif text-[28px] font-normal">
+        <h1 className="mt-1 font-serif text-[28px] font-normal md:text-[34px]">
           Weekly Reflection
         </h1>
         <p className="mt-2 text-[13px] leading-5 text-bloom-text-secondary">
@@ -99,16 +99,17 @@ export function ReflectPage() {
           ) : null}
 
           {reflectionData ? (
-            <section className="space-y-6 py-5">
-              <div>
+            <section className="space-y-6 py-5 md:grid md:grid-cols-[minmax(0,1fr)_420px] md:gap-8 md:space-y-0">
+              <div className="space-y-6">
+                <div>
                 <p className="label-text">The Week In One Line</p>
                 <p className="mt-2 font-serif text-[21px] leading-snug text-bloom-text-primary">
                   {reflectionData.insights.weeklyTagline}
                 </p>
-              </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-4 border-y border-bloom-border py-4">
-                <div>
+                <div className="grid grid-cols-2 gap-4 border-y border-bloom-border py-4">
+                  <div>
                   <p className="label-text">Recurring Themes</p>
                   <ul className="mt-2 space-y-2">
                     {reflectionData.insights.recurringThemes.map((theme) => (
@@ -120,8 +121,8 @@ export function ReflectPage() {
                       </li>
                     ))}
                   </ul>
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <p className="label-text">Resurfacing Topics</p>
                   <ul className="mt-2 space-y-2">
                     {reflectionData.insights.resurfacingTopics.map((topic) => (
@@ -133,17 +134,17 @@ export function ReflectPage() {
                       </li>
                     ))}
                   </ul>
+                  </div>
                 </div>
-              </div>
 
-              <div>
+                <div>
                 <p className="label-text">Emotional Shift</p>
                 <p className="mt-2 text-[14px] leading-6 text-bloom-text-secondary">
                   {reflectionData.insights.emotionalShifts}
                 </p>
-              </div>
+                </div>
 
-              <div>
+                <div>
                 <p className="label-text">Questions For Next Week</p>
                 <div className="mt-3 space-y-2">
                   {reflectionData.insights.questionsForNextWeek.map(
@@ -159,15 +160,7 @@ export function ReflectPage() {
                 </div>
               </div>
 
-              <div>
-                <p className="label-text mb-3">Grafted Reflection Map</p>
-                <BloomGraph
-                  nodes={reflectionData.snapshot.nodes}
-                  edges={reflectionData.snapshot.edges}
-                />
-              </div>
-
-              <div>
+                <div>
                 <p className="label-text mb-3">Brought Forward From</p>
                 <div className="space-y-2">
                   {reflectionData.graftedSources.length > 0 ? (
@@ -194,6 +187,15 @@ export function ReflectPage() {
                     </p>
                   )}
                 </div>
+              </div>
+              </div>
+
+              <div>
+                <p className="label-text mb-3">Grafted Reflection Map</p>
+                <BloomGraph
+                  nodes={reflectionData.snapshot.nodes}
+                  edges={reflectionData.snapshot.edges}
+                />
               </div>
             </section>
           ) : null}

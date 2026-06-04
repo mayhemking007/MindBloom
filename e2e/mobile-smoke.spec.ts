@@ -24,11 +24,11 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("mobile navigation and empty states render without overlap", async ({
+test("navigation and empty states render without overlap", async ({
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByText("MindBloom")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "MindBloom" })).toBeVisible();
   await expect(page.getByPlaceholder("Write a thought...")).toBeVisible();
   await expect(page.getByRole("navigation")).toBeVisible();
 
@@ -85,4 +85,24 @@ test("Bloom overlay renders from mocked API response", async ({ page }) => {
   await page.getByRole("button", { name: "Bloom My Mind See your session, differently" }).click();
   await expect(page.getByText("Your MindBloom")).toBeVisible();
   await expect(page.getByText("A busy mind finding space")).toBeVisible();
+});
+
+test("desktop layout uses a sidebar and wider map workspace", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop-chromium",
+    "Desktop-only responsive layout check",
+  );
+
+  await page.goto("/map");
+  const navigation = page.getByRole("navigation");
+  await expect(navigation).toBeVisible();
+
+  const navigationBox = await navigation.boundingBox();
+  expect(navigationBox?.height).toBeGreaterThan(700);
+
+  const mapHeading = page.getByRole("heading", { name: "Mind Map" });
+  const headingBox = await mapHeading.boundingBox();
+  expect(headingBox?.x).toBeGreaterThan(220);
 });

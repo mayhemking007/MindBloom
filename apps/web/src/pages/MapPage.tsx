@@ -7,11 +7,11 @@ export function MapPage() {
   const { error, loading, refresh, snapshot } = useSnapshot();
 
   return (
-    <main className="min-h-dvh px-4 pb-6 pt-5">
+    <main className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-6 pt-5 md:px-8 md:pt-8">
       <header className="mb-5 flex items-start justify-between gap-3">
         <div>
           <p className="label-text">Graph</p>
-          <h1 className="mt-1 font-serif text-[28px] font-normal">Mind Map</h1>
+          <h1 className="mt-1 font-serif text-[28px] font-normal md:text-[34px]">Mind Map</h1>
           <p className="mt-2 text-[13px] leading-5 text-bloom-text-secondary">
             Today's memory graph, shaped by the topics that surfaced.
           </p>

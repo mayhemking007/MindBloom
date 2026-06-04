@@ -9,6 +9,21 @@ Object.defineProperty(window, "scrollTo", {
 
 Element.prototype.scrollIntoView = () => undefined;
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.defineProperty(window, "ResizeObserver", {
+  value: ResizeObserverMock,
+  writable: true,
+});
+Object.defineProperty(globalThis, "ResizeObserver", {
+  value: ResizeObserverMock,
+  writable: true,
+});
+
 afterEach(() => {
   cleanup();
 });

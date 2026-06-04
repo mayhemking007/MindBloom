@@ -15,11 +15,11 @@ export function TimelinePage() {
   } = useSavedBlooms();
 
   return (
-    <main className="min-h-dvh px-4 pb-6 pt-5">
+    <main className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-6 pt-5 md:px-8 md:pt-8">
       <header className="mb-5 flex items-start justify-between gap-3">
         <div>
           <p className="label-text">Archive</p>
-          <h1 className="mt-1 font-serif text-[28px] font-normal">Timeline</h1>
+          <h1 className="mt-1 font-serif text-[28px] font-normal md:text-[34px]">Timeline</h1>
           <p className="mt-2 text-[13px] leading-5 text-bloom-text-secondary">
             A record of the days you paused long enough to notice.
           </p>
@@ -48,19 +48,21 @@ export function TimelinePage() {
           </div>
         </section>
       ) : (
-        <>
-          <CalendarHeatmap
-            blooms={blooms}
-            selectedDate={selectedDate}
-            onSelect={selectBloom}
-          />
-          <SavedBloomList
-            blooms={blooms}
-            selectedSessionId={selectedBloom?.sessionId ?? null}
-            onSelect={selectBloom}
-          />
+        <div className="md:grid md:grid-cols-[340px_minmax(0,1fr)] md:gap-8">
+          <div>
+            <CalendarHeatmap
+              blooms={blooms}
+              selectedDate={selectedDate}
+              onSelect={selectBloom}
+            />
+            <SavedBloomList
+              blooms={blooms}
+              selectedSessionId={selectedBloom?.sessionId ?? null}
+              onSelect={selectBloom}
+            />
+          </div>
           {selectedBloom ? <SavedBloomDetail bloom={selectedBloom} /> : null}
-        </>
+        </div>
       )}
     </main>
   );

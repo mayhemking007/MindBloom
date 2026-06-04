@@ -96,7 +96,7 @@ export function BloomOverlay({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 18 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="mx-auto min-h-dvh w-full max-w-[420px] px-4 pb-8 pt-4"
+            className="mx-auto min-h-dvh w-full max-w-[760px] px-4 pb-8 pt-4 md:px-6"
           >
             <div className="mb-4 flex justify-end">
               <button

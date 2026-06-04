@@ -31,6 +31,169 @@ export interface ApiErrorResponse {
   };
 }
 
+export type EntryPurpose = "journal" | "idea" | "brainstorm";
+
+export type EntryMode = "classic" | "chat" | "mixed";
+
+export type JournalEntryStatus = "draft" | "completed";
+
+export type EntryOwnerKind = "authenticated" | "demo";
+
+export interface JournalEntry {
+  id: string;
+  ownerId: string;
+  ownerKind: EntryOwnerKind;
+  title: string;
+  purpose: EntryPurpose;
+  mode: EntryMode;
+  status: JournalEntryStatus;
+  memoSessionId: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  allowFutureContext: boolean;
+}
+
+export interface EntryDocument {
+  id: string;
+  entryId: string;
+  content: string;
+  version: number;
+  lastIngestedVersion: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EntryMessageRole = "user" | "assistant" | "system";
+
+export interface EntryMessage {
+  id: string;
+  entryId: string;
+  role: EntryMessageRole;
+  content: string;
+  createdAt: string;
+}
+
+export interface EntryTheme {
+  id: string;
+  entryId: string;
+  label: string;
+  summary: string;
+  topicOrder: number;
+  source: "current-entry" | "brought-in-context";
+}
+
+export interface EntryGraft {
+  id: string;
+  entryId: string;
+  query: string;
+  sourceEntryId: string | null;
+  sourceSessionId: string | null;
+  sourceThemeId: string | null;
+  themeLabel: string;
+  similarity: number | null;
+  graftedAt: string;
+}
+
+export type NoteSourceType =
+  | "entry-selection"
+  | "bloom-message"
+  | "reflection-card"
+  | "blank";
+
+export interface Note {
+  id: string;
+  ownerId: string;
+  ownerKind: EntryOwnerKind;
+  entryId: string | null;
+  title: string;
+  body: string;
+  sourceType: NoteSourceType;
+  sourceMessageId: string | null;
+  sourceReflectionId: string | null;
+  sourceReflectionCardId: string | null;
+  color: string | null;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReflectionCard {
+  id: string;
+  type:
+    | "stats"
+    | "mood"
+    | "takeaways"
+    | "mind-map"
+    | "quote"
+    | "song"
+    | "weather"
+    | "word"
+    | "question";
+  title: string;
+  body: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface EntryReflection {
+  id: string;
+  entryId: string;
+  cards: ReflectionCard[];
+  graphSnapshot: GraphSnapshotResponse | null;
+  createdAt: string;
+}
+
+export interface EntryDayGroup {
+  date: string;
+  entries: JournalEntry[];
+}
+
+export interface CreateEntryRequest {
+  title?: string;
+  purpose: EntryPurpose;
+  mode: EntryMode;
+  allowFutureContext?: boolean;
+}
+
+export interface UpdateEntryRequest {
+  title?: string;
+  purpose?: EntryPurpose;
+  mode?: EntryMode;
+  status?: JournalEntryStatus;
+  allowFutureContext?: boolean;
+  completedAt?: string | null;
+}
+
+export interface EntryListResponse {
+  groups: EntryDayGroup[];
+  entries: JournalEntry[];
+}
+
+export interface EntryResponse {
+  entry: JournalEntry;
+}
+
+export interface UpsertEntryDocumentRequest {
+  content: string;
+}
+
+export interface EntryDocumentResponse {
+  document: EntryDocument | null;
+}
+
+export interface CreateEntryMessageRequest {
+  role: EntryMessageRole;
+  content: string;
+}
+
+export interface EntryMessagesResponse {
+  messages: EntryMessage[];
+}
+
+export interface EntryMessageResponse {
+  message: EntryMessage;
+}
+
 export interface GraftOrigin {
   sourceSessionId: string;
   sourceNodeId: string;
