@@ -193,10 +193,20 @@ describe("MindBloom API routes", () => {
     expect(response.body.nodes[0].graftOrigin.sourceSessionId).toBe(
       "mindbloom-session-2026-05-31",
     );
+    expect(response.body.nodes[0]).toMatchObject({
+      kind: "brought-in-context",
+      kindLabel: "Brought-in context",
+      helperText: "A previous thought you chose to bring into this entry.",
+    });
+    expect(response.body.nodes[0].graftOrigin.sourceLabel).toBe(
+      "an entry from 2026-05-31",
+    );
     expect(response.body.edges[0]).toEqual({
       sourceId: "topic-1",
       targetId: "topic-2",
       type: "semantic",
+      connectionLabel: "Related thought",
+      helperText: "These themes appear to be talking about similar ideas.",
       weight: 0.7,
     });
   });

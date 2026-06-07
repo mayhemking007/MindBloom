@@ -182,7 +182,7 @@ export function ReflectPage() {
                     })
                   ) : (
                     <p className="text-[13px] leading-5 text-bloom-text-secondary">
-                      No grafted topic nodes were available from the selected
+                      No previous themes were available from the selected
                       sessions yet.
                     </p>
                   )}
@@ -191,7 +191,7 @@ export function ReflectPage() {
               </div>
 
               <div>
-                <p className="label-text mb-3">Grafted Reflection Map</p>
+                <p className="label-text mb-3">Reflection Mind Map</p>
                 <BloomGraph
                   nodes={reflectionData.snapshot.nodes}
                   edges={reflectionData.snapshot.edges}

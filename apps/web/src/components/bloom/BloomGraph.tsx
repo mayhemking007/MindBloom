@@ -47,6 +47,13 @@ function resolveNodeId(value: string | number | SimNode | undefined): string {
   return typeof value === "object" ? value.id : String(value);
 }
 
+function themeKindLabel(node: GraphNode): string {
+  if (node.kindLabel) {
+    return node.kindLabel;
+  }
+  return node.graftOrigin ? "Brought-in context" : "Theme";
+}
+
 export function BloomGraph({ nodes, edges }: BloomGraphProps) {
   const [simNodes, setSimNodes] = useState<SimNode[]>([]);
   const [simEdges, setSimEdges] = useState<SimEdge[]>([]);
@@ -198,7 +205,7 @@ export function BloomGraph({ nodes, edges }: BloomGraphProps) {
             >
               <circle
                 r={nodeRadius(node)}
-                className={color.dot}
+                className={color.fill}
                 stroke="white"
                 strokeWidth={2}
               />
@@ -228,12 +235,20 @@ export function BloomGraph({ nodes, edges }: BloomGraphProps) {
 
       {selectedNode ? (
         <div className="mt-3 rounded-bloom border border-bloom-border bg-bloom-surface p-3">
+          <p className="text-[11px] font-medium uppercase text-bloom-text-tertiary">
+            {themeKindLabel(selectedNode)}
+          </p>
           <p className="text-[13px] font-medium text-bloom-text-primary">
             {selectedNode.label}
           </p>
           <p className="mt-1 text-[12px] leading-5 text-bloom-text-secondary">
             {selectedNode.summary}
           </p>
+          {selectedNode.graftOrigin ? (
+            <p className="mt-2 text-[11px] text-bloom-text-tertiary">
+              Brought in from {selectedNode.graftOrigin.sourceLabel ?? "an earlier entry"}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

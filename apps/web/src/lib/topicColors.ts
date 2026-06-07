@@ -81,48 +81,55 @@ export function getColorForTopic(label: string): ColorRamp {
 
 export const colorClasses: Record<
   ColorRamp,
-  { bg: string; border: string; text: string; dot: string }
+  { bg: string; border: string; text: string; dot: string; fill: string }
 > = {
   coral: {
     bg: "bg-coral-bg",
     border: "border-coral-border",
     text: "text-coral-text",
     dot: "bg-coral-border",
+    fill: "fill-coral-border",
   },
   purple: {
     bg: "bg-purple-bg",
     border: "border-purple-border",
     text: "text-purple-text",
     dot: "bg-purple-border",
+    fill: "fill-purple-border",
   },
   teal: {
     bg: "bg-teal-bg",
     border: "border-teal-border",
     text: "text-teal-text",
     dot: "bg-teal-border",
+    fill: "fill-teal-border",
   },
   amber: {
     bg: "bg-amber-bg",
     border: "border-amber-border",
     text: "text-amber-text",
     dot: "bg-amber-border",
+    fill: "fill-amber-border",
   },
   blue: {
     bg: "bg-blue-bg",
     border: "border-blue-border",
     text: "text-blue-text",
     dot: "bg-blue-border",
+    fill: "fill-blue-border",
   },
   pink: {
     bg: "bg-pink-bg",
     border: "border-pink-border",
     text: "text-pink-text",
     dot: "bg-pink-border",
+    fill: "fill-pink-border",
   },
   gray: {
     bg: "bg-gray-bg",
     border: "border-gray-border",
     text: "text-gray-text",
     dot: "bg-gray-border",
+    fill: "fill-gray-border",
   },
 };

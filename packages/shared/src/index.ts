@@ -273,7 +273,13 @@ export interface GraftOrigin {
   sourceSessionId: string;
   sourceNodeId: string;
   graftedAt: string;
+  sourceLabel?: string;
 }
+
+export type GraphThemeKind =
+  | "theme"
+  | "returning-theme"
+  | "brought-in-context";
 
 export interface GraphNode {
   id: string;
@@ -281,6 +287,9 @@ export interface GraphNode {
   segmentId: string;
   label: string;
   summary: string;
+  kind?: GraphThemeKind;
+  kindLabel?: string;
+  helperText?: string;
   tags?: string[];
   messageRange: [number, number];
   topicOrder: number;
@@ -296,6 +305,8 @@ export interface GraphEdge {
   sourceId: string;
   targetId: string;
   type: string;
+  connectionLabel?: string;
+  helperText?: string;
   weight: number;
 }
 

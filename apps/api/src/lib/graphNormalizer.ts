@@ -1,5 +1,6 @@
 import type {
   GraphEdge,
+  GraphThemeKind,
   GraphMemory,
   GraphNode,
   GraphSnapshotResponse,
@@ -20,13 +21,85 @@ function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
+function friendlyThemeKind(node: TopicNode, hasGraftOrigin = false): GraphThemeKind {
+  if (hasGraftOrigin) {
+    return "brought-in-context";
+  }
+  if (node.driftScore >= 0.65) {
+    return "returning-theme";
+  }
+  return "theme";
+}
+
+function friendlyThemeKindLabel(kind: GraphThemeKind): string {
+  switch (kind) {
+    case "brought-in-context":
+      return "Brought-in context";
+    case "returning-theme":
+      return "Returning theme";
+    default:
+      return "Theme";
+  }
+}
+
+function friendlyThemeHelper(kind: GraphThemeKind): string {
+  switch (kind) {
+    case "brought-in-context":
+      return "A previous thought you chose to bring into this entry.";
+    case "returning-theme":
+      return "A thought that seems to be coming back with energy.";
+    default:
+      return "A thought MindBloom noticed in this entry.";
+  }
+}
+
+function friendlyConnectionLabel(type: string): string {
+  switch (type) {
+    case "semantic":
+      return "Related thought";
+    case "reentry":
+      return "Returning thought";
+    case "grafted":
+      return "Brought-in context";
+    default:
+      return "Connection";
+  }
+}
+
+function friendlyConnectionHelper(type: string): string {
+  switch (type) {
+    case "semantic":
+      return "These themes appear to be talking about similar ideas.";
+    case "reentry":
+      return "This thought has resurfaced in the entry.";
+    case "grafted":
+      return "This link comes from previous context you brought in.";
+    default:
+      return "These themes are connected in your writing.";
+  }
+}
+
+function sourceLabelFromSessionId(sessionId: string): string {
+  const match = /(\d{4}-\d{2}-\d{2})$/.exec(sessionId);
+  if (!match) {
+    return "an earlier entry";
+  }
+
+  return `an entry from ${match[1]}`;
+}
+
 export function normalizeTopicNode(node: TopicNode): GraphNode {
+  const kind = friendlyThemeKind(node);
+
   return {
     id: node.id,
     sessionId: node.sessionId,
     segmentId: node.segmentId,
     label: node.label,
     summary: node.summary,
+    kind,
+    kindLabel: friendlyThemeKindLabel(kind),
+    helperText: friendlyThemeHelper(kind),
     tags: node.tags,
     messageRange: node.messageRange,
     topicOrder: node.topicOrder,
@@ -43,6 +116,8 @@ export function normalizeTopicEdge(edge: TopicEdge): GraphEdge {
     sourceId: edge.srcId,
     targetId: edge.dstId,
     type: edge.type,
+    connectionLabel: friendlyConnectionLabel(edge.type),
+    helperText: friendlyConnectionHelper(edge.type),
     weight: edge.weight,
   };
 }
@@ -93,10 +168,17 @@ export function normalizeGraphSnapshot(
   for (const snapshotNode of snapshot.snapshotNodes ?? []) {
     const node = normalizeTopicNode(snapshotNode.node);
     if (snapshotNode.graftOrigin) {
+      const kind = friendlyThemeKind(snapshotNode.node, true);
+      node.kind = kind;
+      node.kindLabel = friendlyThemeKindLabel(kind);
+      node.helperText = friendlyThemeHelper(kind);
       node.graftOrigin = {
         sourceSessionId: snapshotNode.graftOrigin.sourceSessionId,
         sourceNodeId: snapshotNode.graftOrigin.sourceNodeId,
         graftedAt: toIsoString(snapshotNode.graftOrigin.graftedAt),
+        sourceLabel: sourceLabelFromSessionId(
+          snapshotNode.graftOrigin.sourceSessionId,
+        ),
       };
     }
     nodesById.set(node.id, node);
