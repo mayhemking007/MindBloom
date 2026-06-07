@@ -178,6 +178,48 @@ export interface EntryReflection {
   createdAt: string;
 }
 
+export interface CreateEntryReflectionRequest {
+  force?: boolean;
+}
+
+export interface EntryReflectionResponse {
+  reflection: EntryReflection;
+}
+
+export interface EntryReflectionsResponse {
+  reflections: EntryReflection[];
+}
+
+export interface ReflectionShareLink {
+  id: string;
+  reflectionId: string;
+  token: string;
+  selectedCardIds: string[];
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+}
+
+export interface CreateReflectionShareLinkRequest {
+  selectedCardIds: string[];
+  expiresAt?: string | null;
+}
+
+export interface ReflectionShareLinkResponse {
+  shareLink: ReflectionShareLink;
+}
+
+export interface ReflectionShareLinksResponse {
+  shareLinks: ReflectionShareLink[];
+}
+
+export interface PublicReflectionShareResponse {
+  token: string;
+  cards: ReflectionCard[];
+  createdAt: string;
+  expiresAt: string | null;
+}
+
 export interface EntryDayGroup {
   date: string;
   entries: JournalEntry[];

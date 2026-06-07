@@ -32,6 +32,22 @@ const entryGroups = [
 ];
 
 test.beforeEach(async ({ page }) => {
+  let savedReflection:
+    | {
+        id: string;
+        entryId: string;
+        cards: Array<{
+          id: string;
+          type: string;
+          title: string;
+          body: string;
+        }>;
+        graphSnapshot: typeof emptySnapshot;
+        createdAt: string;
+      }
+    | null = null;
+  let sharedCardIds: string[] = [];
+
   await page.route("**/api/session/today", async (route) => {
     await route.fulfill({
       json: {
@@ -136,6 +152,95 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/notes", async (route) => {
     await route.fulfill({ json: { notes: [], groups: [] } });
   });
+
+  await page.route("**/api/entries/entry-1/reflections", async (route) => {
+    if (route.request().method() === "POST") {
+      savedReflection = {
+        id: "reflection-1",
+        entryId: "entry-1",
+        cards: [
+          {
+            id: "stats",
+            type: "stats",
+            title: "Words You Put Down",
+            body: "You wrote 12 words.",
+          },
+          {
+            id: "question",
+            type: "question",
+            title: "Question For Next Time",
+            body: "What wants attention next?",
+          },
+        ],
+        graphSnapshot: emptySnapshot,
+        createdAt: "2026-06-03T10:00:00.000Z",
+      };
+      await route.fulfill({
+        status: 201,
+        json: {
+          reflection: savedReflection,
+        },
+      });
+      return;
+    }
+
+    await route.fulfill({
+      json: { reflections: savedReflection ? [savedReflection] : [] },
+    });
+  });
+
+  await page.route("**/api/reflections/reflection-1/share-links", async (route) => {
+    if (route.request().method() === "POST") {
+      sharedCardIds = JSON.parse(route.request().postData() ?? "{}").selectedCardIds ?? [];
+      await route.fulfill({
+        status: 201,
+        json: {
+          shareLink: {
+            id: "share-1",
+            reflectionId: "reflection-1",
+            token: "public-token-123456789",
+            selectedCardIds: sharedCardIds,
+            createdAt: "2026-06-03T10:01:00.000Z",
+            expiresAt: null,
+            revokedAt: null,
+          },
+        },
+      });
+      return;
+    }
+
+    await route.fulfill({
+      json: {
+        shareLinks:
+          sharedCardIds.length > 0
+            ? [
+                {
+                  id: "share-1",
+                  reflectionId: "reflection-1",
+                  token: "public-token-123456789",
+                  selectedCardIds: sharedCardIds,
+                  createdAt: "2026-06-03T10:01:00.000Z",
+                  expiresAt: null,
+                  revokedAt: null,
+                },
+              ]
+            : [],
+      },
+    });
+  });
+
+  await page.route("**/api/share/public-token-123456789", async (route) => {
+    await route.fulfill({
+      json: {
+        token: "public-token-123456789",
+        cards: (savedReflection?.cards ?? []).filter((card) =>
+          sharedCardIds.includes(card.id),
+        ),
+        createdAt: "2026-06-03T10:01:00.000Z",
+        expiresAt: null,
+      },
+    });
+  });
 });
 
 test("navigation and empty states render without overlap", async ({
@@ -156,7 +261,7 @@ test("navigation and empty states render without overlap", async ({
   await expect(page.getByText("No notes yet")).toBeVisible();
 
   await page.getByRole("link", { name: "Reflect" }).click();
-  await expect(page.getByText("A reflection needs a few days")).toBeVisible();
+  await expect(page.getByText("No reflection cards yet", { exact: true })).toBeVisible();
 });
 
 test("Bloom sidebar sends a message from the current entry", async ({ page }) => {
@@ -174,6 +279,20 @@ test("Bloom sidebar sends a message from the current entry", async ({ page }) =>
   await page.getByLabel("Ask Bloom").press("Enter");
   await expect(page.getByText("You are finding the first thread.")).toBeVisible();
   await expect(page.getByText("Starting point")).toBeVisible();
+});
+
+test("creates and opens a public reflection share link", async ({ page }) => {
+  await page.goto("/reflect");
+  await page.getByRole("button", { name: "Reflect on this entry" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Words You Put Down" }),
+  ).toBeVisible();
+  await page.getByLabel("Question For Next Time").click();
+  await page.getByRole("button", { name: "Create share link" }).click();
+  await page.goto("/share/public-token-123456789");
+  await expect(page.getByText("Shared Reflection")).toBeVisible();
+  await expect(page.getByText("Words You Put Down")).toBeVisible();
+  await expect(page.getByText("Question For Next Time")).not.toBeVisible();
 });
 
 test("desktop layout uses a sidebar and wider map workspace", async ({

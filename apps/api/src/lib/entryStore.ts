@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type {
   EntryDayGroup,
   EntryDocument,
@@ -15,6 +15,7 @@ import type {
   NoteDayGroup,
   NoteSourceType,
   ReflectionCard,
+  ReflectionShareLink,
 } from "@mindbloom/shared";
 
 export interface OwnerScope {
@@ -90,6 +91,12 @@ export interface CreateReflectionInput {
   createdAt?: string;
 }
 
+export interface CreateShareLinkInput {
+  reflectionId: string;
+  selectedCardIds: string[];
+  expiresAt?: string | null;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -120,6 +127,8 @@ export class InMemoryEntryStore {
   private readonly grafts = new Map<string, EntryGraft>();
 
   private readonly reflections = new Map<string, EntryReflection>();
+
+  private readonly shareLinks = new Map<string, ReflectionShareLink>();
 
   createEntry(input: CreateEntryInput): JournalEntry {
     const id = randomUUID();
@@ -216,6 +225,11 @@ export class InMemoryEntryStore {
     for (const [reflectionId, reflection] of this.reflections.entries()) {
       if (reflection.entryId === entryId) {
         this.reflections.delete(reflectionId);
+        for (const [shareLinkId, shareLink] of this.shareLinks.entries()) {
+          if (shareLink.reflectionId === reflectionId) {
+            this.shareLinks.delete(shareLinkId);
+          }
+        }
       }
     }
 
@@ -336,6 +350,10 @@ export class InMemoryEntryStore {
       .map(([date, notes]) => ({ date, notes }));
   }
 
+  listNotesForEntry(entryId: string, owner: OwnerScope): Note[] {
+    return this.listNotes(owner).filter((note) => note.entryId === entryId);
+  }
+
   getNote(noteId: string): Note | undefined {
     return this.notes.get(noteId);
   }
@@ -405,6 +423,56 @@ export class InMemoryEntryStore {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  getReflection(reflectionId: string): EntryReflection | undefined {
+    return this.reflections.get(reflectionId);
+  }
+
+  createShareLink(input: CreateShareLinkInput): ReflectionShareLink {
+    const shareLink: ReflectionShareLink = {
+      id: randomUUID(),
+      reflectionId: input.reflectionId,
+      token: randomBytes(24).toString("base64url"),
+      selectedCardIds: input.selectedCardIds,
+      createdAt: nowIso(),
+      expiresAt: input.expiresAt ?? null,
+      revokedAt: null,
+    };
+
+    this.shareLinks.set(shareLink.id, shareLink);
+    return shareLink;
+  }
+
+  listShareLinks(reflectionId: string): ReflectionShareLink[] {
+    return [...this.shareLinks.values()]
+      .filter((shareLink) => shareLink.reflectionId === reflectionId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  getShareLink(shareLinkId: string): ReflectionShareLink | undefined {
+    return this.shareLinks.get(shareLinkId);
+  }
+
+  getShareLinkByToken(token: string): ReflectionShareLink | undefined {
+    return [...this.shareLinks.values()].find(
+      (shareLink) => shareLink.token === token,
+    );
+  }
+
+  revokeShareLink(shareLinkId: string): ReflectionShareLink | undefined {
+    const existing = this.shareLinks.get(shareLinkId);
+    if (!existing) {
+      return undefined;
+    }
+
+    const revoked: ReflectionShareLink = {
+      ...existing,
+      revokedAt: existing.revokedAt ?? nowIso(),
+    };
+
+    this.shareLinks.set(shareLinkId, revoked);
+    return revoked;
+  }
+
   clear(): void {
     this.entries.clear();
     this.documents.clear();
@@ -412,6 +480,7 @@ export class InMemoryEntryStore {
     this.notes.clear();
     this.grafts.clear();
     this.reflections.clear();
+    this.shareLinks.clear();
   }
 }
 

@@ -1200,6 +1200,24 @@ export function JournalWorkspace() {
                     <StickyNote className="h-4 w-4" aria-hidden="true" />
                     Save note
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedEntry) {
+                        window.history.pushState(
+                          null,
+                          "",
+                          `/reflect?entryId=${selectedEntry.id}`,
+                        );
+                        window.dispatchEvent(new PopStateEvent("popstate"));
+                      }
+                    }}
+                    disabled={!selectedEntry}
+                    className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    Reflect
+                  </button>
                 </div>
 
                 <label className="sr-only" htmlFor="entry-editor">

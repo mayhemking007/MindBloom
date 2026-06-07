@@ -14,6 +14,7 @@ import { entriesRouter } from "./routes/entries.js";
 import { notesRouter } from "./routes/notes.js";
 import { recallRouter } from "./routes/recall.js";
 import { reflectRouter } from "./routes/reflect.js";
+import { shareRouter } from "./routes/share.js";
 import { snapshotRouter } from "./routes/snapshot.js";
 
 export function createApp() {
@@ -53,6 +54,7 @@ export function createApp() {
   app.use("/api/snapshot", snapshotRouter);
   app.use("/api/recall", recallRouter);
   app.use("/api/reflect", reflectRouter);
+  app.use("/api", shareRouter);
 
   app.use(notFoundHandler());
   app.use(errorHandler());

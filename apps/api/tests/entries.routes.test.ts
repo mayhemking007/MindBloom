@@ -1,18 +1,31 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { agent, getAgentForSession } = vi.hoisted(() => ({
+const { agent, getAgentForSession, openaiCreate } = vi.hoisted(() => ({
   agent: {
     ingestText: vi.fn(),
     graftByRelevance: vi.fn(),
     ingestGraftedNodes: vi.fn(),
     getActiveNodes: vi.fn(),
+    getGraphSnapshot: vi.fn(),
+    invoke: vi.fn(),
   },
   getAgentForSession: vi.fn(),
+  openaiCreate: vi.fn(),
 }));
 
 vi.mock("../src/lib/agent.js", () => ({
   getAgentForSession,
+}));
+
+vi.mock("../src/lib/openai.js", () => ({
+  openai: {
+    chat: {
+      completions: {
+        create: openaiCreate,
+      },
+    },
+  },
 }));
 
 import { createApp } from "../src/app.js";
@@ -29,6 +42,36 @@ const ownerBHeaders = {
   "x-mindbloom-owner-kind": "authenticated",
   "x-mindbloom-owner-id": "user-b",
 };
+
+const createdAt = new Date("2026-06-04T08:00:00.000Z");
+
+function graphSnapshot() {
+  return {
+    sessionId: "mindbloom-entry-entry-1",
+    nodes: [
+      {
+        id: "theme-1",
+        sessionId: "mindbloom-entry-entry-1",
+        segmentId: "segment-1",
+        label: "Creative direction",
+        summary: "The user kept circling creative direction.",
+        embedding: [],
+        messageRange: [0, 1] as [number, number],
+        topicOrder: 1,
+        driftScore: 0.2,
+        agentColor: null,
+        fleetId: null,
+        agentId: null,
+        createdAt,
+      },
+    ],
+    snapshotNodes: [],
+    edges: [],
+    memories: [],
+    memoryEdges: [],
+    capturedAt: createdAt.toISOString(),
+  };
+}
 
 describe("entry routes", () => {
   beforeEach(() => {
@@ -55,6 +98,28 @@ describe("entry routes", () => {
         topicOrder: 1,
       },
     ]);
+    agent.getGraphSnapshot.mockResolvedValue(graphSnapshot());
+    agent.invoke.mockResolvedValue("This should not be used for reflection.");
+    openaiCreate.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              mood: "You noticed the shape of the idea.",
+              takeaways: [
+                "You wanted the idea to feel easier to begin.",
+                "You returned to creative direction.",
+              ],
+              quote: "This product idea is about making journaling easier.",
+              song: "A bright synth-pop demo with a patient chorus.",
+              weather: "Morning light after a long cloudy stretch.",
+              word: "direction",
+              question: "What would make this easier to start tomorrow?",
+            }),
+          },
+        },
+      ],
+    });
   });
 
   it("limits demo mode to one temporary entry", async () => {
@@ -437,5 +502,127 @@ describe("entry routes", () => {
       .set(ownerAHeaders)
       .send({ query: " " })
       .expect(400);
+  });
+
+  it("creates entry reflection cards without invoking the memo-grafter agent", async () => {
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({
+        title: "Idea sketch",
+        purpose: "idea",
+        mode: "mixed",
+      })
+      .expect(201);
+    const entryId = created.body.entry.id;
+
+    await request(app)
+      .put(`/api/entries/${entryId}/document`)
+      .set(ownerAHeaders)
+      .send({
+        content: "This product idea is about making journaling easier.",
+      })
+      .expect(200);
+    await request(app)
+      .post(`/api/entries/${entryId}/messages`)
+      .set(ownerAHeaders)
+      .send({ role: "user", content: "I want it to feel simple." })
+      .expect(201);
+    await request(app)
+      .post("/api/notes")
+      .set(ownerAHeaders)
+      .send({
+        entryId,
+        sourceType: "entry-selection",
+        body: "Make the first step feel light.",
+      })
+      .expect(201);
+
+    const response = await request(app)
+      .post(`/api/entries/${entryId}/reflections`)
+      .set(ownerAHeaders)
+      .send({})
+      .expect(201);
+
+    expect(agent.getGraphSnapshot).toHaveBeenCalled();
+    expect(agent.getActiveNodes).toHaveBeenCalled();
+    expect(agent.invoke).not.toHaveBeenCalled();
+    expect(openaiCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.stringContaining("This product idea is about making journaling easier."),
+          }),
+          expect.objectContaining({
+            content: expect.stringContaining("Make the first step feel light."),
+          }),
+        ]),
+      }),
+    );
+    expect(response.body.reflection.cards).toHaveLength(9);
+    expect(response.body.reflection.cards[0]).toMatchObject({
+      type: "stats",
+      title: "Words You Put Down",
+    });
+    expect(response.body.reflection.cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "takeaways",
+          body: expect.stringContaining("You wanted"),
+        }),
+        expect.objectContaining({
+          type: "mind-map",
+          metadata: expect.objectContaining({
+            themeLabels: ["Creative direction"],
+          }),
+        }),
+      ]),
+    );
+    expect(response.body.reflection.graphSnapshot.nodes[0]).toMatchObject({
+      label: "Creative direction",
+      kindLabel: "Theme",
+    });
+
+    const listResponse = await request(app)
+      .get(`/api/entries/${entryId}/reflections`)
+      .set(ownerAHeaders)
+      .expect(200);
+    expect(listResponse.body.reflections).toHaveLength(1);
+
+    await request(app)
+      .get(`/api/entries/${entryId}/reflections/${response.body.reflection.id}`)
+      .set(ownerAHeaders)
+      .expect(200);
+  });
+
+  it("protects entry reflections from other owner scopes", async () => {
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ purpose: "journal", mode: "classic" })
+      .expect(201);
+    const other = await request(app)
+      .post("/api/entries")
+      .set(ownerBHeaders)
+      .send({ purpose: "journal", mode: "classic" })
+      .expect(201);
+
+    const reflection = await request(app)
+      .post(`/api/entries/${created.body.entry.id}/reflections`)
+      .set(ownerAHeaders)
+      .send({})
+      .expect(201);
+
+    await request(app)
+      .post(`/api/entries/${created.body.entry.id}/reflections`)
+      .set(ownerBHeaders)
+      .send({})
+      .expect(403);
+    await request(app)
+      .get(
+        `/api/entries/${other.body.entry.id}/reflections/${reflection.body.reflection.id}`,
+      )
+      .set(ownerBHeaders)
+      .expect(403);
   });
 });

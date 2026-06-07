@@ -12,13 +12,18 @@ import type {
   EntryListResponse,
   EntryMessageResponse,
   EntryMessagesResponse,
+  EntryReflectionResponse,
+  EntryReflectionsResponse,
   EntryResponse,
   GraftByRelevanceRequest,
   GraphSnapshotResponse,
   NoteResponse,
   NotesResponse,
+  PublicReflectionShareResponse,
   ReflectRequest,
   ReflectResponse,
+  ReflectionShareLinkResponse,
+  ReflectionShareLinksResponse,
   TodaySessionResponse,
   UpdateEntryRequest,
   UpdateNoteRequest,
@@ -204,6 +209,86 @@ export async function graftEntryByRelevance(
     },
   );
   return parseJsonResponse<EntryGraftRelevanceResponse>(response);
+}
+
+export async function listEntryReflections(
+  entryId: string,
+): Promise<EntryReflectionsResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/reflections`, {
+    headers: ownerHeaders,
+  });
+  return parseJsonResponse<EntryReflectionsResponse>(response);
+}
+
+export async function createEntryReflection(
+  entryId: string,
+): Promise<EntryReflectionResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/reflections`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({}),
+  });
+  return parseJsonResponse<EntryReflectionResponse>(response);
+}
+
+export async function getEntryReflection(
+  entryId: string,
+  reflectionId: string,
+): Promise<EntryReflectionResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/entries/${entryId}/reflections/${reflectionId}`,
+    {
+      headers: ownerHeaders,
+    },
+  );
+  return parseJsonResponse<EntryReflectionResponse>(response);
+}
+
+export async function listReflectionShareLinks(
+  reflectionId: string,
+): Promise<ReflectionShareLinksResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/reflections/${reflectionId}/share-links`,
+    {
+      headers: ownerHeaders,
+    },
+  );
+  return parseJsonResponse<ReflectionShareLinksResponse>(response);
+}
+
+export async function createReflectionShareLink(
+  reflectionId: string,
+  payload: { selectedCardIds: string[]; expiresAt?: string | null },
+): Promise<ReflectionShareLinkResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/reflections/${reflectionId}/share-links`,
+    {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+  );
+  return parseJsonResponse<ReflectionShareLinkResponse>(response);
+}
+
+export async function revokeReflectionShareLink(
+  shareLinkId: string,
+): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/share-links/${shareLinkId}`, {
+    method: "DELETE",
+    headers: ownerHeaders,
+  });
+
+  if (!response.ok) {
+    await parseJsonResponse<unknown>(response);
+  }
+}
+
+export async function getPublicReflectionShare(
+  token: string,
+): Promise<PublicReflectionShareResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/share/${token}`);
+  return parseJsonResponse<PublicReflectionShareResponse>(response);
 }
 
 export async function listNotes(): Promise<NotesResponse> {

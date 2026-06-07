@@ -3,12 +3,14 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layout/AppLayout";
 import { MapPage } from "./pages/MapPage";
 import { NotesPage } from "./pages/NotesPage";
+import { PublicSharePage } from "./pages/PublicSharePage";
 import { ReflectPage } from "./pages/ReflectPage";
 import { TodayPage } from "./pages/TodayPage";
 
 export function App() {
   return (
     <Routes>
+      <Route path="share/:token" element={<PublicSharePage />} />
       <Route element={<AppLayout />}>
         <Route index element={<TodayPage />} />
         <Route path="map" element={<MapPage />} />

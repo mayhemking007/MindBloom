@@ -8,6 +8,8 @@ import type {
   EntryListResponse,
   EntryMessageResponse,
   EntryMessagesResponse,
+  EntryReflectionResponse,
+  EntryReflectionsResponse,
   EntryResponse,
   TopicPill,
 } from "@mindbloom/shared";
@@ -19,7 +21,9 @@ import {
   readOwnerScope,
 } from "../http/ownerScope.js";
 import { getAgentForSession } from "../lib/agent.js";
+import { buildEntryReflectionCards } from "../lib/entryReflection.js";
 import { entryStore } from "../lib/entryStore.js";
+import { normalizeGraphSnapshot } from "../lib/graphNormalizer.js";
 
 const entryPurposeSchema = z.enum(["journal", "idea", "brainstorm"]);
 const entryModeSchema = z.enum(["classic", "chat", "mixed"]);
@@ -65,6 +69,10 @@ const graftByRelevanceSchema = z.object({
   minSimilarity: z.coerce.number().min(0).max(1).optional(),
   expansionDepth: z.coerce.number().int().min(0).max(3).optional(),
   expansionStrategy: z.enum(["none", "graph"]).optional(),
+});
+
+const reflectionIdParamSchema = z.object({
+  reflectionId: z.string().trim().min(1, "reflectionId is required").max(128),
 });
 
 export const entriesRouter = Router();
@@ -114,6 +122,18 @@ function getOwnedSourceEntries(
         entry.allowFutureContext &&
         isWithinDateRange(entry, dateFrom, dateTo),
     );
+}
+
+function parseReflectionId(params: unknown): string {
+  const parsed = reflectionIdParamSchema.safeParse(params);
+  if (!parsed.success) {
+    throw new ApiError(
+      400,
+      parsed.error.issues[0]?.message ?? "Invalid route params",
+    );
+  }
+
+  return parsed.data.reflectionId;
 }
 
 entriesRouter.post("/", async (req, res, next) => {
@@ -415,6 +435,74 @@ entriesRouter.post("/:entryId/grafts/relevance", async (req, res, next) => {
       topicPills: toTopicPills(await currentAgent.getActiveNodes()),
       tokenCount,
     };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+entriesRouter.get("/:entryId/reflections", async (req, res, next) => {
+  try {
+    const owner = readOwnerScope(req);
+    const entryId = parseEntryId(req.params);
+    const entry = getEntryForOwner(entryId, owner);
+    const response: EntryReflectionsResponse = {
+      reflections: entryStore.listReflections(entry.id),
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+entriesRouter.post("/:entryId/reflections", async (req, res, next) => {
+  try {
+    const owner = readOwnerScope(req);
+    const entryId = parseEntryId(req.params);
+    const entry = getEntryForOwner(entryId, owner);
+    const agent = await getAgentForSession(entry.memoSessionId);
+    const [snapshot, activeNodes] = await Promise.all([
+      agent.getGraphSnapshot(),
+      agent.getActiveNodes(),
+    ]);
+    const graphSnapshot = normalizeGraphSnapshot(snapshot);
+    const cards = await buildEntryReflectionCards({
+      entry,
+      documentText: entryStore.getDocument(entry.id)?.content ?? "",
+      messages: entryStore.listMessages(entry.id),
+      notes: entryStore.listNotesForEntry(entry.id, owner),
+      topicPills: toTopicPills(activeNodes),
+      graphSnapshot,
+    });
+    const reflection = entryStore.createReflection({
+      entryId: entry.id,
+      cards,
+      graphSnapshot,
+    });
+    const response: EntryReflectionResponse = { reflection };
+
+    res.status(201).json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+entriesRouter.get("/:entryId/reflections/:reflectionId", async (req, res, next) => {
+  try {
+    const owner = readOwnerScope(req);
+    const entryId = parseEntryId(req.params);
+    const entry = getEntryForOwner(entryId, owner);
+    const reflectionId = parseReflectionId(req.params);
+    const reflection = entryStore.getReflection(reflectionId);
+    if (!reflection) {
+      throw new ApiError(404, "Reflection not found");
+    }
+    if (reflection.entryId !== entry.id) {
+      throw new ApiError(403, "Reflection does not belong to this entry");
+    }
+    const response: EntryReflectionResponse = { reflection };
 
     res.json(response);
   } catch (error) {
