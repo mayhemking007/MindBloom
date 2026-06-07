@@ -88,6 +88,8 @@ export interface EntryGraft {
   entryId: string;
   query: string;
   sourceEntryId: string | null;
+  sourceEntryTitle: string | null;
+  sourceEntryCreatedAt: string | null;
   sourceSessionId: string | null;
   sourceThemeId: string | null;
   themeLabel: string;
@@ -116,6 +118,39 @@ export interface Note {
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface NoteDayGroup {
+  date: string;
+  notes: Note[];
+}
+
+export interface CreateNoteRequest {
+  title?: string;
+  body: string;
+  entryId?: string | null;
+  sourceType?: NoteSourceType;
+  sourceMessageId?: string | null;
+  sourceReflectionId?: string | null;
+  sourceReflectionCardId?: string | null;
+  color?: string | null;
+  pinned?: boolean;
+}
+
+export interface UpdateNoteRequest {
+  title?: string;
+  body?: string;
+  color?: string | null;
+  pinned?: boolean;
+}
+
+export interface NoteResponse {
+  note: Note;
+}
+
+export interface NotesResponse {
+  notes: Note[];
+  groups: NoteDayGroup[];
 }
 
 export interface ReflectionCard {
@@ -209,6 +244,29 @@ export interface EntryIngestResponse {
   ingested: boolean;
   skippedReason?: EntryIngestSkippedReason;
   topicPills: TopicPill[];
+}
+
+export type GraftExpansionStrategy = "none" | "graph";
+
+export interface GraftByRelevanceRequest {
+  query: string;
+  sourceEntryIds?: string[];
+  dateFrom?: string;
+  dateTo?: string;
+  maxThemes?: number;
+  minSimilarity?: number;
+  expansionDepth?: number;
+  expansionStrategy?: GraftExpansionStrategy;
+}
+
+export interface EntryGraftsResponse {
+  grafts: EntryGraft[];
+}
+
+export interface EntryGraftRelevanceResponse {
+  grafts: EntryGraft[];
+  topicPills: TopicPill[];
+  tokenCount: number;
 }
 
 export interface GraftOrigin {

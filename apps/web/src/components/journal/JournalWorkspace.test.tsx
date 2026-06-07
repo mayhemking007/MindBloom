@@ -67,6 +67,9 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return Promise.resolve(jsonResponse({ messages: [] }));
       }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
       return Promise.resolve(jsonResponse({}));
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -100,6 +103,9 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return jsonResponse({ messages: [] });
       }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return jsonResponse({ grafts: [] });
+      }
       return jsonResponse({});
     });
 
@@ -121,6 +127,9 @@ describe("JournalWorkspace", () => {
       }
       if (url.endsWith("/api/entries/entry-1/messages") && !init?.method) {
         return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
       }
       if (url.endsWith("/api/entries/entry-1/messages")) {
         const body = JSON.parse(String(init?.body));
@@ -172,6 +181,75 @@ describe("JournalWorkspace", () => {
     ).toBe(true);
   });
 
+  it("brings previous themes into the Bloom sidebar", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && init?.method !== "POST") {
+        return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts/relevance")) {
+        return Promise.resolve(
+          jsonResponse({
+            grafts: [
+              {
+                id: "graft-1",
+                entryId: "entry-1",
+                query: "setting boundaries",
+                sourceEntryId: "entry-old",
+                sourceEntryTitle: "Earlier boundary note",
+                sourceEntryCreatedAt: "2026-06-03T08:00:00.000Z",
+                sourceSessionId: "mindbloom-entry-entry-old",
+                sourceThemeId: "theme-old",
+                themeLabel: "Setting better boundaries",
+                similarity: null,
+                graftedAt: "2026-06-04T08:01:00.000Z",
+              },
+            ],
+            topicPills: [
+              {
+                id: "theme-1",
+                label: "Boundaries",
+                topicOrder: 1,
+              },
+            ],
+            tokenCount: 42,
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    const contextInput = await screen.findByLabelText("Bring in a previous theme");
+    await user.type(contextInput, "setting boundaries{Enter}");
+
+    await waitFor(() => {
+      expect(screen.getByText("Setting better boundaries")).toBeVisible();
+    });
+    expect(screen.getByText("From Earlier boundary note")).toBeVisible();
+    expect(screen.getByText("Boundaries")).toBeVisible();
+    const graftCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).endsWith("/api/entries/entry-1/grafts/relevance"),
+    );
+    expect(JSON.parse(String(graftCall?.[1]?.body))).toMatchObject({
+      query: "setting boundaries",
+      maxThemes: 4,
+      minSimilarity: 0.6,
+    });
+  });
+
   it("creates an entry from the purpose and mode chooser", async () => {
     const createdEntry = {
       ...entry,
@@ -200,11 +278,17 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return Promise.resolve(jsonResponse({ messages: [] }));
       }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
       if (url.endsWith("/api/entries/entry-2/document")) {
         return Promise.resolve(jsonResponse({ document: null }));
       }
       if (url.endsWith("/api/entries/entry-2/messages")) {
         return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-2/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
       }
       return Promise.resolve(jsonResponse({}));
     });
@@ -260,6 +344,9 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return Promise.resolve(jsonResponse({ messages: [] }));
       }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
       return Promise.resolve(jsonResponse({}));
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -285,6 +372,79 @@ describe("JournalWorkspace", () => {
     });
   });
 
+  it("saves a note linked to the selected entry", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && !init?.method) {
+        return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      if (url.endsWith("/api/notes") && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              note: {
+                id: "note-1",
+                ownerId: entry.ownerId,
+                ownerKind: entry.ownerKind,
+                title: "Keep this",
+                body: "This is worth remembering.",
+                entryId: entry.id,
+                sourceType: "entry-selection",
+                sourceMessageId: null,
+                sourceReflectionId: null,
+                sourceReflectionCardId: null,
+                color: "amber",
+                pinned: true,
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt,
+              },
+            },
+            { status: 201 },
+          ),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    await user.click(await screen.findByRole("button", { name: "Save note" }));
+    const notePanel = screen.getByLabelText("Save note");
+    await user.type(within(notePanel).getByLabelText("Title"), "Keep this");
+    await user.type(
+      within(notePanel).getByLabelText("What do you want to remember?"),
+      "This is worth remembering.",
+    );
+    await user.click(within(notePanel).getByLabelText("Pin this note"));
+    await user.click(within(notePanel).getByRole("button", { name: "Save note" }));
+
+    await waitFor(() => {
+      const noteCall = fetchMock.mock.calls.find(
+        ([url, init]) => String(url).endsWith("/api/notes") && init?.method === "POST",
+      );
+      expect(noteCall).toBeTruthy();
+      expect(JSON.parse(String(noteCall?.[1]?.body))).toMatchObject({
+        title: "Keep this",
+        body: "This is worth remembering.",
+        color: "amber",
+        pinned: true,
+        entryId: entry.id,
+        sourceType: "entry-selection",
+      });
+    });
+  });
+
   it("shows sidebar utility shortcuts", async () => {
     mockFetch((url) => {
       if (url.endsWith("/api/entries")) {
@@ -295,6 +455,9 @@ describe("JournalWorkspace", () => {
       }
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return jsonResponse({ messages: [] });
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return jsonResponse({ grafts: [] });
       }
       return jsonResponse({});
     });

@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { agent, getAgentForSession } = vi.hoisted(() => ({
   agent: {
     ingestText: vi.fn(),
+    graftByRelevance: vi.fn(),
+    ingestGraftedNodes: vi.fn(),
     getActiveNodes: vi.fn(),
   },
   getAgentForSession: vi.fn(),
@@ -34,6 +36,18 @@ describe("entry routes", () => {
     entryStore.clear();
     getAgentForSession.mockResolvedValue(agent);
     agent.ingestText.mockResolvedValue(undefined);
+    agent.graftByRelevance.mockResolvedValue({
+      systemPrompt: "memory context",
+      nodes: [
+        {
+          id: "source-theme-1",
+          label: "Setting better boundaries",
+          topicOrder: 1,
+        },
+      ],
+      tokenCount: 42,
+    });
+    agent.ingestGraftedNodes.mockResolvedValue([]);
     agent.getActiveNodes.mockResolvedValue([
       {
         id: "theme-1",
@@ -307,5 +321,121 @@ describe("entry routes", () => {
       .set(ownerBHeaders)
       .send({ content: "This should not ingest for another owner." })
       .expect(403);
+  });
+
+  it("brings in previous themes by relevance from owned source entries", async () => {
+    const source = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({
+        title: "Earlier boundary note",
+        purpose: "journal",
+        mode: "classic",
+      })
+      .expect(201);
+    const target = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({
+        title: "Current entry",
+        purpose: "journal",
+        mode: "classic",
+      })
+      .expect(201);
+
+    const response = await request(app)
+      .post(`/api/entries/${target.body.entry.id}/grafts/relevance`)
+      .set(ownerAHeaders)
+      .send({
+        query: "setting boundaries",
+        sourceEntryIds: [source.body.entry.id],
+        maxThemes: 3,
+        minSimilarity: 0.62,
+        expansionDepth: 1,
+        expansionStrategy: "graph",
+      })
+      .expect(200);
+
+    expect(agent.graftByRelevance).toHaveBeenCalledWith("setting boundaries", {
+      topK: 3,
+      minSimilarity: 0.62,
+      hopDepth: 1,
+      expansionStrategy: "graph",
+    });
+    expect(agent.ingestGraftedNodes).toHaveBeenCalledWith([
+      {
+        id: "source-theme-1",
+        label: "Setting better boundaries",
+        topicOrder: 1,
+      },
+    ]);
+    expect(response.body.grafts[0]).toMatchObject({
+      entryId: target.body.entry.id,
+      query: "setting boundaries",
+      sourceEntryId: source.body.entry.id,
+      sourceEntryTitle: "Earlier boundary note",
+      themeLabel: "Setting better boundaries",
+    });
+    expect(response.body.topicPills).toEqual([
+      { id: "theme-1", label: "Creative direction", topicOrder: 1 },
+    ]);
+  });
+
+  it("lists brought-in context and rejects source entries from another owner", async () => {
+    const target = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ purpose: "journal", mode: "classic" })
+      .expect(201);
+    const forbiddenSource = await request(app)
+      .post("/api/entries")
+      .set(ownerBHeaders)
+      .send({ purpose: "journal", mode: "classic" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/entries/${target.body.entry.id}/grafts/relevance`)
+      .set(ownerAHeaders)
+      .send({
+        query: "private thought",
+        sourceEntryIds: [forbiddenSource.body.entry.id],
+      })
+      .expect(403);
+
+    const source = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ title: "Owned source", purpose: "journal", mode: "classic" })
+      .expect(201);
+    await request(app)
+      .post(`/api/entries/${target.body.entry.id}/grafts/relevance`)
+      .set(ownerAHeaders)
+      .send({
+        query: "owned thought",
+        sourceEntryIds: [source.body.entry.id],
+      })
+      .expect(200);
+
+    const response = await request(app)
+      .get(`/api/entries/${target.body.entry.id}/grafts`)
+      .set(ownerAHeaders)
+      .expect(200);
+
+    expect(response.body.grafts).toHaveLength(1);
+    expect(response.body.grafts[0].themeLabel).toBe("Setting better boundaries");
+  });
+
+  it("validates relevance graft queries", async () => {
+    const target = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ purpose: "journal", mode: "classic" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/entries/${target.body.entry.id}/grafts/relevance`)
+      .set(ownerAHeaders)
+      .send({ query: " " })
+      .expect(400);
   });
 });

@@ -104,6 +104,38 @@ test.beforeEach(async ({ page }) => {
 
     await route.fulfill({ json: { messages: [] } });
   });
+
+  await page.route("**/api/entries/entry-1/grafts", async (route) => {
+    await route.fulfill({ json: { grafts: [] } });
+  });
+
+  await page.route("**/api/entries/entry-1/grafts/relevance", async (route) => {
+    await route.fulfill({
+      json: {
+        grafts: [
+          {
+            id: "graft-1",
+            entryId: "entry-1",
+            query: "starting point",
+            sourceEntryId: "entry-old",
+            sourceEntryTitle: "Earlier entry",
+            sourceEntryCreatedAt: "2026-06-02T10:00:00.000Z",
+            sourceSessionId: "mindbloom-entry-entry-old",
+            sourceThemeId: "theme-old",
+            themeLabel: "Returning to the beginning",
+            similarity: null,
+            graftedAt: "2026-06-03T10:00:00.000Z",
+          },
+        ],
+        topicPills: [{ id: "theme-2", label: "Previous theme", topicOrder: 1 }],
+        tokenCount: 24,
+      },
+    });
+  });
+
+  await page.route("**/api/notes", async (route) => {
+    await route.fulfill({ json: { notes: [], groups: [] } });
+  });
 });
 
 test("navigation and empty states render without overlap", async ({
@@ -120,8 +152,8 @@ test("navigation and empty states render without overlap", async ({
   await page.getByRole("link", { name: "Map" }).click();
   await expect(page.getByText("Your mind map is still forming")).toBeVisible();
 
-  await page.getByRole("link", { name: "Timeline" }).click();
-  await expect(page.getByText("Your timeline is waiting")).toBeVisible();
+  await page.getByRole("link", { name: "Notes" }).click();
+  await expect(page.getByText("No notes yet")).toBeVisible();
 
   await page.getByRole("link", { name: "Reflect" }).click();
   await expect(page.getByText("A reflection needs a few days")).toBeVisible();

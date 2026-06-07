@@ -1,10 +1,10 @@
-import { CalendarDays, Network, PencilLine, Sparkles } from "lucide-react";
+import { Network, PencilLine, Sparkles, StickyNote } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const navItems = [
   { to: "/", label: "Today", icon: PencilLine },
   { to: "/map", label: "Map", icon: Network },
-  { to: "/timeline", label: "Timeline", icon: CalendarDays },
+  { to: "/notes", label: "Notes", icon: StickyNote },
   { to: "/reflect", label: "Reflect", icon: Sparkles },
 ];
 

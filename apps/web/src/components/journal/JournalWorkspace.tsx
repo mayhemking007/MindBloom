@@ -19,6 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   EntryDayGroup,
+  EntryGraft,
   EntryMode,
   EntryMessage,
   EntryPurpose,
@@ -29,9 +30,12 @@ import type {
 import {
   createEntry,
   createEntryMessage,
+  createNote,
   getEntryDocument,
+  graftEntryByRelevance,
   listEntries,
   listEntryMessages,
+  listEntryGrafts,
   saveEntryDocument,
   sendChatMessage,
   updateEntry,
@@ -389,28 +393,150 @@ function CreateEntryPanel({
   );
 }
 
+interface SaveNotePanelProps {
+  entry: JournalEntry | null;
+  isOpen: boolean;
+  isSaving: boolean;
+  onClose: () => void;
+  onSave: (input: { title: string; body: string; color: string; pinned: boolean }) => void;
+}
+
+function SaveNotePanel({
+  entry,
+  isOpen,
+  isSaving,
+  onClose,
+  onSave,
+}: SaveNotePanelProps) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [color, setColor] = useState("amber");
+  const [pinned, setPinned] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTitle("");
+      setBody("");
+      setColor("amber");
+      setPinned(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/20 p-3 md:items-center md:justify-center">
+      <section
+        className="w-full rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[480px]"
+        aria-label="Save note"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-bloom-border px-5 py-4">
+          <div>
+            <h2 className="font-serif text-[24px] leading-tight">Save note</h2>
+            <p className="mt-1 text-[13px] text-bloom-text-secondary">
+              {entry ? `Linked to ${entry.title}` : "Write it in your words."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg"
+            aria-label="Close save note"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <label className="block text-[12px] font-medium text-bloom-text-secondary">
+            Title
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Untitled note"
+              className="mt-2 h-10 w-full rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 text-[14px] outline-none focus:border-bloom-border-mid"
+            />
+          </label>
+          <label className="block text-[12px] font-medium text-bloom-text-secondary">
+            What do you want to remember?
+            <textarea
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              rows={5}
+              placeholder="Write the takeaway in your own words."
+              className="mt-2 w-full resize-none rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 py-3 text-[14px] leading-6 outline-none focus:border-bloom-border-mid"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-[13px] text-bloom-text-secondary">
+            <input
+              type="checkbox"
+              checked={pinned}
+              onChange={(event) => setPinned(event.target.checked)}
+            />
+            Pin this note
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-bloom-border px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 rounded-bloom-sm border border-bloom-border px-4 text-[13px] font-medium text-bloom-text-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={isSaving || !body.trim()}
+            onClick={() =>
+              onSave({
+                title: title.trim() || "Untitled note",
+                body,
+                color,
+                pinned,
+              })
+            }
+            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? "Saving" : "Save note"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 interface BloomSidebarProps {
   entry: JournalEntry | null;
   messages: EntryMessage[];
+  grafts: EntryGraft[];
   topicPills: TopicPill[];
   isOpen: boolean;
   isSending: boolean;
+  isGrafting: boolean;
   error: string | null;
   onToggle: () => void;
   onSend: (message: string) => void;
+  onGraft: (query: string) => void;
 }
 
 function BloomSidebar({
   entry,
   messages,
+  grafts,
   topicPills,
   isOpen,
   isSending,
+  isGrafting,
   error,
   onToggle,
   onSend,
+  onGraft,
 }: BloomSidebarProps) {
   const [draft, setDraft] = useState("");
+  const [contextQuery, setContextQuery] = useState("");
   const bloomMessages = messages.filter((message) => message.role !== "system");
 
   function submitMessage() {
@@ -420,6 +546,15 @@ function BloomSidebar({
     }
     setDraft("");
     onSend(message);
+  }
+
+  function submitContextQuery() {
+    const query = contextQuery.trim();
+    if (!query || isGrafting || !entry) {
+      return;
+    }
+    setContextQuery("");
+    onGraft(query);
   }
 
   return (
@@ -474,6 +609,65 @@ function BloomSidebar({
                   <span className="text-[12px] leading-5 text-bloom-text-tertiary">
                     Themes will appear after Bloom has more to work with.
                   </span>
+                )}
+              </div>
+            </div>
+
+            <div className="border-b border-bloom-border px-4 py-3">
+              <p className="text-[11px] font-medium uppercase text-bloom-text-tertiary">
+                Brought-in context
+              </p>
+              <div className="mt-2 flex gap-2">
+                <label className="sr-only" htmlFor="previous-theme-query">
+                  Bring in a previous theme
+                </label>
+                <input
+                  id="previous-theme-query"
+                  value={contextQuery}
+                  onChange={(event) => setContextQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      submitContextQuery();
+                    }
+                  }}
+                  placeholder="Try setting boundaries..."
+                  className="h-9 min-w-0 flex-1 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 text-[12px] outline-none placeholder:text-bloom-text-tertiary focus:border-bloom-border-mid"
+                />
+                <button
+                  type="button"
+                  onClick={submitContextQuery}
+                  disabled={!contextQuery.trim() || isGrafting || !entry}
+                  className="h-9 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Bring in
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] leading-4 text-bloom-text-tertiary">
+                Bloom is only using this entry unless you bring in previous
+                themes.
+              </p>
+              <div className="mt-3 space-y-2">
+                {grafts.length > 0 ? (
+                  grafts.map((graft) => (
+                    <div
+                      key={graft.id}
+                      className="rounded-bloom-sm border border-blue-border bg-blue-bg px-3 py-2 text-blue-text"
+                    >
+                      <p className="text-[12px] font-semibold">
+                        {graft.themeLabel}
+                      </p>
+                      {graft.sourceEntryTitle ? (
+                        <p className="mt-1 text-[11px] leading-4">
+                          From {graft.sourceEntryTitle}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[12px] leading-5 text-bloom-text-tertiary">
+                    No previous themes are connected yet.
+                  </p>
                 )}
               </div>
             </div>
@@ -548,14 +742,18 @@ export function JournalWorkspace() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [documentDraft, setDocumentDraft] = useState("");
   const [messages, setMessages] = useState<EntryMessage[]>([]);
+  const [grafts, setGrafts] = useState<EntryGraft[]>([]);
   const [topicPills, setTopicPills] = useState<TopicPill[]>([]);
   const [isEntryDrawerOpen, setEntryDrawerOpen] = useState(false);
   const [isCreatePanelOpen, setCreatePanelOpen] = useState(false);
+  const [isNotePanelOpen, setNotePanelOpen] = useState(false);
   const [isBloomOpen, setBloomOpen] = useState(true);
   const [isLoading, setLoading] = useState(true);
   const [isCreating, setCreating] = useState(false);
   const [isSaving, setSaving] = useState(false);
+  const [isSavingNote, setSavingNote] = useState(false);
   const [isSending, setSending] = useState(false);
+  const [isGrafting, setGrafting] = useState(false);
   const [isEditingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -635,15 +833,17 @@ export function JournalWorkspace() {
     async function loadEntryDetails(entry: JournalEntry) {
       setError(null);
       try {
-        const [documentResponse, messageResponse] = await Promise.all([
+        const [documentResponse, messageResponse, graftResponse] = await Promise.all([
           getEntryDocument(entry.id),
           listEntryMessages(entry.id),
+          listEntryGrafts(entry.id),
         ]);
         if (!isMounted) {
           return;
         }
         setDocumentDraft(documentResponse.document?.content ?? "");
         setMessages(messageResponse.messages);
+        setGrafts(graftResponse.grafts ?? []);
         setTitleDraft(entry.title);
       } catch (loadError) {
         if (isMounted) {
@@ -806,6 +1006,67 @@ export function JournalWorkspace() {
     }
   }
 
+  async function handleSaveNote(input: {
+    title: string;
+    body: string;
+    color: string;
+    pinned: boolean;
+  }) {
+    if (!selectedEntry) {
+      return;
+    }
+
+    setSavingNote(true);
+    setError(null);
+    try {
+      await createNote({
+        title: input.title,
+        body: input.body,
+        color: input.color,
+        pinned: input.pinned,
+        entryId: selectedEntry.id,
+        sourceType: "entry-selection",
+      });
+      setNotePanelOpen(false);
+    } catch (noteError) {
+      setError(
+        noteError instanceof Error
+          ? noteError.message
+          : "MindBloom could not save this note.",
+      );
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function handleBringInContext(query: string) {
+    if (!selectedEntry) {
+      return;
+    }
+
+    setGrafting(true);
+    setError(null);
+    try {
+      const response = await graftEntryByRelevance(selectedEntry.id, {
+        query,
+        maxThemes: 4,
+        minSimilarity: 0.6,
+        expansionDepth: 1,
+        expansionStrategy: "graph",
+      });
+      setGrafts((current) => [...response.grafts, ...current]);
+      setTopicPills(response.topicPills);
+    } catch (graftError) {
+      setError(
+        graftError instanceof Error
+          ? graftError.message
+          : "Bloom could not bring in previous context.",
+      );
+    } finally {
+      setGrafting(false);
+    }
+  }
+
   return (
     <main className="min-h-dvh bg-bloom-bg">
       <div className="grid min-h-dvh grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)_auto]">
@@ -930,6 +1191,15 @@ export function JournalWorkspace() {
                     <PenLine className="h-4 w-4" aria-hidden="true" />
                     {isSaving ? "Saving" : "Save"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotePanelOpen(true)}
+                    disabled={!selectedEntry}
+                    className="flex h-10 items-center gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-4 text-[13px] font-medium text-bloom-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <StickyNote className="h-4 w-4" aria-hidden="true" />
+                    Save note
+                  </button>
                 </div>
 
                 <label className="sr-only" htmlFor="entry-editor">
@@ -955,12 +1225,15 @@ export function JournalWorkspace() {
             <BloomSidebar
               entry={selectedEntry}
               messages={messages}
+              grafts={grafts}
               topicPills={topicPills}
               isOpen={isBloomOpen}
               isSending={isSending}
+              isGrafting={isGrafting}
               error={error}
               onToggle={() => setBloomOpen((current) => !current)}
               onSend={handleBloomMessage}
+              onGraft={handleBringInContext}
             />
           </div>
         </div>
@@ -984,6 +1257,13 @@ export function JournalWorkspace() {
         isCreating={isCreating}
         onClose={() => setCreatePanelOpen(false)}
         onCreate={handleCreateEntry}
+      />
+      <SaveNotePanel
+        entry={selectedEntry}
+        isOpen={isNotePanelOpen}
+        isSaving={isSavingNote}
+        onClose={() => setNotePanelOpen(false)}
+        onSave={handleSaveNote}
       />
     </main>
   );

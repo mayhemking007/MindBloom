@@ -12,6 +12,7 @@ import type {
   JournalEntry,
   JournalEntryStatus,
   Note,
+  NoteDayGroup,
   NoteSourceType,
   ReflectionCard,
 } from "@mindbloom/shared";
@@ -62,10 +63,19 @@ export interface CreateNoteInput extends OwnerScope {
   pinned?: boolean;
 }
 
+export interface UpdateNoteInput {
+  title?: string;
+  body?: string;
+  color?: string | null;
+  pinned?: boolean;
+}
+
 export interface CreateGraftInput {
   entryId: string;
   query: string;
   sourceEntryId?: string | null;
+  sourceEntryTitle?: string | null;
+  sourceEntryCreatedAt?: string | null;
   sourceSessionId?: string | null;
   sourceThemeId?: string | null;
   themeLabel: string;
@@ -305,7 +315,50 @@ export class InMemoryEntryStore {
       .filter(
         (note) => note.ownerId === owner.ownerId && note.ownerKind === owner.ownerKind,
       )
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) {
+          return a.pinned ? -1 : 1;
+        }
+        return b.createdAt.localeCompare(a.createdAt);
+      });
+  }
+
+  listNotesGroupedByDay(owner: OwnerScope): NoteDayGroup[] {
+    const groups = new Map<string, Note[]>();
+
+    for (const note of this.listNotes(owner)) {
+      const date = getDateStampFromIso(note.createdAt);
+      groups.set(date, [...(groups.get(date) ?? []), note]);
+    }
+
+    return [...groups.entries()]
+      .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+      .map(([date, notes]) => ({ date, notes }));
+  }
+
+  getNote(noteId: string): Note | undefined {
+    return this.notes.get(noteId);
+  }
+
+  updateNote(noteId: string, input: UpdateNoteInput): Note | undefined {
+    const existing = this.notes.get(noteId);
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated: Note = {
+      ...existing,
+      ...input,
+      title: input.title?.trim() || existing.title,
+      updatedAt: nowIso(),
+    };
+
+    this.notes.set(noteId, updated);
+    return updated;
+  }
+
+  deleteNote(noteId: string): boolean {
+    return this.notes.delete(noteId);
   }
 
   createGraft(input: CreateGraftInput): EntryGraft {
@@ -314,6 +367,8 @@ export class InMemoryEntryStore {
       entryId: input.entryId,
       query: input.query,
       sourceEntryId: input.sourceEntryId ?? null,
+      sourceEntryTitle: input.sourceEntryTitle ?? null,
+      sourceEntryCreatedAt: input.sourceEntryCreatedAt ?? null,
       sourceSessionId: input.sourceSessionId ?? null,
       sourceThemeId: input.sourceThemeId ?? null,
       themeLabel: input.themeLabel,

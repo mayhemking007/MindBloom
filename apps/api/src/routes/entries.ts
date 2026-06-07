@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import type {
   EntryDocumentResponse,
+  EntryGraftRelevanceResponse,
+  EntryGraftsResponse,
   EntryIngestResponse,
   EntryListResponse,
   EntryMessageResponse,
@@ -54,6 +56,17 @@ const createMessageSchema = z.object({
   content: z.string().trim().min(1, "content is required").max(8000),
 });
 
+const graftByRelevanceSchema = z.object({
+  query: z.string().trim().min(1, "query is required").max(500),
+  sourceEntryIds: z.array(z.string().trim().min(1).max(128)).max(12).optional(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  maxThemes: z.coerce.number().int().min(1).max(12).optional(),
+  minSimilarity: z.coerce.number().min(0).max(1).optional(),
+  expansionDepth: z.coerce.number().int().min(0).max(3).optional(),
+  expansionStrategy: z.enum(["none", "graph"]).optional(),
+});
+
 export const entriesRouter = Router();
 
 const minIngestTextLength = 12;
@@ -66,6 +79,41 @@ function toTopicPills(
     label: node.label,
     topicOrder: node.topicOrder,
   }));
+}
+
+function isWithinDateRange(
+  entry: { createdAt: string },
+  dateFrom?: string,
+  dateTo?: string,
+): boolean {
+  const date = entry.createdAt.split("T")[0] ?? "";
+  return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+}
+
+function getOwnedSourceEntries(
+  owner: ReturnType<typeof readOwnerScope>,
+  currentEntryId: string,
+  sourceEntryIds?: string[],
+  dateFrom?: string,
+  dateTo?: string,
+) {
+  if (sourceEntryIds && sourceEntryIds.length > 0) {
+    return sourceEntryIds
+      .map((sourceEntryId) => getEntryForOwner(sourceEntryId, owner))
+      .filter(
+        (entry) =>
+          entry.id !== currentEntryId && isWithinDateRange(entry, dateFrom, dateTo),
+      );
+  }
+
+  return entryStore
+    .listEntries(owner)
+    .filter(
+      (entry) =>
+        entry.id !== currentEntryId &&
+        entry.allowFutureContext &&
+        isWithinDateRange(entry, dateFrom, dateTo),
+    );
 }
 
 entriesRouter.post("/", async (req, res, next) => {
@@ -279,6 +327,93 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
       document: ingestedDocument ?? document,
       ingested: true,
       topicPills: toTopicPills(await agent.getActiveNodes()),
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+entriesRouter.get("/:entryId/grafts", async (req, res, next) => {
+  try {
+    const owner = readOwnerScope(req);
+    const entryId = parseEntryId(req.params);
+    const entry = getEntryForOwner(entryId, owner);
+    const response: EntryGraftsResponse = {
+      grafts: entryStore.listGrafts(entry.id),
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+entriesRouter.post("/:entryId/grafts/relevance", async (req, res, next) => {
+  try {
+    const owner = readOwnerScope(req);
+    const entryId = parseEntryId(req.params);
+    const entry = getEntryForOwner(entryId, owner);
+    const parsed = graftByRelevanceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new ApiError(
+        400,
+        parsed.error.issues[0]?.message ?? "Invalid body",
+      );
+    }
+
+    const sourceEntries = getOwnedSourceEntries(
+      owner,
+      entry.id,
+      parsed.data.sourceEntryIds,
+      parsed.data.dateFrom,
+      parsed.data.dateTo,
+    );
+    const currentAgent = await getAgentForSession(entry.memoSessionId);
+    const storedGrafts = [];
+    let tokenCount = 0;
+
+    for (const sourceEntry of sourceEntries) {
+      const sourceAgent = await getAgentForSession(sourceEntry.memoSessionId);
+      const relevanceResult = await sourceAgent.graftByRelevance(
+        parsed.data.query,
+        {
+          topK: parsed.data.maxThemes,
+          minSimilarity: parsed.data.minSimilarity,
+          hopDepth: parsed.data.expansionDepth,
+          expansionStrategy: parsed.data.expansionStrategy,
+        },
+      );
+      tokenCount += relevanceResult.tokenCount;
+
+      if (relevanceResult.nodes.length === 0) {
+        continue;
+      }
+
+      await currentAgent.ingestGraftedNodes(relevanceResult.nodes);
+
+      for (const node of relevanceResult.nodes) {
+        storedGrafts.push(
+          entryStore.createGraft({
+            entryId: entry.id,
+            query: parsed.data.query,
+            sourceEntryId: sourceEntry.id,
+            sourceEntryTitle: sourceEntry.title,
+            sourceEntryCreatedAt: sourceEntry.createdAt,
+            sourceSessionId: sourceEntry.memoSessionId,
+            sourceThemeId: node.id,
+            themeLabel: node.label,
+            similarity: null,
+          }),
+        );
+      }
+    }
+
+    const response: EntryGraftRelevanceResponse = {
+      grafts: storedGrafts,
+      topicPills: toTopicPills(await currentAgent.getActiveNodes()),
+      tokenCount,
     };
 
     res.json(response);

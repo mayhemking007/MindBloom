@@ -5,16 +5,23 @@ import type {
   ChatResponse,
   CreateEntryMessageRequest,
   CreateEntryRequest,
+  CreateNoteRequest,
   EntryDocumentResponse,
+  EntryGraftRelevanceResponse,
+  EntryGraftsResponse,
   EntryListResponse,
   EntryMessageResponse,
   EntryMessagesResponse,
   EntryResponse,
+  GraftByRelevanceRequest,
   GraphSnapshotResponse,
+  NoteResponse,
+  NotesResponse,
   ReflectRequest,
   ReflectResponse,
   TodaySessionResponse,
   UpdateEntryRequest,
+  UpdateNoteRequest,
   UpsertEntryDocumentRequest,
 } from "@mindbloom/shared";
 
@@ -173,4 +180,69 @@ export async function createEntryMessage(
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<EntryMessageResponse>(response);
+}
+
+export async function listEntryGrafts(
+  entryId: string,
+): Promise<EntryGraftsResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/grafts`, {
+    headers: ownerHeaders,
+  });
+  return parseJsonResponse<EntryGraftsResponse>(response);
+}
+
+export async function graftEntryByRelevance(
+  entryId: string,
+  payload: GraftByRelevanceRequest,
+): Promise<EntryGraftRelevanceResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/entries/${entryId}/grafts/relevance`,
+    {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+  );
+  return parseJsonResponse<EntryGraftRelevanceResponse>(response);
+}
+
+export async function listNotes(): Promise<NotesResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/notes`, {
+    headers: ownerHeaders,
+  });
+  return parseJsonResponse<NotesResponse>(response);
+}
+
+export async function createNote(
+  payload: CreateNoteRequest,
+): Promise<NoteResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/notes`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<NoteResponse>(response);
+}
+
+export async function updateNote(
+  noteId: string,
+  payload: UpdateNoteRequest,
+): Promise<NoteResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/notes/${noteId}`, {
+    method: "PATCH",
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<NoteResponse>(response);
+}
+
+export async function deleteNote(noteId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/notes/${noteId}`, {
+    method: "DELETE",
+    headers: ownerHeaders,
+  });
+
+  if (!response.ok) {
+    await parseJsonResponse<unknown>(response);
+  }
 }
