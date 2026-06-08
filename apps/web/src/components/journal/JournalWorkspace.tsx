@@ -25,6 +25,7 @@ import type {
   EntryMode,
   EntryMessage,
   EntryPurpose,
+  GraphSnapshotResponse,
   JournalEntry,
   TopicPill,
 } from "@mindbloom/shared";
@@ -33,7 +34,9 @@ import {
   createEntry,
   createNote,
   getEntryDocument,
+  getEntrySnapshot,
   graftEntryByRelevance,
+  ingestEntryDocument,
   listEntries,
   listEntryMessages,
   listEntryGrafts,
@@ -86,6 +89,17 @@ function entryIcon(purpose: JournalEntry["purpose"]) {
     return Sparkles;
   }
   return BookOpen;
+}
+
+function topicPillsFromSnapshot(snapshot: GraphSnapshotResponse): TopicPill[] {
+  return [...snapshot.nodes]
+    .sort((a, b) => a.topicOrder - b.topicOrder)
+    .slice(0, 8)
+    .map((node) => ({
+      id: node.id,
+      label: node.label,
+      topicOrder: node.topicOrder,
+    }));
 }
 
 interface EntrySidebarProps {
@@ -199,9 +213,9 @@ function EntrySidebar({
         <div className="border-t border-bloom-border px-3 py-3">
           <div className="grid grid-cols-3 gap-1">
             {[
-              { label: "Notes", icon: StickyNote },
-              { label: "Calendar", icon: CalendarDays },
-              { label: "Settings", icon: Settings },
+              { label: "Notes", icon: StickyNote, to: "/notes" },
+              { label: "Calendar", icon: CalendarDays, to: "/calendar" },
+              { label: "Settings", icon: Settings, to: "/settings" },
             ].map((item) => {
               const Icon = item.icon;
 
@@ -209,6 +223,11 @@ function EntrySidebar({
                 <button
                   key={item.label}
                   type="button"
+                  onClick={() => {
+                    onClose();
+                    window.history.pushState(null, "", item.to);
+                    window.dispatchEvent(new PopStateEvent("popstate"));
+                  }}
                   className="flex h-14 flex-col items-center justify-center gap-1 rounded-bloom-sm text-[11px] text-bloom-text-tertiary hover:bg-gray-bg hover:text-bloom-text-secondary"
                   aria-label={item.label}
                 >
@@ -794,8 +813,11 @@ export function JournalWorkspace() {
   const [streamingContent, setStreamingContent] = useState("");
   const [failedBloomMessage, setFailedBloomMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const autosaveTimer = useRef<number | null>(null);
   const bloomAbortController = useRef<AbortController | null>(null);
+  const draftDirtyRef = useRef(false);
+  const latestDraftRef = useRef("");
 
   const entries = useMemo(
     () => groups.flatMap((group) => group.entries),
@@ -878,18 +900,29 @@ export function JournalWorkspace() {
     async function loadEntryDetails(entry: JournalEntry) {
       setError(null);
       try {
-        const [documentResponse, messageResponse, graftResponse] = await Promise.all([
+        const [
+          documentResponse,
+          messageResponse,
+          graftResponse,
+          snapshotResponse,
+        ] = await Promise.all([
           getEntryDocument(entry.id),
           listEntryMessages(entry.id),
           listEntryGrafts(entry.id),
+          getEntrySnapshot(entry.id),
         ]);
         if (!isMounted) {
           return;
         }
-        setDocumentDraft(documentResponse.document?.content ?? "");
+        draftDirtyRef.current = false;
+        const nextDocument = documentResponse.document?.content ?? "";
+        latestDraftRef.current = nextDocument;
+        setDocumentDraft(nextDocument);
         setMessages(messageResponse.messages);
         setGrafts(graftResponse.grafts ?? []);
+        setTopicPills(topicPillsFromSnapshot(snapshotResponse));
         setTitleDraft(entry.title);
+        setSaveStatus(null);
       } catch (loadError) {
         if (isMounted) {
           setError(
@@ -909,7 +942,7 @@ export function JournalWorkspace() {
   }, [selectedEntry?.id]);
 
   useEffect(() => {
-    if (!selectedEntry) {
+    if (!selectedEntry || !draftDirtyRef.current) {
       return;
     }
 
@@ -917,13 +950,22 @@ export function JournalWorkspace() {
       window.clearTimeout(autosaveTimer.current);
     }
 
+    const entryId = selectedEntry.id;
+    const contentToSave = documentDraft;
+
     autosaveTimer.current = window.setTimeout(() => {
-      saveEntryDocument(selectedEntry.id, { content: documentDraft }).catch(
-        () => {
+      saveEntryDocument(entryId, { content: contentToSave })
+        .then(() => ingestEntryDocument(entryId, { content: contentToSave }))
+        .then((response) => {
+          setTopicPills(response.topicPills ?? []);
+          if (latestDraftRef.current === contentToSave) {
+            draftDirtyRef.current = false;
+          }
+        })
+        .catch(() => {
           setError("MindBloom could not autosave this entry.");
-        },
-      );
-    }, 900);
+        });
+    }, 1200);
 
     return () => {
       if (autosaveTimer.current) {
@@ -1003,9 +1045,24 @@ export function JournalWorkspace() {
 
     setSaving(true);
     setError(null);
+    setSaveStatus(null);
     try {
-      await saveEntryDocument(selectedEntry.id, { content: documentDraft });
+      const contentToSave = latestDraftRef.current;
+      await saveEntryDocument(selectedEntry.id, { content: contentToSave });
+      const response = await ingestEntryDocument(selectedEntry.id, {
+        content: contentToSave,
+      });
+      setTopicPills(response.topicPills ?? []);
+      draftDirtyRef.current = false;
+      setSaveStatus(
+        response.ingested
+          ? "Saved and mapped."
+          : response.skippedReason === "unchanged-document"
+            ? "Saved. Your map is already up to date."
+            : "Saved. Add a little more writing for the map to form.",
+      );
     } catch (saveError) {
+      setSaveStatus(null);
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -1029,6 +1086,14 @@ export function JournalWorkspace() {
     bloomAbortController.current = abortController;
 
     try {
+      const contentToSave = latestDraftRef.current;
+      await saveEntryDocument(selectedEntry.id, { content: contentToSave });
+      const ingestResponse = await ingestEntryDocument(selectedEntry.id, {
+        content: contentToSave,
+      });
+      setTopicPills(ingestResponse.topicPills ?? []);
+      draftDirtyRef.current = false;
+
       await streamEntryMessage(selectedEntry.id, content, {
         onUserMessage: (message) => {
           setMessages((current) =>
@@ -1042,7 +1107,7 @@ export function JournalWorkspace() {
         },
         onDone: ({ message, topicPills: nextTopicPills }) => {
           setMessages((current) => [...current, message]);
-          setTopicPills(nextTopicPills);
+          setTopicPills(nextTopicPills ?? []);
           setStreamingContent("");
         },
         onError: (message) => {
@@ -1136,7 +1201,7 @@ export function JournalWorkspace() {
         expansionStrategy: "graph",
       });
       setGrafts((current) => [...response.grafts, ...current]);
-      setTopicPills(response.topicPills);
+      setTopicPills(response.topicPills ?? []);
     } catch (graftError) {
       setError(
         graftError instanceof Error
@@ -1307,10 +1372,18 @@ export function JournalWorkspace() {
                 <textarea
                   id="entry-editor"
                   value={documentDraft}
-                  onChange={(event) => setDocumentDraft(event.target.value)}
+                  onChange={(event) => {
+                    latestDraftRef.current = event.target.value;
+                    draftDirtyRef.current = true;
+                    setSaveStatus(null);
+                    setDocumentDraft(event.target.value);
+                  }}
                   placeholder="Start writing here. It can be a journal entry, an idea, or a messy thought you want to untangle."
                   className="min-h-[calc(100dvh-260px)] w-full resize-none rounded-bloom border border-bloom-border bg-bloom-surface px-5 py-5 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary focus:border-bloom-border-mid md:min-h-[calc(100dvh-230px)] md:px-7 md:py-7 md:text-[20px] md:leading-9"
                 />
+                {saveStatus ? (
+                  <p className="mt-3 text-[13px] text-teal-text">{saveStatus}</p>
+                ) : null}
                 {error ? (
                   <p className="mt-3 text-[13px] text-coral-text">{error}</p>
                 ) : null}

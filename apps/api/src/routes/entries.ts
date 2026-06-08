@@ -383,6 +383,20 @@ entriesRouter.get("/:entryId/grafts", async (req, res, next) => {
   }
 });
 
+entriesRouter.get("/:entryId/snapshot", async (req, res, next) => {
+  try {
+    const owner = readOwnerScope(req);
+    const entryId = parseEntryId(req.params);
+    const entry = getEntryForOwner(entryId, owner);
+    const agent = await getAgentForSession(entry.memoSessionId);
+    const snapshot = await agent.getGraphSnapshot();
+
+    res.json(normalizeGraphSnapshot(snapshot));
+  } catch (error) {
+    next(error);
+  }
+});
+
 entriesRouter.post("/:entryId/grafts/relevance", async (req, res, next) => {
   try {
     const owner = readOwnerScope(req);

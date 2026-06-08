@@ -12,6 +12,7 @@ import type {
   EntryDocumentResponse,
   EntryGraftRelevanceResponse,
   EntryGraftsResponse,
+  EntryIngestResponse,
   EntryListResponse,
   EntryMessage,
   EntryMessageResponse,
@@ -241,6 +242,31 @@ export async function saveEntryDocument(
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<EntryDocumentResponse>(response);
+}
+
+export async function ingestEntryDocument(
+  entryId: string,
+  payload: { content?: string; force?: boolean } = {},
+): Promise<EntryIngestResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/ingest`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<EntryIngestResponse>(response);
+}
+
+export async function getEntrySnapshot(
+  entryId: string,
+  scope = "overall",
+): Promise<GraphSnapshotResponse> {
+  const params = new URLSearchParams({ scope });
+  const response = await fetch(
+    `${apiBaseUrl}/api/entries/${entryId}/snapshot?${params}`,
+    credentialOptions,
+  );
+  return parseJsonResponse<GraphSnapshotResponse>(response);
 }
 
 export async function listEntryMessages(
