@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type {
+  CalendarActivityDay,
   EntryDayGroup,
   EntryDocument,
   EntryGraft,
@@ -16,6 +17,8 @@ import type {
   NoteSourceType,
   ReflectionCard,
   ReflectionShareLink,
+  UpdateSettingsRequest,
+  UserSettings,
 } from "@mindbloom/shared";
 
 export interface OwnerScope {
@@ -109,6 +112,37 @@ function getDateStampFromIso(value: string): string {
   return value.split("T")[0] ?? value;
 }
 
+function getOwnerSettingsKey(owner: OwnerScope): string {
+  return `${owner.ownerKind}:${owner.ownerId}`;
+}
+
+function createDefaultSettings(): UserSettings {
+  return {
+    calendarEnabled: false,
+    calendarMode: "gentle",
+    streaksEnabled: false,
+    updatedAt: nowIso(),
+  };
+}
+
+function getMoodColor(label: string): string {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("calm") || normalized.includes("steady")) {
+    return "teal";
+  }
+  if (normalized.includes("bright") || normalized.includes("happy")) {
+    return "amber";
+  }
+  if (normalized.includes("tender") || normalized.includes("soft")) {
+    return "pink";
+  }
+  if (normalized.includes("heavy") || normalized.includes("tired")) {
+    return "blue";
+  }
+
+  return "purple";
+}
+
 function assertOwner(entry: JournalEntry, owner: OwnerScope): void {
   if (entry.ownerId !== owner.ownerId || entry.ownerKind !== owner.ownerKind) {
     throw new Error("Entry does not belong to owner scope");
@@ -129,6 +163,39 @@ export class InMemoryEntryStore {
   private readonly reflections = new Map<string, EntryReflection>();
 
   private readonly shareLinks = new Map<string, ReflectionShareLink>();
+
+  private readonly settings = new Map<string, UserSettings>();
+
+  getSettings(owner: OwnerScope): UserSettings {
+    const key = getOwnerSettingsKey(owner);
+    const existing = this.settings.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const defaults = createDefaultSettings();
+    this.settings.set(key, defaults);
+    return defaults;
+  }
+
+  updateSettings(owner: OwnerScope, input: UpdateSettingsRequest): UserSettings {
+    const existing = this.getSettings(owner);
+    const calendarMode = input.calendarMode ?? existing.calendarMode;
+    const streaksEnabled =
+      calendarMode === "habit"
+        ? (input.streaksEnabled ?? existing.streaksEnabled)
+        : false;
+    const updated: UserSettings = {
+      ...existing,
+      ...input,
+      calendarMode,
+      streaksEnabled,
+      updatedAt: nowIso(),
+    };
+
+    this.settings.set(getOwnerSettingsKey(owner), updated);
+    return updated;
+  }
 
   createEntry(input: CreateEntryInput): JournalEntry {
     const id = randomUUID();
@@ -427,6 +494,49 @@ export class InMemoryEntryStore {
     return this.reflections.get(reflectionId);
   }
 
+  listCalendarActivity(owner: OwnerScope): CalendarActivityDay[] {
+    const days = new Map<string, CalendarActivityDay>();
+    const ensureDay = (date: string): CalendarActivityDay => {
+      const existing = days.get(date);
+      if (existing) {
+        return existing;
+      }
+
+      const day: CalendarActivityDay = {
+        date,
+        entryCount: 0,
+        noteCount: 0,
+        reflectionCount: 0,
+        moodLabel: null,
+        moodColor: null,
+      };
+      days.set(date, day);
+      return day;
+    };
+
+    for (const entry of this.listEntries(owner)) {
+      ensureDay(getDateStampFromIso(entry.createdAt)).entryCount += 1;
+    }
+
+    for (const note of this.listNotes(owner)) {
+      ensureDay(getDateStampFromIso(note.createdAt)).noteCount += 1;
+    }
+
+    for (const entry of this.listEntries(owner)) {
+      for (const reflection of this.listReflections(entry.id)) {
+        const day = ensureDay(getDateStampFromIso(reflection.createdAt));
+        day.reflectionCount += 1;
+        const moodCard = reflection.cards.find((card) => card.type === "mood");
+        if (moodCard) {
+          day.moodLabel = moodCard.body || moodCard.title;
+          day.moodColor = getMoodColor(day.moodLabel);
+        }
+      }
+    }
+
+    return [...days.values()].sort((a, b) => b.date.localeCompare(a.date));
+  }
+
   createShareLink(input: CreateShareLinkInput): ReflectionShareLink {
     const shareLink: ReflectionShareLink = {
       id: randomUUID(),
@@ -481,6 +591,7 @@ export class InMemoryEntryStore {
     this.grafts.clear();
     this.reflections.clear();
     this.shareLinks.clear();
+    this.settings.clear();
   }
 }
 

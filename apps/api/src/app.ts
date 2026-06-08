@@ -17,6 +17,7 @@ import { recallRouter } from "./routes/recall.js";
 import { reflectRouter } from "./routes/reflect.js";
 import { shareRouter } from "./routes/share.js";
 import { snapshotRouter } from "./routes/snapshot.js";
+import { settingsRouter } from "./routes/settings.js";
 
 export function createApp() {
   const app = express();
@@ -58,6 +59,7 @@ export function createApp() {
   app.use("/api/recall", recallRouter);
   app.use("/api/reflect", reflectRouter);
   app.use("/api", shareRouter);
+  app.use("/api", settingsRouter);
 
   app.use(notFoundHandler());
   app.use(errorHandler());

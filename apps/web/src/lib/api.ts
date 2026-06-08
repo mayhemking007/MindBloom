@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   BloomRequest,
   BloomResponse,
+  CalendarActivityResponse,
   ChatRequest,
   ChatResponse,
   CreateEntryMessageRequest,
@@ -28,9 +29,11 @@ import type {
   ReflectionShareLinkResponse,
   ReflectionShareLinksResponse,
   RegisterRequest,
+  SettingsResponse,
   TodaySessionResponse,
   UpdateEntryRequest,
   UpdateNoteRequest,
+  UpdateSettingsRequest,
   UpsertEntryDocumentRequest,
 } from "@mindbloom/shared";
 
@@ -93,6 +96,31 @@ export async function logoutUser(): Promise<void> {
 export async function getCurrentAuth(): Promise<AuthMeResponse> {
   const response = await fetch(`${apiBaseUrl}/api/auth/me`, credentialOptions);
   return parseJsonResponse<AuthMeResponse>(response);
+}
+
+export async function getSettings(): Promise<SettingsResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/settings`, credentialOptions);
+  return parseJsonResponse<SettingsResponse>(response);
+}
+
+export async function updateSettings(
+  payload: UpdateSettingsRequest,
+): Promise<SettingsResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/settings`, {
+    method: "PATCH",
+    headers: jsonHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<SettingsResponse>(response);
+}
+
+export async function getCalendarActivity(): Promise<CalendarActivityResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/calendar/activity`,
+    credentialOptions,
+  );
+  return parseJsonResponse<CalendarActivityResponse>(response);
 }
 
 export async function getTodaySession(): Promise<TodaySessionResponse> {

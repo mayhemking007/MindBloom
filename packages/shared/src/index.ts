@@ -58,6 +58,39 @@ export interface AuthMeResponse {
   ownerKind: EntryOwnerKind;
 }
 
+export type CalendarMode = "gentle" | "habit";
+
+export interface UserSettings {
+  calendarEnabled: boolean;
+  calendarMode: CalendarMode;
+  streaksEnabled: boolean;
+  updatedAt: string;
+}
+
+export interface UpdateSettingsRequest {
+  calendarEnabled?: boolean;
+  calendarMode?: CalendarMode;
+  streaksEnabled?: boolean;
+}
+
+export interface SettingsResponse {
+  settings: UserSettings;
+}
+
+export interface CalendarActivityDay {
+  date: string;
+  entryCount: number;
+  noteCount: number;
+  reflectionCount: number;
+  moodLabel: string | null;
+  moodColor: string | null;
+}
+
+export interface CalendarActivityResponse {
+  days: CalendarActivityDay[];
+  settings: UserSettings;
+}
+
 export type EntryPurpose = "journal" | "idea" | "brainstorm";
 
 export type EntryMode = "classic" | "chat" | "mixed";

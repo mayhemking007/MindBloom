@@ -1,4 +1,13 @@
-import { LogIn, LogOut, Network, PencilLine, Sparkles, StickyNote } from "lucide-react";
+import {
+  CalendarDays,
+  LogIn,
+  LogOut,
+  Network,
+  PencilLine,
+  Settings,
+  Sparkles,
+  StickyNote,
+} from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -7,7 +16,9 @@ const navItems = [
   { to: "/", label: "Today", icon: PencilLine },
   { to: "/map", label: "Map", icon: Network },
   { to: "/notes", label: "Notes", icon: StickyNote },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/reflect", label: "Reflect", icon: Sparkles },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function BottomNav() {
@@ -21,7 +32,7 @@ export function BottomNav() {
           A place to notice what stays
         </p>
       </div>
-      <div className="grid h-full grid-cols-5 items-center gap-1 md:mt-8 md:block md:h-auto md:space-y-1">
+      <div className="grid h-full grid-cols-7 items-center gap-1 md:mt-8 md:block md:h-auto md:space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
 

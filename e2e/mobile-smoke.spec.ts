@@ -31,6 +31,13 @@ const entryGroups = [
   },
 ];
 
+const defaultSettings = {
+  calendarEnabled: false,
+  calendarMode: "gentle",
+  streaksEnabled: false,
+  updatedAt: "2026-06-03T10:00:00.000Z",
+};
+
 test.beforeEach(async ({ page }) => {
   let authUser: null | {
     id: string;
@@ -53,6 +60,7 @@ test.beforeEach(async ({ page }) => {
       }
     | null = null;
   let sharedCardIds: string[] = [];
+  let settings = { ...defaultSettings };
 
   await page.route("**/api/auth/me", async (route) => {
     await route.fulfill({
@@ -76,6 +84,39 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/auth/logout", async (route) => {
     authUser = null;
     await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.route("**/api/settings", async (route) => {
+    if (route.request().method() === "PATCH") {
+      settings = {
+        ...settings,
+        ...JSON.parse(route.request().postData() ?? "{}"),
+        updatedAt: "2026-06-03T10:01:00.000Z",
+      };
+      if (settings.calendarMode !== "habit") {
+        settings.streaksEnabled = false;
+      }
+    }
+
+    await route.fulfill({ json: { settings } });
+  });
+
+  await page.route("**/api/calendar/activity", async (route) => {
+    await route.fulfill({
+      json: {
+        settings,
+        days: [
+          {
+            date: "2026-06-03",
+            entryCount: 1,
+            noteCount: 0,
+            reflectionCount: savedReflection ? 1 : 0,
+            moodLabel: savedReflection ? "Calm and focused" : null,
+            moodColor: savedReflection ? "teal" : null,
+          },
+        ],
+      },
+    });
   });
 
   await page.route("**/api/session/today", async (route) => {
@@ -290,8 +331,20 @@ test("navigation and empty states render without overlap", async ({
   await page.getByRole("link", { name: "Notes" }).click();
   await expect(page.getByText("No notes yet")).toBeVisible();
 
+  await page.getByRole("link", { name: "Calendar" }).click();
+  await expect(page.getByText("Your calendar is tucked away")).toBeVisible();
+
   await page.getByRole("link", { name: "Reflect" }).click();
   await expect(page.getByText("No reflection cards yet", { exact: true })).toBeVisible();
+});
+
+test("calendar can be enabled from settings", async ({ page }) => {
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Enable" }).click();
+  await expect(page.getByText("Visible")).toBeVisible();
+
+  await page.getByRole("link", { name: "Calendar" }).click();
+  await expect(page.getByText("1 saved")).toBeVisible();
 });
 
 test("Bloom sidebar sends a message from the current entry", async ({ page }) => {
