@@ -1,4 +1,6 @@
 import type {
+  AuthMeResponse,
+  AuthResponse,
   BloomRequest,
   BloomResponse,
   ChatRequest,
@@ -17,6 +19,7 @@ import type {
   EntryResponse,
   GraftByRelevanceRequest,
   GraphSnapshotResponse,
+  LoginRequest,
   NoteResponse,
   NotesResponse,
   PublicReflectionShareResponse,
@@ -24,6 +27,7 @@ import type {
   ReflectResponse,
   ReflectionShareLinkResponse,
   ReflectionShareLinksResponse,
+  RegisterRequest,
   TodaySessionResponse,
   UpdateEntryRequest,
   UpdateNoteRequest,
@@ -47,16 +51,48 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-const ownerHeaders = {
-  "x-mindbloom-owner-kind": "authenticated",
-  "x-mindbloom-owner-id": "local-web-user",
-};
+const credentialOptions = { credentials: "include" as const };
 
 function jsonHeaders() {
   return {
     "Content-Type": "application/json",
-    ...ownerHeaders,
   };
+}
+
+export async function registerUser(payload: RegisterRequest): Promise<AuthResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/auth/register`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<AuthResponse>(response);
+}
+
+export async function loginUser(payload: LoginRequest): Promise<AuthResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<AuthResponse>(response);
+}
+
+export async function logoutUser(): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    await parseJsonResponse<unknown>(response);
+  }
+}
+
+export async function getCurrentAuth(): Promise<AuthMeResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/auth/me`, credentialOptions);
+  return parseJsonResponse<AuthMeResponse>(response);
 }
 
 export async function getTodaySession(): Promise<TodaySessionResponse> {
@@ -116,9 +152,7 @@ export async function generateReflection(
 }
 
 export async function listEntries(): Promise<EntryListResponse> {
-  const response = await fetch(`${apiBaseUrl}/api/entries`, {
-    headers: ownerHeaders,
-  });
+  const response = await fetch(`${apiBaseUrl}/api/entries`, credentialOptions);
   return parseJsonResponse<EntryListResponse>(response);
 }
 
@@ -129,6 +163,7 @@ export async function updateEntry(
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}`, {
     method: "PATCH",
     headers: jsonHeaders(),
+    credentials: "include",
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<EntryResponse>(response);
@@ -140,6 +175,7 @@ export async function createEntry(
   const response = await fetch(`${apiBaseUrl}/api/entries`, {
     method: "POST",
     headers: jsonHeaders(),
+    credentials: "include",
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<EntryResponse>(response);
@@ -149,7 +185,7 @@ export async function getEntryDocument(
   entryId: string,
 ): Promise<EntryDocumentResponse> {
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/document`, {
-    headers: ownerHeaders,
+    ...credentialOptions,
   });
   return parseJsonResponse<EntryDocumentResponse>(response);
 }
@@ -161,6 +197,7 @@ export async function saveEntryDocument(
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/document`, {
     method: "PUT",
     headers: jsonHeaders(),
+    credentials: "include",
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<EntryDocumentResponse>(response);
@@ -170,7 +207,7 @@ export async function listEntryMessages(
   entryId: string,
 ): Promise<EntryMessagesResponse> {
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages`, {
-    headers: ownerHeaders,
+    ...credentialOptions,
   });
   return parseJsonResponse<EntryMessagesResponse>(response);
 }
@@ -182,6 +219,7 @@ export async function createEntryMessage(
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages`, {
     method: "POST",
     headers: jsonHeaders(),
+    credentials: "include",
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<EntryMessageResponse>(response);
@@ -191,7 +229,7 @@ export async function listEntryGrafts(
   entryId: string,
 ): Promise<EntryGraftsResponse> {
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/grafts`, {
-    headers: ownerHeaders,
+    ...credentialOptions,
   });
   return parseJsonResponse<EntryGraftsResponse>(response);
 }
@@ -205,6 +243,7 @@ export async function graftEntryByRelevance(
     {
       method: "POST",
       headers: jsonHeaders(),
+      credentials: "include",
       body: JSON.stringify(payload),
     },
   );
@@ -215,7 +254,7 @@ export async function listEntryReflections(
   entryId: string,
 ): Promise<EntryReflectionsResponse> {
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/reflections`, {
-    headers: ownerHeaders,
+    ...credentialOptions,
   });
   return parseJsonResponse<EntryReflectionsResponse>(response);
 }
@@ -226,6 +265,7 @@ export async function createEntryReflection(
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/reflections`, {
     method: "POST",
     headers: jsonHeaders(),
+    credentials: "include",
     body: JSON.stringify({}),
   });
   return parseJsonResponse<EntryReflectionResponse>(response);
@@ -238,7 +278,7 @@ export async function getEntryReflection(
   const response = await fetch(
     `${apiBaseUrl}/api/entries/${entryId}/reflections/${reflectionId}`,
     {
-      headers: ownerHeaders,
+      ...credentialOptions,
     },
   );
   return parseJsonResponse<EntryReflectionResponse>(response);
@@ -250,7 +290,7 @@ export async function listReflectionShareLinks(
   const response = await fetch(
     `${apiBaseUrl}/api/reflections/${reflectionId}/share-links`,
     {
-      headers: ownerHeaders,
+      ...credentialOptions,
     },
   );
   return parseJsonResponse<ReflectionShareLinksResponse>(response);
@@ -265,6 +305,7 @@ export async function createReflectionShareLink(
     {
       method: "POST",
       headers: jsonHeaders(),
+      credentials: "include",
       body: JSON.stringify(payload),
     },
   );
@@ -276,7 +317,7 @@ export async function revokeReflectionShareLink(
 ): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/api/share-links/${shareLinkId}`, {
     method: "DELETE",
-    headers: ownerHeaders,
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -292,9 +333,7 @@ export async function getPublicReflectionShare(
 }
 
 export async function listNotes(): Promise<NotesResponse> {
-  const response = await fetch(`${apiBaseUrl}/api/notes`, {
-    headers: ownerHeaders,
-  });
+  const response = await fetch(`${apiBaseUrl}/api/notes`, credentialOptions);
   return parseJsonResponse<NotesResponse>(response);
 }
 
@@ -304,6 +343,7 @@ export async function createNote(
   const response = await fetch(`${apiBaseUrl}/api/notes`, {
     method: "POST",
     headers: jsonHeaders(),
+    credentials: "include",
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<NoteResponse>(response);
@@ -316,6 +356,7 @@ export async function updateNote(
   const response = await fetch(`${apiBaseUrl}/api/notes/${noteId}`, {
     method: "PATCH",
     headers: jsonHeaders(),
+    credentials: "include",
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<NoteResponse>(response);
@@ -324,7 +365,7 @@ export async function updateNote(
 export async function deleteNote(noteId: string): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/api/notes/${noteId}`, {
     method: "DELETE",
-    headers: ownerHeaders,
+    credentials: "include",
   });
 
   if (!response.ok) {

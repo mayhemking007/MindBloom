@@ -1,8 +1,10 @@
 import { z } from "zod";
 import type { EntryOwnerKind, JournalEntry } from "@mindbloom/shared";
 
+import { readCookie } from "./cookies.js";
 import { ApiError } from "./errors.js";
 import { entryStore, type OwnerScope } from "../lib/entryStore.js";
+import { authStore, sessionCookieName } from "../lib/authStore.js";
 
 const ownerKindSchema = z.enum(["authenticated", "demo"]);
 
@@ -13,6 +15,16 @@ const entryIdParamSchema = z.object({
 export function readOwnerScope(req: {
   get(name: string): string | undefined;
 }): OwnerScope {
+  const sessionUser = authStore.getUserForToken(
+    readCookie(req.get("cookie"), sessionCookieName),
+  );
+  if (sessionUser) {
+    return {
+      ownerId: sessionUser.id,
+      ownerKind: "authenticated",
+    };
+  }
+
   const parsedOwnerKind = ownerKindSchema.safeParse(
     req.get("x-mindbloom-owner-kind") ?? "demo",
   );

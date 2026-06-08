@@ -108,6 +108,30 @@ describe("share routes", () => {
       .expect(404);
   });
 
+  it("requires sign in before creating share links", async () => {
+    const demoEntry = await request(app)
+      .post("/api/entries")
+      .send({ title: "Demo entry", purpose: "journal", mode: "classic" })
+      .expect(201);
+    const reflection = entryStore.createReflection({
+      entryId: demoEntry.body.entry.id,
+      graphSnapshot: null,
+      cards: [
+        {
+          id: "mood",
+          type: "mood",
+          title: "Mood",
+          body: "A demo mood.",
+        },
+      ],
+    });
+
+    await request(app)
+      .post(`/api/reflections/${reflection.id}/share-links`)
+      .send({ selectedCardIds: ["mood"] })
+      .expect(403);
+  });
+
   it("revokes share links and prevents public access", async () => {
     const reflection = await createReflection();
     const created = await request(app)

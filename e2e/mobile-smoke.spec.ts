@@ -32,6 +32,12 @@ const entryGroups = [
 ];
 
 test.beforeEach(async ({ page }) => {
+  let authUser: null | {
+    id: string;
+    email: string;
+    displayName: string;
+    createdAt: string;
+  } = null;
   let savedReflection:
     | {
         id: string;
@@ -47,6 +53,30 @@ test.beforeEach(async ({ page }) => {
       }
     | null = null;
   let sharedCardIds: string[] = [];
+
+  await page.route("**/api/auth/me", async (route) => {
+    await route.fulfill({
+      json: {
+        user: authUser,
+        ownerKind: authUser ? "authenticated" : "demo",
+      },
+    });
+  });
+
+  await page.route("**/api/auth/login", async (route) => {
+    authUser = {
+      id: "user-1",
+      email: "writer@mindbloom.local",
+      displayName: "writer",
+      createdAt: "2026-06-03T10:00:00.000Z",
+    };
+    await route.fulfill({ json: { user: authUser } });
+  });
+
+  await page.route("**/api/auth/logout", async (route) => {
+    authUser = null;
+    await route.fulfill({ status: 204, body: "" });
+  });
 
   await page.route("**/api/session/today", async (route) => {
     await route.fulfill({
@@ -281,7 +311,16 @@ test("Bloom sidebar sends a message from the current entry", async ({ page }) =>
   await expect(page.getByText("Starting point")).toBeVisible();
 });
 
+test("seeded user can sign in", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("button", { name: "Logout" })).toBeVisible();
+});
+
 test("creates and opens a public reflection share link", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("button", { name: "Logout" })).toBeVisible();
   await page.goto("/reflect");
   await page.getByRole("button", { name: "Reflect on this entry" }).click();
   await expect(

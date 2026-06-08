@@ -67,6 +67,10 @@ function parseToken(params: unknown): string {
 }
 
 function getReflectionForOwner(reflectionId: string, owner: OwnerScope) {
+  if (owner.ownerKind !== "authenticated") {
+    throw new ApiError(403, "Sign in to share reflections");
+  }
+
   const reflection = entryStore.getReflection(reflectionId);
   if (!reflection) {
     throw new ApiError(404, "Reflection not found");

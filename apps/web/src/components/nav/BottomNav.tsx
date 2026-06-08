@@ -1,5 +1,7 @@
-import { Network, PencilLine, Sparkles, StickyNote } from "lucide-react";
+import { LogIn, LogOut, Network, PencilLine, Sparkles, StickyNote } from "lucide-react";
 import { NavLink } from "react-router-dom";
+
+import { useAuth } from "../../auth/AuthContext";
 
 const navItems = [
   { to: "/", label: "Today", icon: PencilLine },
@@ -9,6 +11,8 @@ const navItems = [
 ];
 
 export function BottomNav() {
+  const { logout, user } = useAuth();
+
   return (
     <nav className="fixed bottom-0 left-0 z-30 h-[60px] w-full border-t border-bloom-border bg-bloom-surface px-3 md:sticky md:top-0 md:h-dvh md:w-[220px] md:border-r md:border-t-0 md:px-4 md:py-6">
       <div className="hidden md:block">
@@ -17,7 +21,7 @@ export function BottomNav() {
           A place to notice what stays
         </p>
       </div>
-      <div className="grid h-full grid-cols-4 items-center gap-1 md:mt-8 md:block md:h-auto md:space-y-1">
+      <div className="grid h-full grid-cols-5 items-center gap-1 md:mt-8 md:block md:h-auto md:space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
 
@@ -40,6 +44,31 @@ export function BottomNav() {
             </NavLink>
           );
         })}
+        {user ? (
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="flex h-11 flex-col items-center justify-center gap-1 rounded-bloom-sm text-[11px] font-medium text-bloom-text-tertiary transition-colors hover:text-bloom-text-secondary md:h-10 md:flex-row md:justify-start md:gap-3 md:px-3 md:text-[13px]"
+          >
+            <LogOut aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+            <span>Logout</span>
+          </button>
+        ) : (
+          <NavLink
+            to="/login"
+            className={({ isActive }) =>
+              [
+                "flex h-11 flex-col items-center justify-center gap-1 rounded-bloom-sm text-[11px] font-medium transition-colors md:h-10 md:flex-row md:justify-start md:gap-3 md:px-3 md:text-[13px]",
+                isActive
+                  ? "bg-bloom-accent-bg text-bloom-accent"
+                  : "text-bloom-text-tertiary hover:text-bloom-text-secondary",
+              ].join(" ")
+            }
+          >
+            <LogIn aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+            <span>Login</span>
+          </NavLink>
+        )}
       </div>
     </nav>
   );

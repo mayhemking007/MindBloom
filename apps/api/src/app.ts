@@ -9,6 +9,7 @@ import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./http/errors.js";
 import { getDateStamp, getTodaySessionId } from "./lib/sessionStore.js";
 import { bloomRouter } from "./routes/bloom.js";
+import { authRouter } from "./routes/auth.js";
 import { chatRouter } from "./routes/chat.js";
 import { entriesRouter } from "./routes/entries.js";
 import { notesRouter } from "./routes/notes.js";
@@ -24,6 +25,7 @@ export function createApp() {
   app.use(
     cors({
       origin: env.CORS_ORIGIN,
+      credentials: true,
     }),
   );
 
@@ -47,6 +49,7 @@ export function createApp() {
     res.json(response);
   });
 
+  app.use("/api/auth", authRouter);
   app.use("/api/chat", chatRouter);
   app.use("/api/entries", entriesRouter);
   app.use("/api/notes", notesRouter);

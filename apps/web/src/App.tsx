@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "./layout/AppLayout";
 import { MapPage } from "./pages/MapPage";
+import { AuthPage } from "./pages/AuthPage";
 import { NotesPage } from "./pages/NotesPage";
 import { PublicSharePage } from "./pages/PublicSharePage";
 import { ReflectPage } from "./pages/ReflectPage";
@@ -11,6 +12,8 @@ export function App() {
   return (
     <Routes>
       <Route path="share/:token" element={<PublicSharePage />} />
+      <Route path="login" element={<AuthPage mode="login" />} />
+      <Route path="register" element={<AuthPage mode="register" />} />
       <Route element={<AppLayout />}>
         <Route index element={<TodayPage />} />
         <Route path="map" element={<MapPage />} />
