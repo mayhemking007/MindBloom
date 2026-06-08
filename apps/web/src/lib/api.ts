@@ -13,6 +13,7 @@ import type {
   EntryGraftRelevanceResponse,
   EntryGraftsResponse,
   EntryListResponse,
+  EntryMessage,
   EntryMessageResponse,
   EntryMessagesResponse,
   EntryReflectionResponse,
@@ -31,11 +32,22 @@ import type {
   RegisterRequest,
   SettingsResponse,
   TodaySessionResponse,
+  TopicPill,
   UpdateEntryRequest,
   UpdateNoteRequest,
   UpdateSettingsRequest,
   UpsertEntryDocumentRequest,
 } from "@mindbloom/shared";
+
+export interface BloomStreamHandlers {
+  onUserMessage?: (message: EntryMessage) => void;
+  onToken?: (chunk: string) => void;
+  onDone?: (payload: {
+    message: EntryMessage;
+    topicPills: TopicPill[];
+  }) => void;
+  onError?: (message: string) => void;
+}
 
 export const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
@@ -251,6 +263,108 @@ export async function createEntryMessage(
     body: JSON.stringify(payload),
   });
   return parseJsonResponse<EntryMessageResponse>(response);
+}
+
+export async function streamEntryMessage(
+  entryId: string,
+  content: string,
+  handlers: BloomStreamHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages/stream`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ content }),
+    signal,
+  });
+
+  if (!response.ok || !response.body) {
+    await parseJsonResponse<unknown>(response);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  function processEvent(rawEvent: string) {
+    const lines = rawEvent.split("\n");
+    const event = lines
+      .find((line) => line.startsWith("event:"))
+      ?.slice("event:".length)
+      .trim();
+    const data = lines
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim())
+      .join("\n");
+
+    if (!event || !data) {
+      return;
+    }
+
+    const payload = JSON.parse(data) as unknown;
+    if (
+      event === "user-message" &&
+      payload &&
+      typeof payload === "object" &&
+      "message" in payload
+    ) {
+      handlers.onUserMessage?.((payload as { message: EntryMessage }).message);
+      return;
+    }
+
+    if (
+      event === "token" &&
+      payload &&
+      typeof payload === "object" &&
+      "chunk" in payload
+    ) {
+      handlers.onToken?.(String((payload as { chunk: string }).chunk));
+      return;
+    }
+
+    if (
+      event === "done" &&
+      payload &&
+      typeof payload === "object" &&
+      "message" in payload
+    ) {
+      handlers.onDone?.(
+        payload as { message: EntryMessage; topicPills: TopicPill[] },
+      );
+      return;
+    }
+
+    if (
+      event === "error" &&
+      payload &&
+      typeof payload === "object" &&
+      "message" in payload
+    ) {
+      handlers.onError?.(String((payload as { message: string }).message));
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+
+    let boundaryIndex = buffer.indexOf("\n\n");
+    while (boundaryIndex !== -1) {
+      const rawEvent = buffer.slice(0, boundaryIndex);
+      buffer = buffer.slice(boundaryIndex + 2);
+      processEvent(rawEvent);
+      boundaryIndex = buffer.indexOf("\n\n");
+    }
+
+    if (done) {
+      if (buffer.trim()) {
+        processEvent(buffer);
+      }
+      break;
+    }
+  }
 }
 
 export async function listEntryGrafts(

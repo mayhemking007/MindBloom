@@ -1,7 +1,8 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { agent, getAgentForSession, openaiCreate } = vi.hoisted(() => ({
+const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate } =
+  vi.hoisted(() => ({
   agent: {
     ingestText: vi.fn(),
     graftByRelevance: vi.fn(),
@@ -11,11 +12,13 @@ const { agent, getAgentForSession, openaiCreate } = vi.hoisted(() => ({
     invoke: vi.fn(),
   },
   getAgentForSession: vi.fn(),
+  invokeAgentWithStreaming: vi.fn(),
   openaiCreate: vi.fn(),
 }));
 
 vi.mock("../src/lib/agent.js", () => ({
   getAgentForSession,
+  invokeAgentWithStreaming,
 }));
 
 vi.mock("../src/lib/openai.js", () => ({
@@ -98,6 +101,17 @@ describe("entry routes", () => {
         topicOrder: 1,
       },
     ]);
+    invokeAgentWithStreaming.mockImplementation(
+      async (
+        _agent: unknown,
+        _message: string,
+        onChunk: (chunk: string) => void | Promise<void>,
+      ) => {
+        await onChunk("A streamed ");
+        await onChunk("reply.");
+        return "A streamed reply.";
+      },
+    );
     agent.getGraphSnapshot.mockResolvedValue(graphSnapshot());
     agent.invoke.mockResolvedValue("This should not be used for reflection.");
     openaiCreate.mockResolvedValue({
@@ -281,6 +295,43 @@ describe("entry routes", () => {
       "user",
       "assistant",
     ]);
+  });
+
+  it("streams Bloom messages and stores the completed assistant reply", async () => {
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ purpose: "journal", mode: "chat" })
+      .expect(201);
+    const entryId = created.body.entry.id;
+
+    const response = await request(app)
+      .post(`/api/entries/${entryId}/messages/stream`)
+      .set(ownerAHeaders)
+      .send({ content: "Help me continue." })
+      .expect(200);
+
+    expect(response.headers["content-type"]).toContain("text/event-stream");
+    expect(response.text).toContain("event: user-message");
+    expect(response.text).toContain("event: token");
+    expect(response.text).toContain("A streamed ");
+    expect(response.text).toContain("event: done");
+    expect(invokeAgentWithStreaming).toHaveBeenCalledWith(
+      agent,
+      "Help me continue.",
+      expect.any(Function),
+    );
+
+    const messages = await request(app)
+      .get(`/api/entries/${entryId}/messages`)
+      .set(ownerAHeaders)
+      .expect(200);
+
+    expect(messages.body.messages.map((message: { role: string }) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+    expect(messages.body.messages[1].content).toBe("A streamed reply.");
   });
 
   it("validates owner headers and entry bodies", async () => {

@@ -61,6 +61,33 @@ export async function getAgentForSession(
   return agent;
 }
 
+export async function invokeAgentWithStreaming(
+  agent: MemoGrafterAgentType,
+  message: string,
+  onChunk: (chunk: string) => void | Promise<void>,
+): Promise<string> {
+  const mutableAgent = agent as unknown as {
+    core?: { llm?: unknown };
+    invoke: (userMessage: string) => Promise<string>;
+  };
+
+  if (!mutableAgent.core) {
+    return mutableAgent.invoke(message);
+  }
+
+  const originalLlm = mutableAgent.core.llm;
+  mutableAgent.core.llm = new OpenAILLMAdapter("gpt-4o-mini", {
+    streaming: true,
+    onChunk,
+  });
+
+  try {
+    return await mutableAgent.invoke(message);
+  } finally {
+    mutableAgent.core.llm = originalLlm;
+  }
+}
+
 export async function shutdownAgents(): Promise<void> {
   const agents = [...agentCache.entries()];
   agentCache.clear();

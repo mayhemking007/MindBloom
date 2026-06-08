@@ -35,6 +35,24 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
+function streamResponse(events: string[]) {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const event of events) {
+          controller.enqueue(encoder.encode(event));
+        }
+        controller.close();
+      },
+    }),
+    {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    },
+  );
+}
+
 function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
   vi.stubGlobal(
     "fetch",
@@ -116,7 +134,7 @@ describe("JournalWorkspace", () => {
     ).toBeVisible();
   });
 
-  it("sends Bloom messages with Enter and stores the assistant reply", async () => {
+  it("streams Bloom messages with Enter and stores the assistant reply", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/api/entries") && init?.method !== "POST") {
@@ -131,35 +149,37 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-1/grafts")) {
         return Promise.resolve(jsonResponse({ grafts: [] }));
       }
-      if (url.endsWith("/api/entries/entry-1/messages")) {
-        const body = JSON.parse(String(init?.body));
+      if (url.endsWith("/api/entries/entry-1/messages/stream")) {
         return Promise.resolve(
-          jsonResponse(
-            {
+          streamResponse([
+            `event: user-message\ndata: ${JSON.stringify({
               message: {
-                id: `${body.role}-message`,
+                id: "user-message",
                 entryId: entry.id,
-                role: body.role,
-                content: body.content,
+                role: "user",
+                content: "Help me continue",
                 createdAt: "2026-06-04T08:01:00.000Z",
               },
-            },
-            { status: 201 },
-          ),
-        );
-      }
-      if (url.endsWith("/api/chat")) {
-        return Promise.resolve(
-          jsonResponse({
-            reply: "You are circling a useful starting point.",
-            topicPills: [
-              {
-                id: "theme-1",
-                label: "Writing momentum",
-                topicOrder: 1,
+            })}\n\n`,
+            `event: token\ndata: ${JSON.stringify({ chunk: "You are circling " })}\n\n`,
+            `event: token\ndata: ${JSON.stringify({ chunk: "a useful starting point." })}\n\n`,
+            `event: done\ndata: ${JSON.stringify({
+              message: {
+                id: "assistant-message",
+                entryId: entry.id,
+                role: "assistant",
+                content: "You are circling a useful starting point.",
+                createdAt: "2026-06-04T08:01:01.000Z",
               },
-            ],
-          }),
+              topicPills: [
+                {
+                  id: "theme-1",
+                  label: "Writing momentum",
+                  topicOrder: 1,
+                },
+              ],
+            })}\n\n`,
+          ]),
         );
       }
       return Promise.resolve(jsonResponse({}));
@@ -177,7 +197,9 @@ describe("JournalWorkspace", () => {
     });
     expect(screen.getByText("Writing momentum")).toBeVisible();
     expect(
-      fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/chat")),
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).endsWith("/api/entries/entry-1/messages/stream"),
+      ),
     ).toBe(true);
   });
 

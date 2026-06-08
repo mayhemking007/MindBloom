@@ -20,7 +20,7 @@ import {
   parseEntryId,
   readOwnerScope,
 } from "../http/ownerScope.js";
-import { getAgentForSession } from "../lib/agent.js";
+import { getAgentForSession, invokeAgentWithStreaming } from "../lib/agent.js";
 import { buildEntryReflectionCards } from "../lib/entryReflection.js";
 import { entryStore } from "../lib/entryStore.js";
 import { normalizeGraphSnapshot } from "../lib/graphNormalizer.js";
@@ -57,6 +57,10 @@ const ingestDocumentSchema = z.object({
 
 const createMessageSchema = z.object({
   role: entryMessageRoleSchema,
+  content: z.string().trim().min(1, "content is required").max(8000),
+});
+
+const streamMessageSchema = z.object({
   content: z.string().trim().min(1, "content is required").max(8000),
 });
 
@@ -134,6 +138,15 @@ function parseReflectionId(params: unknown): string {
   }
 
   return parsed.data.reflectionId;
+}
+
+function writeStreamEvent(
+  res: { write: (chunk: string) => boolean },
+  event: string,
+  data: unknown,
+) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
 entriesRouter.post("/", async (req, res, next) => {
@@ -505,6 +518,84 @@ entriesRouter.get("/:entryId/reflections/:reflectionId", async (req, res, next) 
     const response: EntryReflectionResponse = { reflection };
 
     res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
+  try {
+    const owner = readOwnerScope(req);
+    const entryId = parseEntryId(req.params);
+    const entry = getEntryForOwner(entryId, owner);
+    const parsed = streamMessageSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new ApiError(
+        400,
+        parsed.error.issues[0]?.message ?? "Invalid body",
+      );
+    }
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+
+    let isConnected = true;
+    res.on("close", () => {
+      isConnected = false;
+    });
+
+    const userMessage = entryStore.addMessage({
+      entryId: entry.id,
+      role: "user",
+      content: parsed.data.content,
+    });
+    writeStreamEvent(res, "user-message", { message: userMessage });
+
+    try {
+      const agent = await getAgentForSession(entry.memoSessionId);
+      const reply = await invokeAgentWithStreaming(
+        agent,
+        parsed.data.content,
+        (chunk) => {
+          if (isConnected) {
+            writeStreamEvent(res, "token", { chunk });
+          }
+        },
+      );
+      if (res.destroyed) {
+        return;
+      }
+
+      const assistantMessage = entryStore.addMessage({
+        entryId: entry.id,
+        role: "assistant",
+        content: reply,
+      });
+      const topicPills = toTopicPills(await agent.getActiveNodes());
+
+      if (isConnected) {
+        writeStreamEvent(res, "done", {
+          message: assistantMessage,
+          topicPills,
+        });
+      }
+    } catch (streamError) {
+      if (!res.destroyed) {
+        writeStreamEvent(res, "error", {
+          message:
+            streamError instanceof ApiError
+              ? streamError.message
+              : "Bloom could not respond right now.",
+        });
+      }
+    } finally {
+      if (!res.writableEnded) {
+        res.end();
+      }
+    }
   } catch (error) {
     next(error);
   }

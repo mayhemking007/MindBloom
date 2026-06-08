@@ -1,7 +1,8 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { agent, getAgentForSession, openaiCreate } = vi.hoisted(() => ({
+const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate } =
+  vi.hoisted(() => ({
   agent: {
     invoke: vi.fn(),
     getActiveNodes: vi.fn(),
@@ -14,11 +15,13 @@ const { agent, getAgentForSession, openaiCreate } = vi.hoisted(() => ({
     clearSession: vi.fn(),
   },
   getAgentForSession: vi.fn(),
+  invokeAgentWithStreaming: vi.fn(),
   openaiCreate: vi.fn(),
 }));
 
 vi.mock("../src/lib/agent.js", () => ({
   getAgentForSession,
+  invokeAgentWithStreaming,
 }));
 
 vi.mock("../src/lib/openai.js", () => ({

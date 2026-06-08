@@ -348,12 +348,33 @@ test("calendar can be enabled from settings", async ({ page }) => {
 });
 
 test("Bloom sidebar sends a message from the current entry", async ({ page }) => {
-  await page.route("**/api/chat", async (route) => {
+  await page.route("**/api/entries/entry-1/messages/stream", async (route) => {
     await route.fulfill({
-      json: {
-        reply: "You are finding the first thread.",
-        topicPills: [{ id: "theme-1", label: "Starting point", topicOrder: 1 }],
-      },
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        `event: user-message\ndata: ${JSON.stringify({
+          message: {
+            id: "user-message",
+            entryId: "entry-1",
+            role: "user",
+            content: "Help me start",
+            createdAt: "2026-06-03T10:00:00.000Z",
+          },
+        })}\n\n`,
+        `event: token\ndata: ${JSON.stringify({ chunk: "You are finding " })}\n\n`,
+        `event: token\ndata: ${JSON.stringify({ chunk: "the first thread." })}\n\n`,
+        `event: done\ndata: ${JSON.stringify({
+          message: {
+            id: "assistant-message",
+            entryId: "entry-1",
+            role: "assistant",
+            content: "You are finding the first thread.",
+            createdAt: "2026-06-03T10:00:01.000Z",
+          },
+          topicPills: [{ id: "theme-1", label: "Starting point", topicOrder: 1 }],
+        })}\n\n`,
+      ].join(""),
     });
   });
 

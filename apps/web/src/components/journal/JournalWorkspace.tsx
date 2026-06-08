@@ -10,10 +10,12 @@ import {
   PanelRightOpen,
   PenLine,
   Plus,
+  RotateCcw,
   Send,
   Settings,
   Sparkles,
   StickyNote,
+  StopCircle,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +31,6 @@ import type {
 
 import {
   createEntry,
-  createEntryMessage,
   createNote,
   getEntryDocument,
   graftEntryByRelevance,
@@ -37,7 +38,7 @@ import {
   listEntryMessages,
   listEntryGrafts,
   saveEntryDocument,
-  sendChatMessage,
+  streamEntryMessage,
   updateEntry,
 } from "../../lib/api";
 
@@ -516,9 +517,13 @@ interface BloomSidebarProps {
   isOpen: boolean;
   isSending: boolean;
   isGrafting: boolean;
+  streamingContent: string;
+  failedMessage: string | null;
   error: string | null;
   onToggle: () => void;
   onSend: (message: string) => void;
+  onCancel: () => void;
+  onRetry: () => void;
   onGraft: (query: string) => void;
 }
 
@@ -530,9 +535,13 @@ function BloomSidebar({
   isOpen,
   isSending,
   isGrafting,
+  streamingContent,
+  failedMessage,
   error,
   onToggle,
   onSend,
+  onCancel,
+  onRetry,
   onGraft,
 }: BloomSidebarProps) {
   const [draft, setDraft] = useState("");
@@ -695,8 +704,24 @@ function BloomSidebar({
                   </div>
                 ))
               )}
+              {streamingContent ? (
+                <div className="mr-8 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 py-2 text-[13px] leading-5 text-bloom-text-primary">
+                  {streamingContent}
+                  <span className="bloom-pulse-circle ml-1 inline-block h-1.5 w-1.5 rounded-full bg-bloom-accent align-middle" />
+                </div>
+              ) : null}
               {error ? (
                 <p className="text-[12px] text-coral-text">{error}</p>
+              ) : null}
+              {failedMessage ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="flex items-center gap-2 rounded-bloom-sm border border-coral-border bg-coral-bg px-3 py-2 text-[12px] font-medium text-coral-text"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Retry Bloom response
+                </button>
               ) : null}
             </div>
 
@@ -721,12 +746,19 @@ function BloomSidebar({
                 />
                 <button
                   type="button"
-                  onClick={submitMessage}
-                  disabled={!draft.trim() || isSending || !entry}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-bloom-sm bg-bloom-accent text-white disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Send message to Bloom"
+                  onClick={isSending ? onCancel : submitMessage}
+                  disabled={(!draft.trim() && !isSending) || !entry}
+                  className={[
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-bloom-sm text-white disabled:cursor-not-allowed disabled:opacity-40",
+                    isSending ? "bg-coral-border" : "bg-bloom-accent",
+                  ].join(" ")}
+                  aria-label={isSending ? "Stop Bloom response" : "Send message to Bloom"}
                 >
-                  <Send className="h-4 w-4" aria-hidden="true" />
+                  {isSending ? (
+                    <StopCircle className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                  )}
                 </button>
               </div>
             </div>
@@ -756,8 +788,11 @@ export function JournalWorkspace() {
   const [isGrafting, setGrafting] = useState(false);
   const [isEditingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [streamingContent, setStreamingContent] = useState("");
+  const [failedBloomMessage, setFailedBloomMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const autosaveTimer = useRef<number | null>(null);
+  const bloomAbortController = useRef<AbortController | null>(null);
 
   const entries = useMemo(
     () => groups.flatMap((group) => group.entries),
@@ -820,6 +855,13 @@ export function JournalWorkspace() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      bloomAbortController.current?.abort();
+      bloomAbortController.current = null;
     };
   }, []);
 
@@ -978,32 +1020,68 @@ export function JournalWorkspace() {
 
     setSending(true);
     setError(null);
-    try {
-      const userMessage = await createEntryMessage(selectedEntry.id, {
-        role: "user",
-        content,
-      });
-      setMessages((current) => [...current, userMessage.message]);
+    setStreamingContent("");
+    setFailedBloomMessage(null);
+    const abortController = new AbortController();
+    bloomAbortController.current = abortController;
 
-      const reply = await sendChatMessage({
-        sessionId: selectedEntry.memoSessionId,
-        message: content,
-      });
-      const assistantMessage = await createEntryMessage(selectedEntry.id, {
-        role: "assistant",
-        content: reply.reply,
-      });
-      setMessages((current) => [...current, assistantMessage.message]);
-      setTopicPills(reply.topicPills);
+    try {
+      await streamEntryMessage(selectedEntry.id, content, {
+        onUserMessage: (message) => {
+          setMessages((current) =>
+            current.some((item) => item.id === message.id)
+              ? current
+              : [...current, message],
+          );
+        },
+        onToken: (chunk) => {
+          setStreamingContent((current) => `${current}${chunk}`);
+        },
+        onDone: ({ message, topicPills: nextTopicPills }) => {
+          setMessages((current) => [...current, message]);
+          setTopicPills(nextTopicPills);
+          setStreamingContent("");
+        },
+        onError: (message) => {
+          setError(message);
+          setFailedBloomMessage(content);
+          setStreamingContent("");
+        },
+      }, abortController.signal);
     } catch (sendError) {
+      if (sendError instanceof DOMException && sendError.name === "AbortError") {
+        setStreamingContent("");
+        return;
+      }
+
+      setFailedBloomMessage(content);
+      setStreamingContent("");
       setError(
         sendError instanceof Error
           ? sendError.message
           : "Bloom could not respond right now.",
       );
     } finally {
+      if (bloomAbortController.current === abortController) {
+        bloomAbortController.current = null;
+      }
       setSending(false);
     }
+  }
+
+  function handleCancelBloomMessage() {
+    bloomAbortController.current?.abort();
+    bloomAbortController.current = null;
+    setSending(false);
+    setStreamingContent("");
+  }
+
+  function handleRetryBloomMessage() {
+    const message = failedBloomMessage;
+    if (!message || isSending) {
+      return;
+    }
+    void handleBloomMessage(message);
   }
 
   async function handleSaveNote(input: {
@@ -1248,9 +1326,13 @@ export function JournalWorkspace() {
               isOpen={isBloomOpen}
               isSending={isSending}
               isGrafting={isGrafting}
+              streamingContent={streamingContent}
+              failedMessage={failedBloomMessage}
               error={error}
               onToggle={() => setBloomOpen((current) => !current)}
               onSend={handleBloomMessage}
+              onCancel={handleCancelBloomMessage}
+              onRetry={handleRetryBloomMessage}
               onGraft={handleBringInContext}
             />
           </div>
