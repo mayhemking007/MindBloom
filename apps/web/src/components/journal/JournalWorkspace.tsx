@@ -726,6 +726,9 @@ function BloomSidebar({
             </div>
 
             <div className="border-t border-bloom-border p-3">
+              <p className="mb-2 text-[11px] leading-4 text-bloom-text-tertiary">
+                Bloom is a writing companion, not therapy or emergency support.
+              </p>
               <label className="sr-only" htmlFor="bloom-message">
                 Ask Bloom
               </label>

@@ -334,6 +334,44 @@ describe("entry routes", () => {
     expect(messages.body.messages[1].content).toBe("A streamed reply.");
   });
 
+  it("does not persist a partial assistant reply when streaming fails", async () => {
+    invokeAgentWithStreaming.mockImplementationOnce(
+      async (
+        _agent: unknown,
+        _message: string,
+        onChunk: (chunk: string) => void | Promise<void>,
+      ) => {
+        await onChunk("partial secret-looking OPENAI_API_KEY=secret");
+        throw new Error("DATABASE_URL=postgres://secret");
+      },
+    );
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ purpose: "journal", mode: "chat" })
+      .expect(201);
+    const entryId = created.body.entry.id;
+
+    const response = await request(app)
+      .post(`/api/entries/${entryId}/messages/stream`)
+      .set(ownerAHeaders)
+      .send({ content: "Help me continue." })
+      .expect(200);
+
+    expect(response.text).toContain("event: token");
+    expect(response.text).toContain("event: error");
+    expect(response.text).not.toContain("postgres://secret");
+
+    const messages = await request(app)
+      .get(`/api/entries/${entryId}/messages`)
+      .set(ownerAHeaders)
+      .expect(200);
+
+    expect(messages.body.messages.map((message: { role: string }) => message.role)).toEqual([
+      "user",
+    ]);
+  });
+
   it("validates owner headers and entry bodies", async () => {
     await request(app)
       .post("/api/entries")

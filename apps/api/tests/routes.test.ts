@@ -273,6 +273,15 @@ describe("MindBloom API routes", () => {
     expect(JSON.stringify(response.body)).not.toContain("secret");
   });
 
+  it("redacts secrets from handled API errors", async () => {
+    const response = await request(app)
+      .get("/missing/OPENAI_API_KEY=secret DATABASE_URL=postgres://secret")
+      .expect(404);
+
+    expect(JSON.stringify(response.body)).not.toContain("secret");
+    expect(response.body.error.message).toContain("OPENAI_API_KEY=[redacted]");
+  });
+
   it("grafts selected sessions without invoking or clearing daily sessions", async () => {
     const reflectionSnapshot = graphSnapshot("mindbloom-reflection-2026-23");
     agent.getGraphSnapshot.mockResolvedValue(reflectionSnapshot);

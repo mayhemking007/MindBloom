@@ -203,6 +203,83 @@ describe("JournalWorkspace", () => {
     ).toBe(true);
   });
 
+  it("shows retry UI after a failed Bloom stream", async () => {
+    let streamAttempts = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && init?.method !== "POST") {
+        return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages") && !init?.method) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages/stream")) {
+        streamAttempts += 1;
+        if (streamAttempts === 1) {
+          return Promise.resolve(
+            streamResponse([
+              `event: user-message\ndata: ${JSON.stringify({
+                message: {
+                  id: "user-message",
+                  entryId: entry.id,
+                  role: "user",
+                  content: "Help me continue",
+                  createdAt: "2026-06-04T08:01:00.000Z",
+                },
+              })}\n\n`,
+              `event: token\ndata: ${JSON.stringify({ chunk: "A partial thought" })}\n\n`,
+              `event: error\ndata: ${JSON.stringify({ message: "Bloom could not respond right now." })}\n\n`,
+            ]),
+          );
+        }
+
+        return Promise.resolve(
+          streamResponse([
+            `event: user-message\ndata: ${JSON.stringify({
+              message: {
+                id: "retry-user-message",
+                entryId: entry.id,
+                role: "user",
+                content: "Help me continue",
+                createdAt: "2026-06-04T08:02:00.000Z",
+              },
+            })}\n\n`,
+            `event: done\ndata: ${JSON.stringify({
+              message: {
+                id: "retry-assistant-message",
+                entryId: entry.id,
+                role: "assistant",
+                content: "Try beginning with the smallest true sentence.",
+                createdAt: "2026-06-04T08:02:01.000Z",
+              },
+              topicPills: [],
+            })}\n\n`,
+          ]),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    const bloomInput = await screen.findByLabelText("Ask Bloom");
+    await user.type(bloomInput, "Help me continue{Enter}");
+    await user.click(await screen.findByRole("button", { name: "Retry Bloom response" }));
+
+    expect(
+      await screen.findByText("Try beginning with the smallest true sentence."),
+    ).toBeVisible();
+    expect(streamAttempts).toBe(2);
+  });
+
   it("brings previous themes into the Bloom sidebar", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

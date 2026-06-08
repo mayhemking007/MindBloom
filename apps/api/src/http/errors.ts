@@ -10,6 +10,14 @@ export class ApiError extends Error {
   }
 }
 
+function sanitizePublicErrorMessage(message: string): string {
+  return message
+    .replace(/OPENAI_API_KEY\s*=\s*[^\s,"']+/gi, "OPENAI_API_KEY=[redacted]")
+    .replace(/DATABASE_URL\s*=\s*[^\s,"']+/gi, "DATABASE_URL=[redacted]")
+    .replace(/postgres(?:ql)?:\/\/[^\s,"']+/gi, "postgres://[redacted]")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]");
+}
+
 export function notFoundHandler(): RequestHandler {
   return (req, _res, next) => {
     next(new ApiError(404, `Route not found: ${req.method} ${req.path}`));
@@ -32,7 +40,7 @@ export function errorHandler(): ErrorRequestHandler {
         message:
           statusCode >= 500
             ? "Something went wrong inside MindBloom API."
-            : error.message,
+            : sanitizePublicErrorMessage(error.message),
       },
     });
   };

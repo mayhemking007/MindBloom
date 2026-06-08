@@ -33,7 +33,7 @@ for (const file of files) {
   const content = await readFile(file, "utf8");
   if (
     (file.startsWith("apps/web") || file.startsWith("packages/shared")) &&
-    /from\s+["']memo-grafter["']/.test(content)
+    /(?:from|import|require\()\s*["']memo-grafter(?:\/[^"']*)?["']/.test(content)
   ) {
     violations.push(`${file}: Frontend/shared code imports memo-grafter.`);
   }
