@@ -67,6 +67,10 @@ const ingestDocumentSchema = z.object({
   force: z.boolean().optional(),
 });
 
+const snapshotScopeSchema = z
+  .enum(["overall", "writing", "bloom"])
+  .default("overall");
+
 const createMessageSchema = z.object({
   role: entryMessageRoleSchema,
   content: z.string().trim().min(1, "content is required").max(8000),
@@ -444,10 +448,92 @@ entriesRouter.get("/:entryId/snapshot", async (req, res, next) => {
     const owner = readOwnerScope(req);
     const entryId = parseEntryId(req.params);
     const entry = getEntryForOwner(entryId, owner);
+    const parsedScope = snapshotScopeSchema.safeParse(req.query.scope);
+    if (!parsedScope.success) {
+      throw new ApiError(400, "Invalid snapshot scope");
+    }
     const agent = await getAgentForSession(entry.memoSessionId);
     const snapshot = await agent.getGraphSnapshot();
+    const normalizedSnapshot = normalizeGraphSnapshot(snapshot);
+    const currentSessionIds = new Set([
+      entry.memoSessionId,
+      normalizedSnapshot.sessionId,
+    ]);
+    const entryMemoryIds = new Set(
+      normalizedSnapshot.memories
+        .filter((memory) => currentSessionIds.has(memory.sessionId))
+        .map((memory) => memory.id),
+    );
+    const entryMemoryTopicNodeIds = new Set(
+      normalizedSnapshot.memories
+        .filter((memory) => entryMemoryIds.has(memory.id))
+        .map((memory) => memory.topicNodeId),
+    );
+    const entryNodeIds = new Set(
+      normalizedSnapshot.nodes
+        .filter(
+          (node) =>
+            currentSessionIds.has(node.sessionId) ||
+            node.graftOrigin?.sourceSessionId === entry.memoSessionId ||
+            entryMemoryTopicNodeIds.has(node.id),
+        )
+        .map((node) => node.id),
+    );
+    if (
+      entryNodeIds.size === 0 &&
+      normalizedSnapshot.nodes.length > 0 &&
+      normalizedSnapshot.nodes.every((node) => !node.sessionId)
+    ) {
+      for (const node of normalizedSnapshot.nodes) {
+        entryNodeIds.add(node.id);
+      }
+    }
+    const entrySnapshot = {
+      ...normalizedSnapshot,
+      sessionId: entry.memoSessionId,
+      nodes: normalizedSnapshot.nodes.filter((node) => entryNodeIds.has(node.id)),
+      edges: normalizedSnapshot.edges.filter(
+        (edge) =>
+          entryNodeIds.has(edge.sourceId) && entryNodeIds.has(edge.targetId),
+      ),
+      memories: normalizedSnapshot.memories.filter((memory) =>
+        entryMemoryIds.has(memory.id),
+      ),
+      memoryEdges: normalizedSnapshot.memoryEdges.filter(
+        (edge) =>
+          entryMemoryIds.has(edge.sourceId) && entryMemoryIds.has(edge.targetId),
+      ),
+    };
 
-    res.json(normalizeGraphSnapshot(snapshot));
+    if (parsedScope.data === "overall") {
+      res.json(entrySnapshot);
+      return;
+    }
+
+    const allowedSources =
+      parsedScope.data === "writing"
+        ? new Set(["document", "note"])
+        : new Set(["conversation"]);
+    const memories = entrySnapshot.memories.filter((memory) =>
+      allowedSources.has(memory.sourceType),
+    );
+    const nodeIds = new Set(memories.map((memory) => memory.topicNodeId));
+    const nodes = entrySnapshot.nodes.filter((node) => nodeIds.has(node.id));
+    const edges = entrySnapshot.edges.filter(
+      (edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId),
+    );
+    const memoryIds = new Set(memories.map((memory) => memory.id));
+    const memoryEdges = entrySnapshot.memoryEdges.filter(
+      (edge) => memoryIds.has(edge.sourceId) && memoryIds.has(edge.targetId),
+    );
+
+    res.json({
+      ...entrySnapshot,
+      nodes,
+      edges,
+      memories,
+      memoryEdges,
+    });
   } catch (error) {
     next(error);
   }

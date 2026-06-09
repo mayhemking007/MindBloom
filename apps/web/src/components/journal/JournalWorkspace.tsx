@@ -1,12 +1,12 @@
 import {
   BookOpen,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Lightbulb,
   Menu,
   MessageCircle,
   MoreHorizontal,
+  Network,
   PanelRightClose,
   PanelRightOpen,
   PenLine,
@@ -14,7 +14,6 @@ import {
   Plus,
   RotateCcw,
   Send,
-  Settings,
   Sparkles,
   StickyNote,
   StopCircle,
@@ -26,13 +25,16 @@ import type {
   EntryDayGroup,
   EntryGraft,
   EntryMessage,
+  EntryReflection,
   GraphSnapshotResponse,
   JournalEntry,
   TopicPill,
 } from "@mindbloom/shared";
 
+import { MindMap } from "../graph/MindMap";
 import {
   createEntry,
+  createEntryReflection,
   createNote,
   deleteEntry,
   getEntryDocument,
@@ -40,6 +42,7 @@ import {
   graftEntryByRelevance,
   ingestEntryDocument,
   listEntries,
+  listEntryReflections,
   listEntryMessages,
   listEntryGrafts,
   saveEntryDocument,
@@ -48,6 +51,18 @@ import {
 } from "../../lib/api";
 
 const suggestedTags = ["journal", "idea", "brainstorm"] as const;
+
+type WorkspaceView = "editor" | "map" | "reflect";
+
+const workspaceViews: Array<{
+  value: WorkspaceView;
+  label: string;
+  icon: typeof PenLine;
+}> = [
+  { value: "editor", label: "Editor", icon: PenLine },
+  { value: "map", label: "Map", icon: Network },
+  { value: "reflect", label: "Reflect", icon: Sparkles },
+];
 
 const tagDescriptions: Record<(typeof suggestedTags)[number], string> = {
   journal: "Capture what happened and how it felt.",
@@ -181,7 +196,7 @@ function EntrySidebar({
   return (
     <aside
       className={[
-        "fixed inset-y-0 left-0 z-40 w-[292px] border-r border-bloom-border bg-bloom-surface transition-transform md:static md:z-auto md:h-dvh md:w-[280px] md:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 w-[292px] border-r border-bloom-border bg-bloom-surface transition-transform md:static md:z-auto md:h-[calc(100dvh-56px)] md:w-[260px] md:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full",
       ].join(" ")}
       aria-label="Journal entries"
@@ -357,34 +372,6 @@ function EntrySidebar({
           )}
         </div>
 
-        <div className="border-t border-bloom-border px-3 py-3">
-          <div className="grid grid-cols-3 gap-1">
-            {[
-              { label: "Notes", icon: StickyNote, to: "/notes" },
-              { label: "Calendar", icon: CalendarDays, to: "/calendar" },
-              { label: "Settings", icon: Settings, to: "/settings" },
-            ].map((item) => {
-              const Icon = item.icon;
-
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    window.history.pushState(null, "", item.to);
-                    window.dispatchEvent(new PopStateEvent("popstate"));
-                  }}
-                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-bloom-sm text-[11px] text-bloom-text-tertiary hover:bg-gray-bg hover:text-bloom-text-secondary"
-                  aria-label={item.label}
-                >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </aside>
   );
@@ -881,8 +868,8 @@ function BloomSidebar({
   return (
     <aside
       className={[
-        "border-l border-bloom-border bg-bloom-surface transition-all duration-200",
-        isOpen ? "w-full md:w-[340px]" : "w-full md:w-[56px]",
+        "border-l border-bloom-border bg-bloom-surface transition-all duration-200 md:h-[calc(100dvh-56px)]",
+        isOpen ? "w-full md:w-[380px]" : "w-full md:w-[56px]",
       ].join(" ")}
       aria-label="Bloom assistant"
     >
@@ -899,7 +886,7 @@ function BloomSidebar({
           <button
             type="button"
             onClick={onToggle}
-            className="flex h-9 w-9 items-center justify-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg"
+            className="flex h-9 w-9 items-center justify-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg md:hidden"
             aria-label={isOpen ? "Collapse Bloom" : "Open Bloom"}
           >
             {isOpen ? (
@@ -1087,10 +1074,17 @@ function BloomSidebar({
 export function JournalWorkspace() {
   const [groups, setGroups] = useState<EntryDayGroup[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+  const [activeView, setActiveView] = useState<WorkspaceView>("editor");
   const [documentDraft, setDocumentDraft] = useState("");
   const [messages, setMessages] = useState<EntryMessage[]>([]);
   const [grafts, setGrafts] = useState<EntryGraft[]>([]);
   const [topicPills, setTopicPills] = useState<TopicPill[]>([]);
+  const [mapSnapshot, setMapSnapshot] = useState<GraphSnapshotResponse | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [isMapLoading, setMapLoading] = useState(false);
+  const [reflections, setReflections] = useState<EntryReflection[]>([]);
+  const [reflectionError, setReflectionError] = useState<string | null>(null);
+  const [isLoadingReflections, setLoadingReflections] = useState(false);
   const [isEntryDrawerOpen, setEntryDrawerOpen] = useState(false);
   const [isCreatePanelOpen, setCreatePanelOpen] = useState(false);
   const [isNotePanelOpen, setNotePanelOpen] = useState(false);
@@ -1110,6 +1104,7 @@ export function JournalWorkspace() {
   const [isSaving, setSaving] = useState(false);
   const [isAutosaving, setAutosaving] = useState(false);
   const [isSavingNote, setSavingNote] = useState(false);
+  const [isReflecting, setReflecting] = useState(false);
   const [isSending, setSending] = useState(false);
   const [isGrafting, setGrafting] = useState(false);
   const [isEditingTitle, setEditingTitle] = useState(false);
@@ -1122,6 +1117,8 @@ export function JournalWorkspace() {
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const autosaveTimer = useRef<number | null>(null);
   const bloomAbortController = useRef<AbortController | null>(null);
+  const mapRequestId = useRef(0);
+  const reflectionRequestId = useRef(0);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const editorSelectionRef = useRef<NoteSourceSelection>({
@@ -1151,6 +1148,63 @@ export function JournalWorkspace() {
       sourceSelectionEnd:
         sourceSelectionEnd == null ? null : Number(sourceSelectionEnd),
     };
+  }
+
+  async function loadEntryMap(entryId: string) {
+    const requestId = mapRequestId.current + 1;
+    mapRequestId.current = requestId;
+    setMapSnapshot(null);
+    setMapError(null);
+    setMapLoading(true);
+
+    try {
+      const response = await getEntrySnapshot(entryId, "overall");
+      if (mapRequestId.current !== requestId) {
+        return;
+      }
+      setMapSnapshot(response);
+    } catch (snapshotError) {
+      if (mapRequestId.current !== requestId) {
+        return;
+      }
+      setMapError(
+        snapshotError instanceof Error
+          ? snapshotError.message
+          : "MindBloom could not load this entry map.",
+      );
+    } finally {
+      if (mapRequestId.current === requestId) {
+        setMapLoading(false);
+      }
+    }
+  }
+
+  async function loadEntryReflections(entryId: string) {
+    const requestId = reflectionRequestId.current + 1;
+    reflectionRequestId.current = requestId;
+    setReflectionError(null);
+    setLoadingReflections(true);
+
+    try {
+      const response = await listEntryReflections(entryId);
+      if (reflectionRequestId.current !== requestId) {
+        return;
+      }
+      setReflections(response.reflections);
+    } catch (loadError) {
+      if (reflectionRequestId.current !== requestId) {
+        return;
+      }
+      setReflectionError(
+        loadError instanceof Error
+          ? loadError.message
+          : "MindBloom could not load reflections for this entry.",
+      );
+    } finally {
+      if (reflectionRequestId.current === requestId) {
+        setLoadingReflections(false);
+      }
+    }
   }
 
   async function refreshEntries(preferredEntryId?: string) {
@@ -1296,6 +1350,33 @@ export function JournalWorkspace() {
   }, [selectedEntry?.id]);
 
   useEffect(() => {
+    setMapSnapshot(null);
+    setMapError(null);
+    setMapLoading(false);
+    setReflections([]);
+    setReflectionError(null);
+    setLoadingReflections(false);
+    mapRequestId.current += 1;
+    reflectionRequestId.current += 1;
+  }, [selectedEntry?.id]);
+
+  useEffect(() => {
+    if (activeView !== "map" || !selectedEntry) {
+      return;
+    }
+
+    void loadEntryMap(selectedEntry.id);
+  }, [activeView, selectedEntry?.id]);
+
+  useEffect(() => {
+    if (activeView !== "reflect" || !selectedEntry) {
+      return;
+    }
+
+    void loadEntryReflections(selectedEntry.id);
+  }, [activeView, selectedEntry?.id]);
+
+  useEffect(() => {
     if (isEditingTitle) {
       titleInputRef.current?.focus();
       titleInputRef.current?.select();
@@ -1323,6 +1404,9 @@ export function JournalWorkspace() {
           if (latestDraftRef.current === contentToSave) {
             draftDirtyRef.current = false;
           }
+          if (activeView === "map") {
+            void loadEntryMap(entryId);
+          }
         })
         .catch(() => {
           setError("MindBloom could not autosave this entry.");
@@ -1337,7 +1421,7 @@ export function JournalWorkspace() {
         window.clearTimeout(autosaveTimer.current);
       }
     };
-  }, [documentDraft, selectedEntry?.id]);
+  }, [activeView, documentDraft, selectedEntry?.id]);
 
   async function handleCreateEntry(input: {
     title: string;
@@ -1514,6 +1598,9 @@ export function JournalWorkspace() {
       });
       setTopicPills(response.topicPills ?? []);
       draftDirtyRef.current = false;
+      if (activeView === "map") {
+        await loadEntryMap(selectedEntry.id);
+      }
       setSaveStatus(
         response.ingested
           ? "Saved and mapped."
@@ -1530,6 +1617,48 @@ export function JournalWorkspace() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleReflectEntry() {
+    if (!selectedEntry) {
+      return;
+    }
+
+    setReflecting(true);
+    setError(null);
+    setSaveStatus(null);
+    try {
+      const contentToSave = latestDraftRef.current;
+      await saveEntryDocument(selectedEntry.id, { content: contentToSave });
+      const ingestResponse = await ingestEntryDocument(selectedEntry.id, {
+        content: contentToSave,
+        force: true,
+      });
+      setTopicPills(ingestResponse.topicPills ?? []);
+      draftDirtyRef.current = false;
+      const reflectionResponse = await createEntryReflection(selectedEntry.id);
+      setReflections((current) =>
+        [
+          reflectionResponse.reflection,
+          ...current.filter(
+            (reflection) => reflection.id !== reflectionResponse.reflection.id,
+          ),
+        ],
+      );
+      if (reflectionResponse.reflection.graphSnapshot) {
+        setMapSnapshot(reflectionResponse.reflection.graphSnapshot);
+      }
+      setActiveView("reflect");
+      setSaveStatus("Reflection created.");
+    } catch (reflectError) {
+      setError(
+        reflectError instanceof Error
+          ? reflectError.message
+          : "MindBloom could not create this reflection.",
+      );
+    } finally {
+      setReflecting(false);
     }
   }
 
@@ -1716,6 +1845,9 @@ export function JournalWorkspace() {
       });
       setGrafts((current) => [...response.grafts, ...current]);
       setTopicPills(response.topicPills ?? []);
+      if (activeView === "map") {
+        await loadEntryMap(selectedEntry.id);
+      }
     } catch (graftError) {
       setError(
         graftError instanceof Error
@@ -1727,9 +1859,11 @@ export function JournalWorkspace() {
     }
   }
 
+  const latestReflection = reflections[0] ?? null;
+
   return (
-    <main className="min-h-dvh bg-bloom-bg">
-      <div className="grid min-h-dvh grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)_auto]">
+    <main className="min-h-dvh bg-bloom-bg md:min-h-[calc(100dvh-56px)]">
+      <div className="grid min-h-dvh grid-cols-1 md:min-h-[calc(100dvh-56px)] md:grid-cols-[260px_minmax(0,1fr)_380px]">
         {isEntryDrawerOpen ? (
           <button
             type="button"
@@ -1756,8 +1890,8 @@ export function JournalWorkspace() {
           onClose={() => setEntryDrawerOpen(false)}
         />
 
-        <section className="min-w-0">
-          <header className="sticky top-0 z-20 flex min-h-16 items-center gap-3 border-b border-bloom-border bg-bloom-bg/95 px-4 py-2 backdrop-blur md:px-7">
+        <section className="flex min-w-0 flex-col md:h-[calc(100dvh-56px)] md:overflow-hidden">
+          <header className="sticky top-0 z-20 flex min-h-16 items-center gap-3 border-b border-bloom-border bg-bloom-bg/95 px-4 py-2 backdrop-blur md:hidden md:px-7">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 type="button"
@@ -1768,38 +1902,9 @@ export function JournalWorkspace() {
                 <Menu className="h-4 w-4" aria-hidden="true" />
               </button>
               <div className="min-w-0 flex-1">
-                {isEditingTitle && selectedEntry ? (
-                  <input
-                    ref={titleInputRef}
-                    value={titleDraft}
-                    onChange={(event) => setTitleDraft(event.target.value)}
-                    onBlur={finishTitleEdit}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        skipNextTitleSaveRef.current = true;
-                        setTitleDraft(selectedEntry.title);
-                        setEditingTitle(false);
-                      }
-                    }}
-                    className="h-8 w-full rounded-bloom-sm border border-bloom-border bg-bloom-surface px-2 text-[14px] font-semibold outline-none focus:border-bloom-border-mid"
-                    aria-label="Journal title"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => beginTitleEdit()}
-                    disabled={!selectedEntry}
-                    className="block max-w-full truncate text-left text-[14px] font-semibold hover:text-bloom-accent disabled:cursor-default disabled:hover:text-bloom-text-primary"
-                    aria-label="Rename entry title"
-                  >
-                    {selectedEntry?.title ?? "MindBloom"}
-                  </button>
-                )}
+                <p className="block max-w-full truncate text-left text-[14px] font-semibold">
+                  {selectedEntry?.title ?? "MindBloom"}
+                </p>
                 <p className="text-[12px] text-bloom-text-tertiary">
                   {isAutosaving
                     ? "saving..."
@@ -1808,44 +1913,6 @@ export function JournalWorkspace() {
                       : "Preparing your workspace"}
                 </p>
               </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto">
-              <button
-                type="button"
-                onClick={handleManualSave}
-                disabled={isSaving || !selectedEntry}
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-2.5 text-[12px] font-medium text-bloom-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
-                {isSaving ? "Saving" : "Save"}
-              </button>
-              <button
-                type="button"
-                onClick={openSaveNotePanel}
-                disabled={!selectedEntry}
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-bloom-sm border border-amber-border bg-amber-bg px-2.5 text-[12px] font-medium text-amber-text disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
-                Save note
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedEntry) {
-                    window.history.pushState(
-                      null,
-                      "",
-                      `/reflect?entryId=${selectedEntry.id}`,
-                    );
-                    window.dispatchEvent(new PopStateEvent("popstate"));
-                  }
-                }}
-                disabled={!selectedEntry}
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-bloom-sm bg-bloom-accent px-2.5 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                Reflect
-              </button>
             </div>
             <button
               type="button"
@@ -1857,13 +1924,94 @@ export function JournalWorkspace() {
             </button>
           </header>
 
-          <div className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-8 md:py-8">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-7">
             {isLoading ? (
               <div className="rounded-bloom border border-bloom-border bg-bloom-surface p-6 text-[14px] text-bloom-text-secondary">
                 Preparing your journal...
               </div>
-            ) : (
+            ) : activeView === "editor" ? (
               <>
+                <div className="mx-auto flex w-full max-w-[920px] items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    {isEditingTitle && selectedEntry ? (
+                      <input
+                        ref={titleInputRef}
+                        value={titleDraft}
+                        onChange={(event) => setTitleDraft(event.target.value)}
+                        onBlur={finishTitleEdit}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            skipNextTitleSaveRef.current = true;
+                            setTitleDraft(selectedEntry.title);
+                            setEditingTitle(false);
+                          }
+                        }}
+                        className="entry-title-input h-[75px] w-full"
+                        aria-label="Journal title"
+                      />
+                    ) : (
+                      <h1 className="relative max-w-full truncate font-serif text-5xl font-bold leading-tight text-bloom-text-primary md:text-6xl">
+                        {selectedEntry?.title ?? "Untitled entry"}
+                        <button
+                          type="button"
+                          onClick={() => beginTitleEdit()}
+                          disabled={!selectedEntry}
+                          className="absolute inset-0 cursor-text text-left disabled:cursor-default"
+                          aria-label="Rename entry title"
+                        />
+                      </h1>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {isAutosaving ? (
+                        <span className="text-[12px] text-bloom-text-tertiary">
+                          saving...
+                        </span>
+                      ) : selectedEntry ? (
+                        (selectedEntry.tags?.length ? selectedEntry.tags : ["untagged"]).map(
+                          (tag) => (
+                            <span
+                              key={tag}
+                              className="entry-tag-pill"
+                            >
+                              {tag}
+                            </span>
+                          ),
+                        )
+                      ) : (
+                        <span className="text-[12px] text-bloom-text-tertiary">
+                          Preparing your workspace
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleManualSave}
+                      disabled={isSaving || !selectedEntry}
+                      className="flex h-9 shrink-0 items-center gap-1.5 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] font-medium text-bloom-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+                      {isSaving ? "Saving" : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openSaveNotePanel}
+                      disabled={!selectedEntry}
+                      className="flex h-9 shrink-0 items-center gap-1.5 rounded-bloom-sm border border-amber-border bg-amber-bg px-3 text-[12px] font-medium text-amber-text disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
+                      Save note
+                    </button>
+                  </div>
+                </div>
+
                 <label className="sr-only" htmlFor="entry-editor">
                   Journal entry
                 </label>
@@ -1879,7 +2027,7 @@ export function JournalWorkspace() {
                   }}
                   onSelect={(event) => rememberEditorSelection(event.currentTarget)}
                   placeholder="Start writing here. It can be a journal entry, an idea, or a messy thought you want to untangle."
-                  className="min-h-[calc(100dvh-260px)] w-full resize-none rounded-bloom border border-bloom-border bg-bloom-surface px-5 py-5 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary focus:border-bloom-border-mid md:min-h-[calc(100dvh-230px)] md:px-7 md:py-7 md:text-[20px] md:leading-9"
+                  className="mx-auto mt-8 block min-h-[calc(100dvh-390px)] w-full max-w-[920px] resize-none border-0 bg-transparent px-0 py-0 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary md:min-h-[calc(100dvh-270px)] md:text-[20px] md:leading-9"
                 />
                 {saveStatus ? (
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-[13px] text-teal-text">
@@ -1908,11 +2056,170 @@ export function JournalWorkspace() {
                   <p className="mt-3 text-[13px] text-coral-text">{error}</p>
                 ) : null}
               </>
+            ) : activeView === "map" ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="label-text">Overall Map</p>
+                    <h2 className="mt-1 font-serif text-[28px] leading-tight">
+                      {selectedEntry?.title ?? "Entry map"}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => selectedEntry && void loadEntryMap(selectedEntry.id)}
+                    disabled={!selectedEntry || isMapLoading}
+                    className="h-9 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] font-medium text-bloom-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isMapLoading ? "Refreshing" : "Refresh map"}
+                  </button>
+                </div>
+                {isMapLoading ? (
+                  <section className="grid min-h-[560px] place-items-center rounded-bloom border border-bloom-border bg-bloom-surface">
+                    <p className="font-serif text-[16px] text-bloom-text-secondary">
+                      Loading this entry map...
+                    </p>
+                  </section>
+                ) : null}
+                {!isMapLoading && mapError ? (
+                  <section className="rounded-bloom border border-coral-border bg-coral-bg p-5 text-coral-text">
+                    <p className="font-serif text-[19px]">The map would not open.</p>
+                    <p className="mt-2 text-[13px] leading-5">{mapError}</p>
+                  </section>
+                ) : null}
+                {!isMapLoading && !mapError && mapSnapshot ? (
+                  <MindMap
+                    key={`${selectedEntry?.id ?? "none"}-${mapSnapshot.capturedAt}`}
+                    nodes={mapSnapshot.nodes}
+                    edges={mapSnapshot.edges}
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="label-text">Reflection</p>
+                    <h2 className="mt-1 font-serif text-[28px] leading-tight">
+                      {selectedEntry?.title ?? "Entry reflection"}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleReflectEntry()}
+                    disabled={!selectedEntry || isReflecting}
+                    className="flex h-9 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                    {isReflecting ? "Reflecting" : "Create reflection"}
+                  </button>
+                </div>
+                {isLoadingReflections ? (
+                  <section className="rounded-bloom border border-bloom-border bg-bloom-surface p-6 text-[14px] text-bloom-text-secondary">
+                    Loading reflections for this entry...
+                  </section>
+                ) : null}
+                {!isLoadingReflections && reflectionError ? (
+                  <section className="rounded-bloom border border-coral-border bg-coral-bg p-5 text-coral-text">
+                    <p className="font-serif text-[19px]">Reflection would not open.</p>
+                    <p className="mt-2 text-[13px] leading-5">{reflectionError}</p>
+                  </section>
+                ) : null}
+                {!isLoadingReflections && !reflectionError && !latestReflection ? (
+                  <section className="rounded-bloom border border-bloom-border bg-bloom-surface p-6">
+                    <p className="font-serif text-[20px] text-bloom-text-primary">
+                      No reflection for this entry yet
+                    </p>
+                    <p className="mt-2 text-[13px] leading-5 text-bloom-text-secondary">
+                      Create one after writing so it is tied to this entry's map and Bloom conversation.
+                    </p>
+                  </section>
+                ) : null}
+                {!isLoadingReflections && !reflectionError && latestReflection ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {latestReflection.cards.map((card) => {
+                      const isMapCard = card.type === "mind-map" && latestReflection.graphSnapshot;
+                      const takeaways = Array.isArray(card.metadata?.takeaways)
+                        ? card.metadata.takeaways.filter(
+                            (item): item is string => typeof item === "string",
+                          )
+                        : [];
+
+                      return (
+                        <article
+                          key={card.id}
+                          className={[
+                            "rounded-bloom border border-bloom-border bg-bloom-surface p-4 shadow-sm",
+                            isMapCard ? "md:col-span-2" : "",
+                          ].join(" ")}
+                        >
+                          <p className="text-[11px] font-medium uppercase text-bloom-text-tertiary">
+                            {card.type}
+                          </p>
+                          <h3 className="mt-1 font-serif text-[22px] leading-tight text-bloom-text-primary">
+                            {card.title}
+                          </h3>
+                          {isMapCard && latestReflection.graphSnapshot ? (
+                            <div className="mt-3 overflow-hidden rounded-bloom-sm">
+                              <MindMap
+                                nodes={latestReflection.graphSnapshot.nodes}
+                                edges={latestReflection.graphSnapshot.edges}
+                              />
+                            </div>
+                          ) : takeaways.length > 0 ? (
+                            <ul className="mt-3 space-y-2 text-[13px] leading-5 text-bloom-text-secondary">
+                              {takeaways.map((takeaway) => (
+                                <li key={takeaway}>{takeaway}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="mt-3 whitespace-pre-line text-[13px] leading-6 text-bloom-text-secondary">
+                              {card.body}
+                            </p>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {saveStatus ? (
+                  <p className="text-[13px] text-teal-text">{saveStatus}</p>
+                ) : null}
+                {error ? (
+                  <p className="text-[13px] text-coral-text">{error}</p>
+                ) : null}
+              </div>
             )}
+          </div>
+
+          <div className="sticky bottom-[60px] z-20 border-t border-bloom-border bg-bloom-bg/95 px-4 py-2 backdrop-blur md:bottom-0 md:px-8">
+            <div className="grid grid-cols-3 gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-surface p-1">
+              {workspaceViews.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setActiveView(item.value)}
+                    disabled={!selectedEntry}
+                    className={[
+                      "flex h-10 items-center justify-center gap-2 rounded-bloom-sm text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                      activeView === item.value
+                        ? "bg-bloom-accent text-white"
+                        : "text-bloom-text-secondary hover:bg-gray-bg",
+                    ].join(" ")}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
 
-        <div className="fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:max-h-none md:overflow-visible md:border-t-0">
+        <div className="fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:h-[calc(100dvh-56px)] md:max-h-none md:overflow-visible md:border-t-0">
           <div className={isBloomOpen ? "block" : "hidden md:block"}>
             <BloomSidebar
               entry={selectedEntry}

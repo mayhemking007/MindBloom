@@ -487,6 +487,121 @@ describe("entry routes", () => {
       .expect(403);
   });
 
+  it("filters entry snapshots to the selected entry session", async () => {
+    const first = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ title: "First entry" })
+      .expect(201);
+    await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ title: "Second entry" })
+      .expect(201);
+
+    agent.getGraphSnapshot.mockResolvedValue({
+      sessionId: first.body.entry.memoSessionId,
+      nodes: [
+        {
+          id: "first-theme",
+          sessionId: first.body.entry.memoSessionId,
+          segmentId: "segment-1",
+          label: "First theme",
+          summary: "A first-entry theme.",
+          embedding: [],
+          messageRange: [0, 1] as [number, number],
+          topicOrder: 1,
+          driftScore: 0.1,
+          agentColor: null,
+          fleetId: null,
+          agentId: null,
+          createdAt,
+        },
+        {
+          id: "other-theme",
+          sessionId: "mindbloom-entry-other",
+          segmentId: "segment-2",
+          label: "Other theme",
+          summary: "A theme from another entry.",
+          embedding: [],
+          messageRange: [0, 1] as [number, number],
+          topicOrder: 1,
+          driftScore: 0.1,
+          agentColor: null,
+          fleetId: null,
+          agentId: null,
+          createdAt,
+        },
+      ],
+      snapshotNodes: [],
+      edges: [
+        {
+          srcId: "first-theme",
+          dstId: "other-theme",
+          type: "semantic",
+          weight: 0.8,
+        },
+      ],
+      memories: [],
+      memoryEdges: [],
+      capturedAt: createdAt.toISOString(),
+    });
+
+    const response = await request(app)
+      .get(`/api/entries/${first.body.entry.id}/snapshot`)
+      .set(ownerAHeaders)
+      .expect(200);
+
+    expect(response.body.nodes.map((node: { id: string }) => node.id)).toEqual([
+      "first-theme",
+    ]);
+    expect(response.body.edges).toEqual([]);
+  });
+
+  it("keeps map nodes from the active entry agent snapshot session", async () => {
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ title: "Runtime snapshot entry" })
+      .expect(201);
+
+    agent.getGraphSnapshot.mockResolvedValue({
+      sessionId: "memo-grafter-runtime-session",
+      nodes: [
+        {
+          id: "runtime-theme",
+          sessionId: "memo-grafter-runtime-session",
+          segmentId: "segment-1",
+          label: "Runtime theme",
+          summary: "A theme from the active memo-grafter agent.",
+          embedding: [],
+          messageRange: [0, 1] as [number, number],
+          topicOrder: 1,
+          driftScore: 0.1,
+          agentColor: null,
+          fleetId: null,
+          agentId: null,
+          createdAt,
+        },
+      ],
+      snapshotNodes: [],
+      edges: [],
+      memories: [],
+      memoryEdges: [],
+      capturedAt: createdAt.toISOString(),
+    });
+
+    const response = await request(app)
+      .get(`/api/entries/${created.body.entry.id}/snapshot`)
+      .set(ownerAHeaders)
+      .expect(200);
+
+    expect(response.body.sessionId).toBe(created.body.entry.memoSessionId);
+    expect(response.body.nodes.map((node: { id: string }) => node.id)).toEqual([
+      "runtime-theme",
+    ]);
+  });
+
   it("brings in previous themes by relevance from owned source entries", async () => {
     const source = await request(app)
       .post("/api/entries")

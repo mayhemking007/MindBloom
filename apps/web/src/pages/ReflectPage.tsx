@@ -1,4 +1,4 @@
-import { BookOpen, Copy, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, Copy, RefreshCw, Share2, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
   EntryReflection,
@@ -97,6 +97,142 @@ function shareUrl(token: string): string {
   return `${window.location.origin}/share/${token}`;
 }
 
+interface ShareReflectionModalProps {
+  reflection: EntryReflection | null;
+  shareLinks: ReflectionShareLink[];
+  selectedCardIds: string[];
+  copiedToken: string | null;
+  isCreating: boolean;
+  onClose: () => void;
+  onToggleCard: (cardId: string) => void;
+  onCreate: () => void;
+  onCopy: (link: ReflectionShareLink) => void;
+  onRevoke: (link: ReflectionShareLink) => void;
+}
+
+function ShareReflectionModal({
+  reflection,
+  shareLinks,
+  selectedCardIds,
+  copiedToken,
+  isCreating,
+  onClose,
+  onToggleCard,
+  onCreate,
+  onCopy,
+  onRevoke,
+}: ShareReflectionModalProps) {
+  if (!reflection) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/20 p-3 md:items-center md:justify-center">
+      <section
+        className="w-full rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[640px]"
+        aria-label="Share reflection"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-bloom-border px-5 py-4">
+          <div>
+            <p className="label-text">Share</p>
+            <h2 className="mt-1 font-serif text-[24px]">Create reflect link</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg"
+            aria-label="Close share reflection"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-5 py-5">
+          <div>
+            <p className="text-[12px] font-medium text-bloom-text-secondary">
+              Cards to include
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {reflection.cards.map((card) => (
+                <label
+                  key={card.id}
+                  className={[
+                    "flex h-9 items-center gap-2 rounded-bloom-sm border px-3 text-[12px]",
+                    selectedCardIds.includes(card.id)
+                      ? "border-purple-border bg-purple-bg text-purple-text"
+                      : "border-bloom-border bg-bloom-bg text-bloom-text-secondary",
+                  ].join(" ")}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCardIds.includes(card.id)}
+                    onChange={() => onToggleCard(card.id)}
+                  />
+                  {card.title}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={isCreating || selectedCardIds.length === 0}
+            className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
+            {isCreating ? "Creating link" : "Create share link"}
+          </button>
+
+          <div className="border-t border-bloom-border pt-4">
+            <p className="text-[12px] font-medium text-bloom-text-secondary">
+              Active share links
+            </p>
+            {shareLinks.length === 0 ? (
+              <p className="mt-2 text-[13px] text-bloom-text-tertiary">
+                No share links yet.
+              </p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {shareLinks.map((link) => (
+                  <div
+                    key={link.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 py-2"
+                  >
+                    <a
+                      href={`/share/${link.token}`}
+                      className="min-w-0 truncate text-[12px] text-blue-text"
+                    >
+                      {shareUrl(link.token)}
+                    </a>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onCopy(link)}
+                        className="h-8 rounded-bloom-sm border border-bloom-border px-3 text-[12px] text-bloom-text-secondary"
+                      >
+                        {copiedToken === link.token ? "Copied" : "Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRevoke(link)}
+                        aria-label="Revoke share link"
+                        className="grid h-8 w-8 place-items-center rounded-bloom-sm border border-bloom-border text-bloom-text-secondary"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function ReflectPage() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -104,6 +240,7 @@ export function ReflectPage() {
   const [shareLinks, setShareLinks] = useState<ReflectionShareLink[]>([]);
   const [selectedReflectionId, setSelectedReflectionId] = useState<string | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [isShareModalOpen, setShareModalOpen] = useState(false);
   const [isLoading, setLoading] = useState(true);
   const [isGenerating, setGenerating] = useState(false);
   const [isCreatingShareLink, setCreatingShareLink] = useState(false);
@@ -149,12 +286,16 @@ export function ReflectPage() {
           return;
         }
         const queryEntryId = new URLSearchParams(window.location.search).get("entryId");
+        const queryReflectionId = new URLSearchParams(window.location.search).get(
+          "reflectionId",
+        );
         const nextSelected =
           response.entries.find((entry) => entry.id === queryEntryId)?.id ??
           response.entries[0]?.id ??
           null;
         setEntries(response.entries);
         setSelectedEntryId(nextSelected);
+        setSelectedReflectionId(queryReflectionId);
       } catch (loadError) {
         if (isMounted) {
           setError(
@@ -194,8 +335,16 @@ export function ReflectPage() {
         if (!isMounted) {
           return;
         }
+        const queryReflectionId = new URLSearchParams(window.location.search).get(
+          "reflectionId",
+        );
         setReflections(response.reflections);
-        setSelectedReflectionId(response.reflections[0]?.id ?? null);
+        setSelectedReflectionId(
+          response.reflections.find((reflection) => reflection.id === queryReflectionId)
+            ?.id ??
+            response.reflections[0]?.id ??
+            null,
+        );
       } catch (loadError) {
         if (isMounted) {
           setError(
@@ -239,6 +388,11 @@ export function ReflectPage() {
       const response = await createEntryReflection(selectedEntry.id);
       await refreshReflections(selectedEntry.id);
       setSelectedReflectionId(response.reflection.id);
+      window.history.replaceState(
+        null,
+        "",
+        `/reflect?entryId=${selectedEntry.id}&reflectionId=${response.reflection.id}`,
+      );
     } catch (generateError) {
       setError(
         generateError instanceof Error
@@ -299,6 +453,11 @@ export function ReflectPage() {
         ? current.filter((id) => id !== cardId)
         : [...current, cardId],
     );
+  }
+
+  async function copyShareLink(link: ReflectionShareLink) {
+    await navigator.clipboard?.writeText(shareUrl(link.token));
+    setCopiedToken(link.token);
   }
 
   return (
@@ -425,96 +584,25 @@ export function ReflectPage() {
             {selectedReflection ? (
               <div>
                 <div className="mb-4">
-                  <p className="label-text">
-                    {selectedEntry?.title ?? "Selected entry"}
-                  </p>
-                  <p className="mt-1 text-[13px] text-bloom-text-secondary">
-                    Created {formatReflectionDate(selectedReflection.createdAt)}
-                  </p>
-                </div>
-                <section className="mb-5 rounded-bloom border border-bloom-border bg-bloom-surface p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="label-text">Share</p>
-                      <h2 className="mt-1 font-serif text-[22px]">
-                        Choose cards to share
-                      </h2>
+                      <p className="label-text">
+                        {selectedEntry?.title ?? "Selected entry"}
+                      </p>
+                      <p className="mt-1 text-[13px] text-bloom-text-secondary">
+                        Created {formatReflectionDate(selectedReflection.createdAt)}
+                      </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => void createShareLink()}
-                      disabled={isCreatingShareLink || selectedCardIds.length === 0}
+                      onClick={() => setShareModalOpen(true)}
                       className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <Copy className="h-4 w-4" aria-hidden="true" />
-                      {isCreatingShareLink ? "Creating link" : "Create share link"}
+                      <Share2 className="h-4 w-4" aria-hidden="true" />
+                      Share reflection
                     </button>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {selectedReflection.cards.map((card) => (
-                      <label
-                        key={card.id}
-                        className={[
-                          "flex h-9 items-center gap-2 rounded-bloom-sm border px-3 text-[12px]",
-                          selectedCardIds.includes(card.id)
-                            ? "border-purple-border bg-purple-bg text-purple-text"
-                            : "border-bloom-border bg-bloom-bg text-bloom-text-secondary",
-                        ].join(" ")}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedCardIds.includes(card.id)}
-                          onChange={() => toggleCard(card.id)}
-                        />
-                        {card.title}
-                      </label>
-                    ))}
-                  </div>
-                  {shareLinks.length > 0 ? (
-                    <div className="mt-4 border-t border-bloom-border pt-4">
-                      <p className="text-[12px] font-medium text-bloom-text-secondary">
-                        Active share links
-                      </p>
-                      <div className="mt-2 space-y-2">
-                        {shareLinks.map((link) => (
-                          <div
-                            key={link.id}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 py-2"
-                          >
-                            <a
-                              href={`/share/${link.token}`}
-                              className="min-w-0 truncate text-[12px] text-blue-text"
-                            >
-                              {shareUrl(link.token)}
-                            </a>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await navigator.clipboard?.writeText(
-                                    shareUrl(link.token),
-                                  );
-                                  setCopiedToken(link.token);
-                                }}
-                                className="h-8 rounded-bloom-sm border border-bloom-border px-3 text-[12px] text-bloom-text-secondary"
-                              >
-                                {copiedToken === link.token ? "Copied" : "Copy"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void revokeShareLink(link)}
-                                aria-label="Revoke share link"
-                                className="grid h-8 w-8 place-items-center rounded-bloom-sm border border-bloom-border text-bloom-text-secondary"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </section>
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   {selectedReflection.cards.map((card) => (
                     <ReflectionCardView
@@ -541,6 +629,20 @@ export function ReflectPage() {
             )}
           </section>
         </div>
+      ) : null}
+      {isShareModalOpen ? (
+        <ShareReflectionModal
+          reflection={selectedReflection}
+          shareLinks={shareLinks}
+          selectedCardIds={selectedCardIds}
+          copiedToken={copiedToken}
+          isCreating={isCreatingShareLink}
+          onClose={() => setShareModalOpen(false)}
+          onToggleCard={toggleCard}
+          onCreate={() => void createShareLink()}
+          onCopy={(link) => void copyShareLink(link)}
+          onRevoke={(link) => void revokeShareLink(link)}
+        />
       ) : null}
     </main>
   );

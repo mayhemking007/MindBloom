@@ -1,17 +1,27 @@
 import { RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphSnapshotResponse, JournalEntry } from "@mindbloom/shared";
 
 import { MindMap } from "../components/graph/MindMap";
 import { getEntrySnapshot, listEntries } from "../lib/api";
 
+const mapScopes = [
+  { value: "writing", label: "Writing Map" },
+  { value: "bloom", label: "Bloom Map" },
+  { value: "overall", label: "Overall Map" },
+] as const;
+
+type MapScope = (typeof mapScopes)[number]["value"];
+
 export function MapPage() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [scope, setScope] = useState<MapScope>("overall");
   const [snapshot, setSnapshot] = useState<GraphSnapshotResponse | null>(null);
   const [loadingEntries, setLoadingEntries] = useState(true);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const snapshotRequestId = useRef(0);
 
   const selectedEntry = useMemo(
     () => entries.find((entry) => entry.id === selectedEntryId) ?? null,
@@ -24,19 +34,30 @@ export function MapPage() {
       return;
     }
 
+    const requestId = snapshotRequestId.current + 1;
+    snapshotRequestId.current = requestId;
+    setSnapshot(null);
     setLoadingSnapshot(true);
     setError(null);
     try {
-      const response = await getEntrySnapshot(entryId);
+      const response = await getEntrySnapshot(entryId, scope);
+      if (snapshotRequestId.current !== requestId) {
+        return;
+      }
       setSnapshot(response);
     } catch (snapshotError) {
+      if (snapshotRequestId.current !== requestId) {
+        return;
+      }
       setError(
         snapshotError instanceof Error
           ? snapshotError.message
           : "MindBloom could not load your map.",
       );
     } finally {
-      setLoadingSnapshot(false);
+      if (snapshotRequestId.current === requestId) {
+        setLoadingSnapshot(false);
+      }
     }
   }
 
@@ -86,7 +107,7 @@ export function MapPage() {
 
   useEffect(() => {
     void refreshSnapshot(selectedEntryId);
-  }, [selectedEntryId]);
+  }, [scope, selectedEntryId]);
 
   const isLoading = loadingEntries || loadingSnapshot;
 
@@ -123,6 +144,25 @@ export function MapPage() {
               ))}
             </select>
           ) : null}
+          {entries.length > 0 ? (
+            <div className="flex rounded-bloom-sm border border-bloom-border bg-bloom-surface p-1">
+              {mapScopes.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setScope(item.value)}
+                  className={[
+                    "h-7 rounded-bloom-sm px-2.5 text-[11px] font-medium",
+                    scope === item.value
+                      ? "bg-bloom-accent-bg text-bloom-accent"
+                      : "text-bloom-text-tertiary",
+                  ].join(" ")}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => void refreshSnapshot()}
@@ -141,7 +181,7 @@ export function MapPage() {
           <span className="font-medium text-bloom-text-primary">
             {selectedEntry.title}
           </span>
-          .
+          {" "}as {mapScopes.find((item) => item.value === scope)?.label ?? "Overall Map"}.
         </p>
       ) : null}
 
@@ -181,7 +221,11 @@ export function MapPage() {
       ) : null}
 
       {!isLoading && !error && snapshot ? (
-        <MindMap nodes={snapshot.nodes} edges={snapshot.edges} />
+        <MindMap
+          key={`${selectedEntryId ?? "none"}-${scope}-${snapshot.capturedAt}`}
+          nodes={snapshot.nodes}
+          edges={snapshot.edges}
+        />
       ) : null}
     </main>
   );

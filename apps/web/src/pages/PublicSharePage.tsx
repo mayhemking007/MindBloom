@@ -1,8 +1,13 @@
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import type { PublicReflectionShareResponse, ReflectionCard } from "@mindbloom/shared";
+import type {
+  GraphSnapshotResponse,
+  PublicReflectionShareResponse,
+  ReflectionCard,
+} from "@mindbloom/shared";
 
+import { MindMap } from "../components/graph/MindMap";
 import { getPublicReflectionShare } from "../lib/api";
 
 const cardStyles: Record<ReflectionCard["type"], string> = {
@@ -25,22 +30,45 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
+function getCardGraphSnapshot(card: ReflectionCard): GraphSnapshotResponse | null {
+  const snapshot = card.metadata?.graphSnapshot;
+  if (
+    snapshot &&
+    typeof snapshot === "object" &&
+    "nodes" in snapshot &&
+    "edges" in snapshot &&
+    Array.isArray((snapshot as GraphSnapshotResponse).nodes) &&
+    Array.isArray((snapshot as GraphSnapshotResponse).edges)
+  ) {
+    return snapshot as GraphSnapshotResponse;
+  }
+
+  return null;
+}
+
 function SharedCard({ card }: { card: ReflectionCard }) {
   const takeaways = Array.isArray(card.metadata?.takeaways)
     ? card.metadata.takeaways.filter((item): item is string => typeof item === "string")
     : [];
+  const graphSnapshot = getCardGraphSnapshot(card);
+  const isMapCard = card.type === "mind-map" && graphSnapshot !== null;
 
   return (
     <article
       className={[
         "rounded-bloom border p-5 shadow-sm",
         card.type === "quote" ? "md:col-span-2" : "",
+        isMapCard ? "md:col-span-2" : "",
         cardStyles[card.type],
       ].join(" ")}
     >
       <p className="text-[11px] font-medium uppercase opacity-70">{card.type}</p>
       <h2 className="mt-1 font-serif text-[24px] leading-tight">{card.title}</h2>
-      {takeaways.length > 0 ? (
+      {isMapCard && graphSnapshot ? (
+        <div className="mt-4 overflow-hidden rounded-bloom-sm">
+          <MindMap nodes={graphSnapshot.nodes} edges={graphSnapshot.edges} />
+        </div>
+      ) : takeaways.length > 0 ? (
         <ul className="mt-4 space-y-2">
           {takeaways.map((takeaway) => (
             <li key={takeaway} className="text-[14px] leading-6">

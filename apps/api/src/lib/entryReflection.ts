@@ -158,7 +158,7 @@ export async function buildEntryReflectionCards(
 ): Promise<ReflectionCard[]> {
   const generated = await generateReflectionText(input);
   const wordCount = countWords(input.documentText);
-  const bloomTurns = input.messages.filter((message) => message.role !== "system")
+  const bloomTurns = input.messages.filter((message) => message.role === "user")
     .length;
   const themeLabels = input.topicPills.map((theme) => theme.label);
 

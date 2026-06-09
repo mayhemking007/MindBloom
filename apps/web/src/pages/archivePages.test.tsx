@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ReflectPage } from "./ReflectPage";
 import { NotesPage } from "./NotesPage";
 import { PublicSharePage } from "./PublicSharePage";
+import { MapPage } from "./MapPage";
 
 describe("archive pages", () => {
   beforeEach(() => {
@@ -28,6 +29,103 @@ describe("archive pages", () => {
     render(<NotesPage />);
 
     expect(await screen.findByText("No notes yet")).toBeVisible();
+  });
+
+  it("loads a different map when the selected entry changes", async () => {
+    const firstEntry = {
+      id: "entry-1",
+      ownerId: "demo-local",
+      ownerKind: "demo",
+      title: "First entry",
+      tags: ["journal"],
+      status: "draft",
+      memoSessionId: "mindbloom-entry-entry-1",
+      createdAt: "2026-06-04T08:00:00.000Z",
+      updatedAt: "2026-06-04T08:00:00.000Z",
+      completedAt: null,
+      allowFutureContext: true,
+    };
+    const secondEntry = {
+      ...firstEntry,
+      id: "entry-2",
+      title: "Second entry",
+      memoSessionId: "mindbloom-entry-entry-2",
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              entries: [firstEntry, secondEntry],
+              groups: [{ date: "2026-06-04", entries: [firstEntry, secondEntry] }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/entries/entry-2/snapshot")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              sessionId: "mindbloom-entry-entry-2",
+              nodes: [
+                {
+                  id: "second-theme",
+                  sessionId: "mindbloom-entry-entry-2",
+                  label: "Second theme",
+                  summary: "A second-entry theme.",
+                  topicOrder: 1,
+                },
+              ],
+              edges: [],
+              memories: [],
+              memoryEdges: [],
+              capturedAt: "2026-06-04T08:02:00.000Z",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              sessionId: "mindbloom-entry-entry-1",
+              nodes: [
+                {
+                  id: "first-theme",
+                  sessionId: "mindbloom-entry-entry-1",
+                  label: "First theme",
+                  summary: "A first-entry theme.",
+                  topicOrder: 1,
+                },
+              ],
+              edges: [],
+              memories: [],
+              memoryEdges: [],
+              capturedAt: "2026-06-04T08:01:00.000Z",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<MapPage />);
+
+    expect(await screen.findByText("First theme")).toBeVisible();
+    await user.selectOptions(screen.getByLabelText("Entry"), "entry-2");
+
+    expect(await screen.findByText("Second theme")).toBeVisible();
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes("/api/entries/entry-2/snapshot?scope=overall"),
+      ),
+    ).toBe(true);
   });
 
   it("creates, edits, and deletes Notes", async () => {
@@ -322,11 +420,13 @@ describe("archive pages", () => {
     await user.click(screen.getByRole("button", { name: "Reflect on this entry" }));
 
     await waitFor(() => {
-      expect(screen.getAllByText("Words You Put Down").length).toBeGreaterThan(1);
+      expect(screen.getByText("Words You Put Down")).toBeVisible();
     });
-    expect(screen.getAllByText("Question For Next Time").length).toBeGreaterThan(1);
-    await user.click(screen.getByLabelText("Question For Next Time"));
-    await user.click(screen.getByRole("button", { name: "Create share link" }));
+    expect(screen.getByText("Question For Next Time")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Share reflection" }));
+    const shareModal = screen.getByLabelText("Share reflection");
+    await user.click(within(shareModal).getByLabelText("Question For Next Time"));
+    await user.click(within(shareModal).getByRole("button", { name: "Create share link" }));
     expect(
       fetchMock.mock.calls.some(
         ([url, init]) =>
@@ -362,6 +462,30 @@ describe("archive pages", () => {
                   title: "Mood",
                   body: "You noticed a quiet shift.",
                 },
+                {
+                  id: "map",
+                  type: "mind-map",
+                  title: "Mind Map Snapshot",
+                  body: "This map should render as a graph, not plain text.",
+                  metadata: {
+                    graphSnapshot: {
+                      sessionId: "mindbloom-entry-entry-1",
+                      nodes: [
+                        {
+                          id: "shared-theme",
+                          sessionId: "mindbloom-entry-entry-1",
+                          label: "Shared theme",
+                          summary: "A theme selected for public sharing.",
+                          topicOrder: 1,
+                        },
+                      ],
+                      edges: [],
+                      memories: [],
+                      memoryEdges: [],
+                      capturedAt: "2026-06-04T08:06:00.000Z",
+                    },
+                  },
+                },
               ],
             }),
             {
@@ -384,6 +508,11 @@ describe("archive pages", () => {
     expect(await screen.findByText("Shared Reflection")).toBeVisible();
     expect(screen.getByText("Mood")).toBeVisible();
     expect(screen.getByText("You noticed a quiet shift.")).toBeVisible();
+    expect(screen.getByText("Mind Map Snapshot")).toBeVisible();
+    expect(screen.getByText("All visible themes")).toBeVisible();
+    expect(
+      screen.queryByText("This map should render as a graph, not plain text."),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Private entry")).not.toBeInTheDocument();
   });
 });

@@ -858,27 +858,84 @@ describe("JournalWorkspace", () => {
     expect(await screen.findByText("Entry deleted.")).toBeVisible();
   });
 
-  it("shows sidebar utility shortcuts", async () => {
-    mockFetch((url) => {
+  it("loads the selected entry map from the journal view toggle", async () => {
+    const secondEntry = {
+      ...entry,
+      id: "entry-2",
+      title: "Evening thoughts",
+      memoSessionId: "mindbloom-entry-entry-2",
+    } satisfies JournalEntry;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
       if (url.endsWith("/api/entries")) {
-        return jsonResponse({ entries: [entry], groups });
+        return Promise.resolve(
+          jsonResponse({
+            entries: [entry, secondEntry],
+            groups: [{ date: "2026-06-04", entries: [entry, secondEntry] }],
+          }),
+        );
+      }
+      if (url.includes("/api/entries/entry-2/snapshot")) {
+        return Promise.resolve(
+          jsonResponse({
+            sessionId: "mindbloom-entry-entry-2",
+            nodes: [
+              {
+                id: "second-theme",
+                sessionId: "mindbloom-entry-entry-2",
+                label: "Evening theme",
+                summary: "A map theme from the second entry.",
+                topicOrder: 1,
+              },
+            ],
+            edges: [],
+            memories: [],
+            memoryEdges: [],
+            capturedAt: "2026-06-04T08:05:00.000Z",
+          }),
+        );
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return Promise.resolve(snapshotResponse());
       }
       if (url.endsWith("/api/entries/entry-1/document")) {
-        return jsonResponse({ document: null });
+        return Promise.resolve(jsonResponse({ document: null }));
       }
       if (url.endsWith("/api/entries/entry-1/messages")) {
-        return jsonResponse({ messages: [] });
+        return Promise.resolve(jsonResponse({ messages: [] }));
       }
       if (url.endsWith("/api/entries/entry-1/grafts")) {
-        return jsonResponse({ grafts: [] });
+        return Promise.resolve(jsonResponse({ grafts: [] }));
       }
-      return jsonResponse({});
+      if (url.endsWith("/api/entries/entry-2/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-2/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-2/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
     });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
 
     render(<JournalWorkspace />);
 
-    expect(await screen.findByRole("button", { name: "Notes" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Calendar" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Settings" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Editor" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Map" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reflect" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Calendar" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Evening thoughts"));
+    await user.click(screen.getByRole("button", { name: "Map" }));
+
+    expect(await screen.findByText("Evening theme")).toBeVisible();
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes("/api/entries/entry-2/snapshot?scope=overall"),
+      ),
+    ).toBe(true);
   });
 });

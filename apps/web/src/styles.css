@@ -140,3 +140,29 @@ a {
 .bloom-pulse-circle {
   animation: bloomPulse 1800ms ease-in-out infinite;
 }
+
+.entry-title-input {
+  background: transparent;
+  border: 0;
+  color: var(--bloom-text-primary);
+  font-family: Lora, Georgia, serif;
+  font-size: 60px;
+  font-weight: 700;
+  line-height: 1.08;
+  outline: none;
+  padding: 0;
+}
+
+.entry-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid var(--purple-border);
+  border-radius: 999px;
+  background: var(--purple-bg);
+  color: var(--purple-text);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
