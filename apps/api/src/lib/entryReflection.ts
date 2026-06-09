@@ -113,7 +113,7 @@ function buildPrompt(input: BuildEntryReflectionInput): string {
   const themes = input.topicPills.map((theme) => theme.label).join(", ");
 
   return `Entry title: ${input.entry.title}
-Entry purpose: ${input.entry.purpose}
+Entry tags: ${input.entry.tags.join(", ") || "None"}
 
 Classic writing:
 ${input.documentText || "None"}

@@ -367,7 +367,9 @@ export function ReflectPage() {
                   >
                     <span className="block truncate font-medium">{entry.title}</span>
                     <span className="mt-1 block text-[11px] opacity-70">
-                      {entry.purpose}
+                      {(entry.tags ?? []).length > 0
+                        ? (entry.tags ?? []).join(", ")
+                        : "untagged"}
                     </span>
                   </button>
                 ))}

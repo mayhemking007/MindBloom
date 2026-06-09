@@ -29,16 +29,28 @@ const entryPurposeSchema = z.enum(["journal", "idea", "brainstorm"]);
 const entryModeSchema = z.enum(["classic", "chat", "mixed"]);
 const entryStatusSchema = z.enum(["draft", "completed"]);
 const entryMessageRoleSchema = z.enum(["user", "assistant", "system"]);
+const entryTagsSchema = z
+  .array(
+    z
+      .string()
+      .trim()
+      .min(1, "Tag cannot be empty")
+      .max(32, "Tags must be 32 characters or fewer"),
+  )
+  .max(8, "Use 8 tags or fewer")
+  .optional();
 
 const createEntrySchema = z.object({
   title: z.string().trim().min(1).max(160).optional(),
-  purpose: entryPurposeSchema,
-  mode: entryModeSchema,
+  tags: entryTagsSchema,
+  purpose: entryPurposeSchema.optional(),
+  mode: entryModeSchema.optional(),
   allowFutureContext: z.boolean().optional(),
 });
 
 const updateEntrySchema = z.object({
   title: z.string().trim().min(1).max(160).optional(),
+  tags: entryTagsSchema,
   purpose: entryPurposeSchema.optional(),
   mode: entryModeSchema.optional(),
   status: entryStatusSchema.optional(),
@@ -62,6 +74,10 @@ const createMessageSchema = z.object({
 
 const streamMessageSchema = z.object({
   content: z.string().trim().min(1, "content is required").max(8000),
+  documentDraft: z.string().max(60000).optional(),
+  selectedText: z.string().max(8000).optional(),
+  entryTags: z.array(z.string().trim().min(1).max(32)).max(8).optional(),
+  broughtInContext: z.array(z.string().trim().min(1).max(160)).max(12).optional(),
 });
 
 const graftByRelevanceSchema = z.object({
@@ -147,6 +163,32 @@ function writeStreamEvent(
 ) {
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+function buildBloomWritingContext(input: {
+  content: string;
+  documentDraft?: string;
+  selectedText?: string;
+  entryTags?: string[];
+  broughtInContext?: string[];
+}): string {
+  const parts = [
+    "Use this entry context as background. Do not ask the writer to paste it again.",
+    `Entry tags: ${input.entryTags?.join(", ") || "none"}`,
+    `Current writing:\n${input.documentDraft?.trim() || "No writing has been saved yet."}`,
+  ];
+
+  if (input.selectedText?.trim()) {
+    parts.push(`Selected text:\n${input.selectedText.trim()}`);
+  }
+
+  if (input.broughtInContext && input.broughtInContext.length > 0) {
+    parts.push(`Brought-in context:\n${input.broughtInContext.join("\n")}`);
+  }
+
+  parts.push(`Writer request:\n${input.content}`);
+
+  return parts.join("\n\n");
 }
 
 entriesRouter.post("/", async (req, res, next) => {
@@ -321,9 +363,23 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
     }
 
     if (document.content.trim().length < minIngestTextLength) {
+      const shouldClear =
+        parsed.data.force || document.lastIngestedVersion !== document.version;
+      if (shouldClear) {
+        const agent = await getAgentForSession(entry.memoSessionId);
+        await (
+          agent as unknown as {
+            clearSession?: () => Promise<void>;
+          }
+        ).clearSession?.();
+      }
+      const clearedDocument = shouldClear
+        ? entryStore.markDocumentIngested(entry.id, document.version)
+        : document;
       const response: EntryIngestResponse = {
-        document,
+        document: clearedDocument ?? document,
         ingested: false,
+        cleared: shouldClear,
         skippedReason: "empty-document",
         topicPills: [],
       };
@@ -572,7 +628,13 @@ entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
       const agent = await getAgentForSession(entry.memoSessionId);
       const reply = await invokeAgentWithStreaming(
         agent,
-        parsed.data.content,
+        buildBloomWritingContext({
+          content: parsed.data.content,
+          documentDraft: parsed.data.documentDraft,
+          selectedText: parsed.data.selectedText,
+          entryTags: parsed.data.entryTags ?? entry.tags,
+          broughtInContext: parsed.data.broughtInContext,
+        }),
         (chunk) => {
           if (isConnected) {
             writeStreamEvent(res, "token", { chunk });

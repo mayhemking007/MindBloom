@@ -1,8 +1,8 @@
-import { Pin, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Edit3, ExternalLink, Pin, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { Note, NoteDayGroup } from "@mindbloom/shared";
+import type { JournalEntry, Note, NoteDayGroup } from "@mindbloom/shared";
 
-import { createNote, deleteNote, listNotes, updateNote } from "../lib/api";
+import { createNote, deleteNote, listEntries, listNotes, updateNote } from "../lib/api";
 
 const noteColors = ["amber", "blue", "teal", "purple", "pink", "gray"] as const;
 
@@ -178,17 +178,182 @@ function NoteEditor({ selectedNote, onSaved, onCancel }: NoteEditorProps) {
   );
 }
 
+interface NoteReadModalProps {
+  note: Note | null;
+  entryTitle: string;
+  isDeleting: boolean;
+  onClose: () => void;
+  onEdit: (note: Note) => void;
+  onDelete: (note: Note) => void;
+  onOpenSource: (note: Note) => void;
+}
+
+function NoteReadModal({
+  note,
+  entryTitle,
+  isDeleting,
+  onClose,
+  onEdit,
+  onDelete,
+  onOpenSource,
+}: NoteReadModalProps) {
+  if (!note) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/20 p-3 md:items-center md:justify-center">
+      <section
+        className="w-full rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[560px]"
+        aria-label="Note detail"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-bloom-border px-5 py-4">
+          <div className="min-w-0">
+            <p className="label-text">Note</p>
+            <h2 className="mt-1 truncate font-serif text-[26px] leading-tight">
+              {note.title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg"
+            aria-label="Close note"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <p className="whitespace-pre-wrap text-[14px] leading-7 text-bloom-text-primary">
+            {note.body}
+          </p>
+          {note.sourceExcerpt ? (
+            <div className="rounded-bloom-sm border border-amber-border bg-amber-bg px-3 py-2 text-[12px] leading-5 text-amber-text">
+              <p className="font-medium">Saved excerpt</p>
+              <p className="mt-1">{note.sourceExcerpt}</p>
+            </div>
+          ) : null}
+          {note.entryId ? (
+            <button
+              type="button"
+              onClick={() => onOpenSource(note)}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bloom-accent hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Saved from: {entryTitle}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-bloom-border px-5 py-4">
+          <button
+            type="button"
+            onClick={() => onDelete(note)}
+            disabled={isDeleting}
+            className="h-10 rounded-bloom-sm border border-coral-border bg-coral-bg px-4 text-[13px] font-medium text-coral-text disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isDeleting ? "Deleting" : "Delete"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onEdit(note)}
+            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white"
+          >
+            Edit
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+interface DeleteNoteDialogProps {
+  note: Note | null;
+  isDeleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function DeleteNoteDialog({
+  note,
+  isDeleting,
+  onCancel,
+  onConfirm,
+}: DeleteNoteDialogProps) {
+  if (!note) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end bg-black/20 p-3 md:items-center md:justify-center">
+      <section
+        className="w-full rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[420px]"
+        aria-label="Delete note"
+      >
+        <div className="px-5 py-5">
+          <p className="label-text">Delete note</p>
+          <h2 className="mt-2 font-serif text-[24px]">Remove this note?</h2>
+          <p className="mt-2 text-[13px] leading-5 text-bloom-text-secondary">
+            "{note.title}" will be deleted from your notes.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-bloom-border px-5 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="h-10 rounded-bloom-sm border border-bloom-border px-4 text-[13px] font-medium text-bloom-text-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="h-10 rounded-bloom-sm border border-coral-border bg-coral-bg px-4 text-[13px] font-medium text-coral-text disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isDeleting ? "Deleting" : "Delete note"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function NotesPage() {
   const [groups, setGroups] = useState<NoteDayGroup[]>([]);
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [viewingNote, setViewingNote] = useState<Note | null>(null);
+  const [notePendingDelete, setNotePendingDelete] = useState<Note | null>(null);
+  const [entryTitles, setEntryTitles] = useState<Record<string, string>>({});
   const [isLoading, setLoading] = useState(true);
+  const [isDeleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   async function refreshNotes() {
     setError(null);
     try {
-      const response = await listNotes();
+      const [response, entryResponse] = await Promise.all([
+        listNotes(),
+        listEntries().catch(() => ({ entries: [] as JournalEntry[], groups: [] })),
+      ]);
       setGroups(response.groups);
+      const entries = Array.isArray(entryResponse.entries)
+        ? entryResponse.entries
+        : [];
+      setEntryTitles(
+        Object.fromEntries(entries.map((entry) => [entry.id, entry.title])),
+      );
+
+      const noteId = new URLSearchParams(window.location.search).get("noteId");
+      if (noteId) {
+        const nextNote = response.notes.find((note) => note.id === noteId);
+        if (nextNote) {
+          setViewingNote(nextNote);
+        }
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -204,13 +369,23 @@ export function NotesPage() {
     refreshNotes();
   }, []);
 
-  async function removeNote(note: Note) {
+  async function confirmRemoveNote() {
+    if (!notePendingDelete) {
+      return;
+    }
+
     setError(null);
+    setDeleting(true);
     try {
-      await deleteNote(note.id);
-      if (selectedNote?.id === note.id) {
-        setSelectedNote(null);
+      await deleteNote(notePendingDelete.id);
+      if (editingNote?.id === notePendingDelete.id) {
+        setEditingNote(null);
       }
+      if (viewingNote?.id === notePendingDelete.id) {
+        setViewingNote(null);
+      }
+      setStatus("Note deleted.");
+      setNotePendingDelete(null);
       await refreshNotes();
     } catch (deleteError) {
       setError(
@@ -218,7 +393,31 @@ export function NotesPage() {
           ? deleteError.message
           : "MindBloom could not delete this note.",
       );
+    } finally {
+      setDeleting(false);
     }
+  }
+
+  function openSourceEntry(note: Note) {
+    if (!note.entryId) {
+      return;
+    }
+
+    const params = new URLSearchParams({ entryId: note.entryId });
+    if (note.sourceSelectionStart != null && note.sourceSelectionEnd != null) {
+      params.set("sourceSelectionStart", String(note.sourceSelectionStart));
+      params.set("sourceSelectionEnd", String(note.sourceSelectionEnd));
+    }
+
+    window.history.pushState(null, "", `/?${params.toString()}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }
+
+  function getEntryTitle(note: Note | null) {
+    if (!note?.entryId) {
+      return "Journal entry";
+    }
+    return entryTitles[note.entryId] ?? "Journal entry";
   }
 
   return (
@@ -280,7 +479,7 @@ export function NotesPage() {
                         <div className="flex items-start justify-between gap-3">
                           <button
                             type="button"
-                            onClick={() => setSelectedNote(note)}
+                            onClick={() => setViewingNote(note)}
                             className="min-w-0 flex-1 text-left"
                           >
                             <h3 className="truncate text-[15px] font-semibold">
@@ -296,7 +495,15 @@ export function NotesPage() {
                             ) : null}
                             <button
                               type="button"
-                              onClick={() => removeNote(note)}
+                              onClick={() => setEditingNote(note)}
+                              aria-label={`Edit ${note.title}`}
+                              className="grid h-7 w-7 place-items-center rounded-bloom-sm hover:bg-white/40"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNotePendingDelete(note)}
                               aria-label={`Delete ${note.title}`}
                               className="grid h-7 w-7 place-items-center rounded-bloom-sm hover:bg-white/40"
                             >
@@ -305,9 +512,13 @@ export function NotesPage() {
                           </div>
                         </div>
                         {note.entryId ? (
-                          <p className="mt-3 text-[11px] opacity-70">
-                            Saved from a journal entry
-                          </p>
+                          <button
+                            type="button"
+                            onClick={() => openSourceEntry(note)}
+                            className="mt-3 text-left text-[11px] font-medium opacity-70 hover:underline"
+                          >
+                            Saved from: {getEntryTitle(note)}
+                          </button>
                         ) : null}
                       </article>
                     ))}
@@ -317,18 +528,38 @@ export function NotesPage() {
             </div>
           )}
 
+          {status ? <p className="mt-4 text-[13px] text-teal-text">{status}</p> : null}
           {error ? <p className="mt-4 text-[13px] text-coral-text">{error}</p> : null}
         </section>
 
         <NoteEditor
-          selectedNote={selectedNote}
-          onCancel={() => setSelectedNote(null)}
+          selectedNote={editingNote}
+          onCancel={() => setEditingNote(null)}
           onSaved={async () => {
-            setSelectedNote(null);
+            setStatus(editingNote ? "Note updated." : "Note saved.");
+            setEditingNote(null);
             await refreshNotes();
           }}
         />
       </div>
+      <NoteReadModal
+        note={viewingNote}
+        entryTitle={getEntryTitle(viewingNote)}
+        isDeleting={isDeleting}
+        onClose={() => setViewingNote(null)}
+        onEdit={(note) => {
+          setViewingNote(null);
+          setEditingNote(note);
+        }}
+        onDelete={(note) => setNotePendingDelete(note)}
+        onOpenSource={openSourceEntry}
+      />
+      <DeleteNoteDialog
+        note={notePendingDelete}
+        isDeleting={isDeleting}
+        onCancel={() => setNotePendingDelete(null)}
+        onConfirm={confirmRemoveNote}
+      />
     </main>
   );
 }

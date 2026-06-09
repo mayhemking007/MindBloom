@@ -10,8 +10,7 @@ const entry: JournalEntry = {
   ownerId: "demo-local",
   ownerKind: "demo",
   title: "Morning thoughts",
-  purpose: "journal",
-  mode: "classic",
+  tags: ["journal"],
   status: "draft",
   memoSessionId: "mindbloom-entry-entry-1",
   createdAt: "2026-06-04T08:00:00.000Z",
@@ -53,6 +52,17 @@ function streamResponse(events: string[]) {
   );
 }
 
+function snapshotResponse() {
+  return jsonResponse({
+    sessionId: "mindbloom-entry-entry-1",
+    nodes: [],
+    edges: [],
+    memories: [],
+    memoryEdges: [],
+    capturedAt: "2026-06-04T08:00:00.000Z",
+  });
+}
+
 function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
   vi.stubGlobal(
     "fetch",
@@ -80,7 +90,17 @@ describe("JournalWorkspace", () => {
         return Promise.resolve(jsonResponse({ entries: [entry], groups }));
       }
       if (url.endsWith("/api/entries/entry-1/document")) {
-        return Promise.resolve(jsonResponse({ document: null }));
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              entryId: entry.id,
+              content: "This is worth remembering. Keep going.",
+              version: 1,
+              savedAt: entry.createdAt,
+              lastIngestedVersion: null,
+            },
+          }),
+        );
       }
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return Promise.resolve(jsonResponse({ messages: [] }));
@@ -141,7 +161,17 @@ describe("JournalWorkspace", () => {
         return Promise.resolve(jsonResponse({ entries: [entry], groups }));
       }
       if (url.endsWith("/api/entries/entry-1/document")) {
-        return Promise.resolve(jsonResponse({ document: null }));
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              entryId: entry.id,
+              content: "This is worth remembering. Keep going.",
+              version: 1,
+              savedAt: entry.createdAt,
+              lastIngestedVersion: null,
+            },
+          }),
+        );
       }
       if (url.endsWith("/api/entries/entry-1/messages") && !init?.method) {
         return Promise.resolve(jsonResponse({ messages: [] }));
@@ -211,7 +241,17 @@ describe("JournalWorkspace", () => {
         return Promise.resolve(jsonResponse({ entries: [entry], groups }));
       }
       if (url.endsWith("/api/entries/entry-1/document")) {
-        return Promise.resolve(jsonResponse({ document: null }));
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              entryId: entry.id,
+              content: "This is worth remembering. Keep going.",
+              version: 1,
+              savedAt: entry.createdAt,
+              lastIngestedVersion: null,
+            },
+          }),
+        );
       }
       if (url.endsWith("/api/entries/entry-1/messages") && !init?.method) {
         return Promise.resolve(jsonResponse({ messages: [] }));
@@ -278,6 +318,101 @@ describe("JournalWorkspace", () => {
       await screen.findByText("Try beginning with the smallest true sentence."),
     ).toBeVisible();
     expect(streamAttempts).toBe(2);
+  });
+
+  it("clears current themes after saving an emptied entry", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && init?.method !== "POST") {
+        return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return Promise.resolve(
+          jsonResponse({
+            sessionId: "mindbloom-entry-entry-1",
+            nodes: [
+              {
+                id: "theme-1",
+                label: "Old writing theme",
+                topicOrder: 1,
+                kind: "theme",
+                lastSeenAt: entry.createdAt,
+                createdAt: entry.createdAt,
+                updatedAt: entry.createdAt,
+              },
+            ],
+            edges: [],
+            memories: [],
+            memoryEdges: [],
+            capturedAt: entry.createdAt,
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/document") && init?.method === "PUT") {
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              entryId: entry.id,
+              content: "",
+              version: 2,
+              savedAt: entry.createdAt,
+              lastIngestedVersion: 2,
+            },
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              entryId: entry.id,
+              content: "This product idea is taking shape.",
+              version: 1,
+              savedAt: entry.createdAt,
+              lastIngestedVersion: 1,
+            },
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/ingest")) {
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              entryId: entry.id,
+              content: "",
+              version: 2,
+              savedAt: entry.createdAt,
+              lastIngestedVersion: 2,
+            },
+            ingested: false,
+            cleared: true,
+            skippedReason: "empty-document",
+            topicPills: [],
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    expect(await screen.findByText("Old writing theme")).toBeVisible();
+    const editor = await screen.findByLabelText("Journal entry");
+    await user.clear(editor);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Old writing theme")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByText(/Add a little more writing/)).toBeVisible();
   });
 
   it("brings previous themes into the Bloom sidebar", async () => {
@@ -349,13 +484,12 @@ describe("JournalWorkspace", () => {
     });
   });
 
-  it("creates an entry from the purpose and mode chooser", async () => {
+  it("creates an entry from optional and custom tags", async () => {
     const createdEntry = {
       ...entry,
       id: "entry-2",
       title: "Campaign idea",
-      purpose: "idea",
-      mode: "mixed",
+      tags: ["idea", "campaign"],
       memoSessionId: "mindbloom-entry-entry-2",
     } satisfies JournalEntry;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -399,8 +533,9 @@ describe("JournalWorkspace", () => {
     await user.click(await screen.findByRole("button", { name: "New Entry" }));
     const createPanel = screen.getByLabelText("Create journal entry");
     await user.type(screen.getByLabelText("Title"), "Campaign idea");
-    await user.click(within(createPanel).getByRole("button", { name: /Idea/ }));
-    await user.click(within(createPanel).getByRole("button", { name: /Mixed/ }));
+    await user.click(within(createPanel).getByRole("button", { name: /idea/i }));
+    await user.type(within(createPanel).getByLabelText("Custom tag"), "campaign");
+    await user.click(within(createPanel).getByRole("button", { name: "Add" }));
     await user.type(
       screen.getByLabelText("Starting thought"),
       "This should become the first draft.",
@@ -415,8 +550,7 @@ describe("JournalWorkspace", () => {
     );
     expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
       title: "Campaign idea",
-      purpose: "idea",
-      mode: "mixed",
+      tags: ["idea", "campaign"],
     });
     expect(
       fetchMock.mock.calls.some(
@@ -437,6 +571,9 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-1") && init?.method === "PATCH") {
         return Promise.resolve(jsonResponse({ entry: renamedEntry }));
       }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return Promise.resolve(snapshotResponse());
+      }
       if (url.endsWith("/api/entries/entry-1/document")) {
         return Promise.resolve(jsonResponse({ document: null }));
       }
@@ -453,11 +590,11 @@ describe("JournalWorkspace", () => {
 
     render(<JournalWorkspace />);
 
-    await user.click(await screen.findByRole("button", { name: "Morning thoughts" }));
-    const titleInput = screen.getByLabelText("Entry title");
+    await user.click(await screen.findByRole("button", { name: "Rename entry title" }));
+    const titleInput = screen.getByLabelText("Journal title");
     await user.clear(titleInput);
     await user.type(titleInput, "Renamed thoughts");
-    await user.click(screen.getByRole("button", { name: "Save title" }));
+    await user.click(screen.getByLabelText("Journal entry"));
 
     await waitFor(() => {
       expect(screen.getAllByText("Renamed thoughts").length).toBeGreaterThan(0);
@@ -471,6 +608,60 @@ describe("JournalWorkspace", () => {
     });
   });
 
+  it("opens entry rename from the sidebar action menu and closes the menu outside", async () => {
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({ entries: [entry], groups });
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return snapshotResponse();
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return jsonResponse({ document: null });
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return jsonResponse({ grafts: [] });
+      }
+      return jsonResponse({});
+    });
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Entry actions for Morning thoughts",
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Rename Morning thoughts" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Pin Morning thoughts" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Delete Morning thoughts" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Pin Morning thoughts" }));
+    expect(screen.getByRole("button", { name: "Delete Morning thoughts" })).toBeVisible();
+
+    await user.click(screen.getByLabelText("Journal entry"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Delete Morning thoughts" }),
+      ).not.toBeInTheDocument();
+    });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Entry actions for Morning thoughts",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Rename Morning thoughts" }));
+    expect(screen.getByLabelText("Rename entry Morning thoughts")).toHaveValue(
+      "Morning thoughts",
+    );
+  });
+
   it("saves a note linked to the selected entry", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -478,7 +669,17 @@ describe("JournalWorkspace", () => {
         return Promise.resolve(jsonResponse({ entries: [entry], groups }));
       }
       if (url.endsWith("/api/entries/entry-1/document")) {
-        return Promise.resolve(jsonResponse({ document: null }));
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              entryId: entry.id,
+              content: "This is worth remembering. Keep going.",
+              version: 1,
+              savedAt: entry.createdAt,
+              lastIngestedVersion: null,
+            },
+          }),
+        );
       }
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return Promise.resolve(jsonResponse({ messages: [] }));
@@ -501,6 +702,10 @@ describe("JournalWorkspace", () => {
                 sourceMessageId: null,
                 sourceReflectionId: null,
                 sourceReflectionCardId: null,
+                sourceSelectionStart: 0,
+                sourceSelectionEnd: 26,
+                sourceExcerpt: "This is worth remembering.",
+                sourcePath: "document",
                 color: "amber",
                 pinned: true,
                 createdAt: entry.createdAt,
@@ -518,13 +723,18 @@ describe("JournalWorkspace", () => {
 
     render(<JournalWorkspace />);
 
+    const editor = await screen.findByLabelText("Journal entry");
+    await waitFor(() => {
+      expect(editor).toHaveValue("This is worth remembering. Keep going.");
+    });
+    (editor as HTMLTextAreaElement).setSelectionRange(0, 26);
+    editor.dispatchEvent(new Event("select", { bubbles: true }));
     await user.click(await screen.findByRole("button", { name: "Save note" }));
     const notePanel = screen.getByLabelText("Save note");
+    expect(
+      within(notePanel).getAllByText("This is worth remembering.").length,
+    ).toBeGreaterThanOrEqual(2);
     await user.type(within(notePanel).getByLabelText("Title"), "Keep this");
-    await user.type(
-      within(notePanel).getByLabelText("What do you want to remember?"),
-      "This is worth remembering.",
-    );
     await user.click(within(notePanel).getByLabelText("Pin this note"));
     await user.click(within(notePanel).getByRole("button", { name: "Save note" }));
 
@@ -540,8 +750,112 @@ describe("JournalWorkspace", () => {
         pinned: true,
         entryId: entry.id,
         sourceType: "entry-selection",
+        sourceSelectionStart: 0,
+        sourceSelectionEnd: 26,
+        sourceExcerpt: "This is worth remembering.",
+        sourcePath: "document",
       });
     });
+    expect(await screen.findByText("Note saved.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Open note" })).toBeVisible();
+  });
+
+  it("shows demo entry-limit errors inside the create-entry modal", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse(
+            { error: { message: "Demo mode supports one journal entry" } },
+            { status: 403 },
+          ),
+        );
+      }
+      if (url.endsWith("/api/entries") && !init?.method) {
+        return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return Promise.resolve(snapshotResponse());
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    await user.click(await screen.findByRole("button", { name: "New Entry" }));
+    const createPanel = screen.getByLabelText("Create journal entry");
+    await user.click(within(createPanel).getByRole("button", { name: "Create entry" }));
+
+    expect(
+      await within(createPanel).findByText("Demo mode supports one journal entry"),
+    ).toBeVisible();
+    expect(within(createPanel).getByRole("button", { name: "Create account" })).toBeVisible();
+    expect(within(createPanel).getByRole("button", { name: "Login" })).toBeVisible();
+  });
+
+  it("deletes the selected entry after confirmation", async () => {
+    let deleted = false;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && !init?.method) {
+        return Promise.resolve(
+          jsonResponse({
+            entries: deleted ? [] : [entry],
+            groups: deleted ? [] : groups,
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1") && init?.method === "DELETE") {
+        deleted = true;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return Promise.resolve(snapshotResponse());
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(jsonResponse({ document: null }));
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Entry actions for Morning thoughts",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Delete Morning thoughts" }));
+    const deletePanel = screen.getByLabelText("Delete entry");
+    expect(within(deletePanel).getByText(/Morning thoughts/)).toBeVisible();
+    await user.click(within(deletePanel).getByRole("button", { name: "Delete entry" }));
+
+    await waitFor(() => {
+      expect(deleted).toBe(true);
+    });
+    expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url).endsWith("/api/entries/entry-1") && init?.method === "DELETE",
+    )).toBe(true);
+    expect(await screen.findByText("Entry deleted.")).toBeVisible();
   });
 
   it("shows sidebar utility shortcuts", async () => {

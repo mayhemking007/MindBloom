@@ -86,6 +86,14 @@ describe("archive pages", () => {
       if (url.endsWith("/api/notes/note-1") && init?.method === "DELETE") {
         return Promise.resolve(new Response(null, { status: 204 }));
       }
+      if (url.endsWith("/api/entries")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ entries: [], groups: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -153,6 +161,11 @@ describe("archive pages", () => {
     await user.click(within(editor as HTMLElement).getByRole("button", { name: "Save note" }));
 
     await user.click(screen.getByText("Good idea"));
+    const noteDetail = screen.getByLabelText("Note detail");
+    expect(
+      within(noteDetail).getByText("This should become a small shareable card."),
+    ).toBeVisible();
+    await user.click(within(noteDetail).getByRole("button", { name: "Edit" }));
     const editEditor = screen.getByRole("heading", { name: "Edit note" }).closest("section");
     expect(editEditor).not.toBeNull();
     await user.clear(within(editEditor as HTMLElement).getByLabelText("Title"));
@@ -166,6 +179,7 @@ describe("archive pages", () => {
     );
     await user.click(within(editEditor as HTMLElement).getByRole("button", { name: "Save note" }));
     await user.click(screen.getByLabelText("Delete Good idea"));
+    await user.click(screen.getByRole("button", { name: "Delete note" }));
 
     await waitFor(() => {
       expect(

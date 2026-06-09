@@ -10,6 +10,7 @@ const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate } =
     getActiveNodes: vi.fn(),
     getGraphSnapshot: vi.fn(),
     invoke: vi.fn(),
+    clearSession: vi.fn(),
   },
   getAgentForSession: vi.fn(),
   invokeAgentWithStreaming: vi.fn(),
@@ -94,6 +95,7 @@ describe("entry routes", () => {
       tokenCount: 42,
     });
     agent.ingestGraftedNodes.mockResolvedValue([]);
+    agent.clearSession.mockResolvedValue(undefined);
     agent.getActiveNodes.mockResolvedValue([
       {
         id: "theme-1",
@@ -318,7 +320,12 @@ describe("entry routes", () => {
     expect(response.text).toContain("event: done");
     expect(invokeAgentWithStreaming).toHaveBeenCalledWith(
       agent,
-      "Help me continue.",
+      expect.stringContaining("Writer request:\nHelp me continue."),
+      expect.any(Function),
+    );
+    expect(invokeAgentWithStreaming).toHaveBeenCalledWith(
+      agent,
+      expect.stringContaining("Entry tags: journal"),
       expect.any(Function),
     );
 
@@ -447,6 +454,9 @@ describe("entry routes", () => {
       .send({ content: "tiny" })
       .expect(200);
     expect(empty.body.skippedReason).toBe("empty-document");
+    expect(empty.body.cleared).toBe(true);
+    expect(empty.body.document.lastIngestedVersion).toBe(empty.body.document.version);
+    expect(agent.clearSession).toHaveBeenCalledTimes(1);
 
     await request(app)
       .post(`/api/entries/${entryId}/ingest`)

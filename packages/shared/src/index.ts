@@ -91,9 +91,7 @@ export interface CalendarActivityResponse {
   settings: UserSettings;
 }
 
-export type EntryPurpose = "journal" | "idea" | "brainstorm";
-
-export type EntryMode = "classic" | "chat" | "mixed";
+export type SuggestedEntryTag = "journal" | "idea" | "brainstorm";
 
 export type JournalEntryStatus = "draft" | "completed";
 
@@ -104,8 +102,7 @@ export interface JournalEntry {
   ownerId: string;
   ownerKind: EntryOwnerKind;
   title: string;
-  purpose: EntryPurpose;
-  mode: EntryMode;
+  tags: string[];
   status: JournalEntryStatus;
   memoSessionId: string;
   createdAt: string;
@@ -174,6 +171,10 @@ export interface Note {
   sourceMessageId: string | null;
   sourceReflectionId: string | null;
   sourceReflectionCardId: string | null;
+  sourceSelectionStart: number | null;
+  sourceSelectionEnd: number | null;
+  sourceExcerpt: string | null;
+  sourcePath: string | null;
   color: string | null;
   pinned: boolean;
   createdAt: string;
@@ -193,6 +194,10 @@ export interface CreateNoteRequest {
   sourceMessageId?: string | null;
   sourceReflectionId?: string | null;
   sourceReflectionCardId?: string | null;
+  sourceSelectionStart?: number | null;
+  sourceSelectionEnd?: number | null;
+  sourceExcerpt?: string | null;
+  sourcePath?: string | null;
   color?: string | null;
   pinned?: boolean;
 }
@@ -287,15 +292,15 @@ export interface EntryDayGroup {
 
 export interface CreateEntryRequest {
   title?: string;
-  purpose: EntryPurpose;
-  mode: EntryMode;
+  tags?: string[];
+  purpose?: SuggestedEntryTag;
   allowFutureContext?: boolean;
 }
 
 export interface UpdateEntryRequest {
   title?: string;
-  purpose?: EntryPurpose;
-  mode?: EntryMode;
+  tags?: string[];
+  purpose?: SuggestedEntryTag;
   status?: JournalEntryStatus;
   allowFutureContext?: boolean;
   completedAt?: string | null;
@@ -344,6 +349,7 @@ export type EntryIngestSkippedReason =
 export interface EntryIngestResponse {
   document: EntryDocument | null;
   ingested: boolean;
+  cleared?: boolean;
   skippedReason?: EntryIngestSkippedReason;
   topicPills: TopicPill[];
 }

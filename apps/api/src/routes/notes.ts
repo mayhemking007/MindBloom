@@ -25,9 +25,22 @@ const createNoteSchema = z.object({
   sourceMessageId: z.string().trim().min(1).max(128).nullable().optional(),
   sourceReflectionId: z.string().trim().min(1).max(128).nullable().optional(),
   sourceReflectionCardId: z.string().trim().min(1).max(128).nullable().optional(),
+  sourceSelectionStart: z.number().int().min(0).nullable().optional(),
+  sourceSelectionEnd: z.number().int().min(0).nullable().optional(),
+  sourceExcerpt: z.string().trim().min(1).max(4000).nullable().optional(),
+  sourcePath: z.string().trim().min(1).max(240).nullable().optional(),
   color: z.string().trim().min(1).max(40).nullable().optional(),
   pinned: z.boolean().optional(),
-});
+}).refine(
+  (value) =>
+    value.sourceSelectionStart == null ||
+    value.sourceSelectionEnd == null ||
+    value.sourceSelectionEnd >= value.sourceSelectionStart,
+  {
+    message: "sourceSelectionEnd must be greater than or equal to sourceSelectionStart",
+    path: ["sourceSelectionEnd"],
+  },
+);
 
 const updateNoteSchema = z.object({
   title: z.string().trim().min(1).max(160).optional(),

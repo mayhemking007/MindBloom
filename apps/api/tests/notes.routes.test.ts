@@ -79,11 +79,21 @@ describe("note routes", () => {
         entryId: ownedEntry.body.entry.id,
         sourceType: "entry-selection",
         body: "This came from my current journal entry.",
+        sourceSelectionStart: 4,
+        sourceSelectionEnd: 18,
+        sourceExcerpt: "came from my",
+        sourcePath: "document",
       })
       .expect(201);
 
     expect(linked.body.note.entryId).toBe(ownedEntry.body.entry.id);
     expect(linked.body.note.sourceType).toBe("entry-selection");
+    expect(linked.body.note).toMatchObject({
+      sourceSelectionStart: 4,
+      sourceSelectionEnd: 18,
+      sourceExcerpt: "came from my",
+      sourcePath: "document",
+    });
   });
 
   it("updates, reads, and deletes notes", async () => {

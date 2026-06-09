@@ -222,6 +222,17 @@ export async function createEntry(
   return parseJsonResponse<EntryResponse>(response);
 }
 
+export async function deleteEntry(entryId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    await parseJsonResponse<unknown>(response);
+  }
+}
+
 export async function getEntryDocument(
   entryId: string,
 ): Promise<EntryDocumentResponse> {
@@ -296,12 +307,18 @@ export async function streamEntryMessage(
   content: string,
   handlers: BloomStreamHandlers,
   signal?: AbortSignal,
+  context?: {
+    documentDraft?: string;
+    entryTags?: string[];
+    broughtInContext?: string[];
+    selectedText?: string;
+  },
 ): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages/stream`, {
     method: "POST",
     headers: jsonHeaders(),
     credentials: "include",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, ...context }),
     signal,
   });
 

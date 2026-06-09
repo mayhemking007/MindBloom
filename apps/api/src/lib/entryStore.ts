@@ -6,9 +6,7 @@ import type {
   EntryGraft,
   EntryMessage,
   EntryMessageRole,
-  EntryMode,
   EntryOwnerKind,
-  EntryPurpose,
   EntryReflection,
   JournalEntry,
   JournalEntryStatus,
@@ -28,15 +26,15 @@ export interface OwnerScope {
 
 export interface CreateEntryInput extends OwnerScope {
   title?: string;
-  purpose: EntryPurpose;
-  mode: EntryMode;
+  tags?: string[];
+  purpose?: string;
   allowFutureContext?: boolean;
 }
 
 export interface UpdateEntryInput {
   title?: string;
-  purpose?: EntryPurpose;
-  mode?: EntryMode;
+  tags?: string[];
+  purpose?: string;
   status?: JournalEntryStatus;
   allowFutureContext?: boolean;
   completedAt?: string | null;
@@ -63,6 +61,10 @@ export interface CreateNoteInput extends OwnerScope {
   sourceMessageId?: string | null;
   sourceReflectionId?: string | null;
   sourceReflectionCardId?: string | null;
+  sourceSelectionStart?: number | null;
+  sourceSelectionEnd?: number | null;
+  sourceExcerpt?: string | null;
+  sourcePath?: string | null;
   color?: string | null;
   pinned?: boolean;
 }
@@ -114,6 +116,20 @@ function getDateStampFromIso(value: string): string {
 
 function getOwnerSettingsKey(owner: OwnerScope): string {
   return `${owner.ownerKind}:${owner.ownerId}`;
+}
+
+function normalizeEntryTags(tags?: string[], legacyPurpose?: string): string[] {
+  const values = [...(tags ?? [])];
+  if (legacyPurpose) {
+    values.push(legacyPurpose);
+  }
+
+  const normalized = values
+    .map((tag) => tag.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 8);
+
+  return [...new Set(normalized)];
 }
 
 function createDefaultSettings(): UserSettings {
@@ -205,8 +221,7 @@ export class InMemoryEntryStore {
       ownerId: input.ownerId,
       ownerKind: input.ownerKind,
       title: input.title?.trim() || "Untitled entry",
-      purpose: input.purpose,
-      mode: input.mode,
+      tags: normalizeEntryTags(input.tags, input.purpose),
       status: "draft",
       memoSessionId: getMemoSessionIdForEntry(id),
       createdAt: timestamp,
@@ -261,10 +276,15 @@ export class InMemoryEntryStore {
       return undefined;
     }
 
+    const { purpose: legacyPurpose, tags, ...entryUpdates } = input;
     const updated: JournalEntry = {
       ...existing,
-      ...input,
+      ...entryUpdates,
       title: input.title?.trim() || existing.title,
+      tags:
+        tags !== undefined || legacyPurpose !== undefined
+          ? normalizeEntryTags(tags ?? existing.tags, legacyPurpose)
+          : existing.tags,
       updatedAt: nowIso(),
     };
 
@@ -381,6 +401,10 @@ export class InMemoryEntryStore {
       sourceMessageId: input.sourceMessageId ?? null,
       sourceReflectionId: input.sourceReflectionId ?? null,
       sourceReflectionCardId: input.sourceReflectionCardId ?? null,
+      sourceSelectionStart: input.sourceSelectionStart ?? null,
+      sourceSelectionEnd: input.sourceSelectionEnd ?? null,
+      sourceExcerpt: input.sourceExcerpt ?? null,
+      sourcePath: input.sourcePath ?? null,
       color: input.color ?? null,
       pinned: input.pinned ?? false,
       createdAt: timestamp,
