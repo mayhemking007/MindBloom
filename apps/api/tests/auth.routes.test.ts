@@ -1,8 +1,11 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app.js";
-import { authStore } from "../src/lib/authStore.js";
+import { authStore, InMemoryAuthStore } from "../src/lib/authStore.js";
 import { entryStore } from "../src/lib/entryStore.js";
 
 const app = createApp();
@@ -83,5 +86,28 @@ describe("auth routes", () => {
       .expect(201);
     expect(entry.body.entry.ownerKind).toBe("demo");
     expect(entry.body.entry.ownerId).toBe("demo-local");
+  });
+
+  it("reloads persisted users and sessions from disk", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mindbloom-auth-store-"));
+    const persistenceFile = join(dir, "auth.json");
+    try {
+      const store = new InMemoryAuthStore({ persistenceFile });
+      const user = store.createUser({
+        email: "persisted@mindbloom.local",
+        password: "password123",
+        displayName: "Persistent Writer",
+      });
+      const session = store.createSession(user.id);
+
+      const reloaded = new InMemoryAuthStore({ persistenceFile });
+
+      expect(reloaded.authenticate("persisted@mindbloom.local", "password123")).toEqual(
+        user,
+      );
+      expect(reloaded.getUserForToken(session.token)).toEqual(user);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 });

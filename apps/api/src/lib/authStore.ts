@@ -1,5 +1,11 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import type { AuthUser } from "@mindbloom/shared";
+import {
+  dataFilePath,
+  isPersistenceEnabled,
+  readJsonFile,
+  writeJsonFile,
+} from "./persistence.js";
 
 interface StoredUser extends AuthUser {
   passwordHash: string;
@@ -14,6 +20,11 @@ interface StoredSession {
   createdAt: string;
   expiresAt: string;
   revokedAt: string | null;
+}
+
+interface AuthStoreSnapshot {
+  users: StoredUser[];
+  sessions: StoredSession[];
 }
 
 export interface SessionResult {
@@ -54,10 +65,44 @@ export class InMemoryAuthStore {
 
   private readonly sessions = new Map<string, StoredSession>();
 
-  constructor() {
+  private readonly persistenceFile: string | null;
+
+  constructor(options: { persistenceFile?: string | null } = {}) {
+    this.persistenceFile = options.persistenceFile ?? null;
+    this.load();
     if (process.env.NODE_ENV !== "production") {
       this.seedDevUsers();
     }
+  }
+
+  private load(): void {
+    if (!this.persistenceFile) {
+      return;
+    }
+
+    const snapshot = readJsonFile<AuthStoreSnapshot>(this.persistenceFile);
+    if (!snapshot) {
+      return;
+    }
+
+    for (const user of snapshot.users ?? []) {
+      this.users.set(user.id, user);
+      this.usersByEmail.set(user.email, user.id);
+    }
+    for (const session of snapshot.sessions ?? []) {
+      this.sessions.set(session.id, session);
+    }
+  }
+
+  private save(): void {
+    if (!this.persistenceFile) {
+      return;
+    }
+
+    writeJsonFile(this.persistenceFile, {
+      users: [...this.users.values()],
+      sessions: [...this.sessions.values()],
+    } satisfies AuthStoreSnapshot);
   }
 
   createUser(input: {
@@ -85,6 +130,7 @@ export class InMemoryAuthStore {
 
     this.users.set(user.id, user);
     this.usersByEmail.set(user.email, user.id);
+    this.save();
     return publicUser(user);
   }
 
@@ -131,6 +177,7 @@ export class InMemoryAuthStore {
     };
 
     this.sessions.set(session.id, session);
+    this.save();
     return {
       token: `${session.id}.${token}`,
       expiresAt,
@@ -187,6 +234,7 @@ export class InMemoryAuthStore {
       ...session,
       revokedAt: session.revokedAt ?? nowIso(),
     });
+    this.save();
   }
 
   clear(): void {
@@ -196,6 +244,7 @@ export class InMemoryAuthStore {
     if (process.env.NODE_ENV !== "production") {
       this.seedDevUsers();
     }
+    this.save();
   }
 
   private seedDevUsers(): void {
@@ -215,4 +264,6 @@ export class InMemoryAuthStore {
   }
 }
 
-export const authStore = new InMemoryAuthStore();
+export const authStore = new InMemoryAuthStore({
+  persistenceFile: isPersistenceEnabled() ? dataFilePath("auth.json") : null,
+});

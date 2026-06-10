@@ -18,10 +18,27 @@ import type {
   UpdateSettingsRequest,
   UserSettings,
 } from "@mindbloom/shared";
+import {
+  dataFilePath,
+  isPersistenceEnabled,
+  readJsonFile,
+  writeJsonFile,
+} from "./persistence.js";
 
 export interface OwnerScope {
   ownerId: string;
   ownerKind: EntryOwnerKind;
+}
+
+interface EntryStoreSnapshot {
+  entries: JournalEntry[];
+  documents: EntryDocument[];
+  messages: EntryMessage[];
+  notes: Note[];
+  grafts: EntryGraft[];
+  reflections: EntryReflection[];
+  shareLinks: ReflectionShareLink[];
+  settings: Array<[string, UserSettings]>;
 }
 
 export interface CreateEntryInput extends OwnerScope {
@@ -182,6 +199,66 @@ export class InMemoryEntryStore {
 
   private readonly settings = new Map<string, UserSettings>();
 
+  private readonly persistenceFile: string | null;
+
+  constructor(options: { persistenceFile?: string | null } = {}) {
+    this.persistenceFile = options.persistenceFile ?? null;
+    this.load();
+  }
+
+  private load(): void {
+    if (!this.persistenceFile) {
+      return;
+    }
+
+    const snapshot = readJsonFile<EntryStoreSnapshot>(this.persistenceFile);
+    if (!snapshot) {
+      return;
+    }
+
+    for (const entry of snapshot.entries ?? []) {
+      this.entries.set(entry.id, entry);
+    }
+    for (const document of snapshot.documents ?? []) {
+      this.documents.set(document.entryId, document);
+    }
+    for (const message of snapshot.messages ?? []) {
+      this.messages.set(message.id, message);
+    }
+    for (const note of snapshot.notes ?? []) {
+      this.notes.set(note.id, note);
+    }
+    for (const graft of snapshot.grafts ?? []) {
+      this.grafts.set(graft.id, graft);
+    }
+    for (const reflection of snapshot.reflections ?? []) {
+      this.reflections.set(reflection.id, reflection);
+    }
+    for (const shareLink of snapshot.shareLinks ?? []) {
+      this.shareLinks.set(shareLink.id, shareLink);
+    }
+    for (const [key, settings] of snapshot.settings ?? []) {
+      this.settings.set(key, settings);
+    }
+  }
+
+  private save(): void {
+    if (!this.persistenceFile) {
+      return;
+    }
+
+    writeJsonFile(this.persistenceFile, {
+      entries: [...this.entries.values()],
+      documents: [...this.documents.values()],
+      messages: [...this.messages.values()],
+      notes: [...this.notes.values()],
+      grafts: [...this.grafts.values()],
+      reflections: [...this.reflections.values()],
+      shareLinks: [...this.shareLinks.values()],
+      settings: [...this.settings.entries()],
+    } satisfies EntryStoreSnapshot);
+  }
+
   getSettings(owner: OwnerScope): UserSettings {
     const key = getOwnerSettingsKey(owner);
     const existing = this.settings.get(key);
@@ -191,6 +268,7 @@ export class InMemoryEntryStore {
 
     const defaults = createDefaultSettings();
     this.settings.set(key, defaults);
+    this.save();
     return defaults;
   }
 
@@ -210,6 +288,7 @@ export class InMemoryEntryStore {
     };
 
     this.settings.set(getOwnerSettingsKey(owner), updated);
+    this.save();
     return updated;
   }
 
@@ -231,6 +310,7 @@ export class InMemoryEntryStore {
     };
 
     this.entries.set(entry.id, entry);
+    this.save();
     return entry;
   }
 
@@ -289,6 +369,7 @@ export class InMemoryEntryStore {
     };
 
     this.entries.set(entryId, updated);
+    this.save();
     return updated;
   }
 
@@ -320,6 +401,7 @@ export class InMemoryEntryStore {
       }
     }
 
+    this.save();
     return true;
   }
 
@@ -346,6 +428,7 @@ export class InMemoryEntryStore {
     };
 
     this.documents.set(input.entryId, document);
+    this.save();
     return document;
   }
 
@@ -366,6 +449,7 @@ export class InMemoryEntryStore {
     };
 
     this.documents.set(entryId, updated);
+    this.save();
     return updated;
   }
 
@@ -379,6 +463,7 @@ export class InMemoryEntryStore {
     };
 
     this.messages.set(message.id, message);
+    this.save();
     return message;
   }
 
@@ -412,6 +497,7 @@ export class InMemoryEntryStore {
     };
 
     this.notes.set(note.id, note);
+    this.save();
     return note;
   }
 
@@ -463,11 +549,16 @@ export class InMemoryEntryStore {
     };
 
     this.notes.set(noteId, updated);
+    this.save();
     return updated;
   }
 
   deleteNote(noteId: string): boolean {
-    return this.notes.delete(noteId);
+    const deleted = this.notes.delete(noteId);
+    if (deleted) {
+      this.save();
+    }
+    return deleted;
   }
 
   createGraft(input: CreateGraftInput): EntryGraft {
@@ -486,6 +577,7 @@ export class InMemoryEntryStore {
     };
 
     this.grafts.set(graft.id, graft);
+    this.save();
     return graft;
   }
 
@@ -505,6 +597,7 @@ export class InMemoryEntryStore {
     };
 
     this.reflections.set(reflection.id, reflection);
+    this.save();
     return reflection;
   }
 
@@ -573,6 +666,7 @@ export class InMemoryEntryStore {
     };
 
     this.shareLinks.set(shareLink.id, shareLink);
+    this.save();
     return shareLink;
   }
 
@@ -604,6 +698,7 @@ export class InMemoryEntryStore {
     };
 
     this.shareLinks.set(shareLinkId, revoked);
+    this.save();
     return revoked;
   }
 
@@ -616,7 +711,10 @@ export class InMemoryEntryStore {
     this.reflections.clear();
     this.shareLinks.clear();
     this.settings.clear();
+    this.save();
   }
 }
 
-export const entryStore = new InMemoryEntryStore();
+export const entryStore = new InMemoryEntryStore({
+  persistenceFile: isPersistenceEnabled() ? dataFilePath("entries.json") : null,
+});

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -110,5 +113,40 @@ describe("InMemoryEntryStore", () => {
     expect(store.listNotes(demoOwner)).toEqual([note]);
     expect(store.listGrafts(entry.id)).toEqual([graft]);
     expect(store.listReflections(entry.id)).toEqual([reflection]);
+  });
+
+  it("reloads persisted entries, documents, and notes from disk", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mindbloom-entry-store-"));
+    const persistenceFile = join(dir, "entries.json");
+    try {
+      const store = new InMemoryEntryStore({ persistenceFile });
+      const owner = {
+        ownerId: "user-1",
+        ownerKind: "authenticated" as const,
+      };
+      const entry = store.createEntry({
+        ...owner,
+        title: "Persistent entry",
+        tags: ["journal"],
+      });
+      const document = store.upsertDocument({
+        entryId: entry.id,
+        content: "This should survive a restart.",
+      });
+      const note = store.createNote({
+        ...owner,
+        entryId: entry.id,
+        body: "Persist this note.",
+        sourceType: "entry-selection",
+      });
+
+      const reloaded = new InMemoryEntryStore({ persistenceFile });
+
+      expect(reloaded.listEntries(owner)).toEqual([entry]);
+      expect(reloaded.getDocument(entry.id)).toEqual(document);
+      expect(reloaded.listNotes(owner)).toEqual([note]);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 });
