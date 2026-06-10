@@ -2,6 +2,7 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Lightbulb,
   Menu,
   MessageCircle,
@@ -14,6 +15,7 @@ import {
   Plus,
   RotateCcw,
   Send,
+  Share2,
   Sparkles,
   StickyNote,
   StopCircle,
@@ -28,6 +30,8 @@ import type {
   EntryReflection,
   GraphSnapshotResponse,
   JournalEntry,
+  ReflectionCard,
+  ReflectionShareLink,
   TopicPill,
 } from "@mindbloom/shared";
 
@@ -36,6 +40,7 @@ import {
   createEntry,
   createEntryReflection,
   createNote,
+  createReflectionShareLink,
   deleteEntry,
   getEntryDocument,
   getEntrySnapshot,
@@ -45,12 +50,26 @@ import {
   listEntryReflections,
   listEntryMessages,
   listEntryGrafts,
+  listReflectionShareLinks,
+  revokeReflectionShareLink,
   saveEntryDocument,
   streamEntryMessage,
   updateEntry,
 } from "../../lib/api";
 
 const suggestedTags = ["journal", "idea", "brainstorm"] as const;
+
+const reflectionCardStyles: Record<ReflectionCard["type"], string> = {
+  stats: "border-blue-border bg-blue-bg text-blue-text",
+  mood: "border-purple-border bg-purple-bg text-purple-text",
+  takeaways: "border-teal-border bg-teal-bg text-teal-text",
+  "mind-map": "border-bloom-border bg-bloom-surface text-bloom-text-primary",
+  quote: "border-pink-border bg-pink-bg text-pink-text",
+  song: "border-amber-border bg-amber-bg text-amber-text",
+  weather: "border-blue-border bg-blue-bg text-blue-text",
+  word: "border-coral-border bg-coral-bg text-coral-text",
+  question: "border-gray-border bg-gray-bg text-gray-text",
+};
 
 type WorkspaceView = "editor" | "map" | "reflect";
 
@@ -94,6 +113,10 @@ function entryIcon(tags: string[]) {
 
 function formatTags(tags: string[]): string {
   return tags.length > 0 ? tags.join(", ") : "Untagged";
+}
+
+function shareUrl(token: string): string {
+  return `${window.location.origin}/share/${token}`;
 }
 
 interface NoteSourceSelection {
@@ -1071,6 +1094,142 @@ function BloomSidebar({
   );
 }
 
+interface ShareReflectionModalProps {
+  reflection: EntryReflection | null;
+  shareLinks: ReflectionShareLink[];
+  selectedCardIds: string[];
+  copiedToken: string | null;
+  isCreating: boolean;
+  onClose: () => void;
+  onToggleCard: (cardId: string) => void;
+  onCreate: () => void;
+  onCopy: (link: ReflectionShareLink) => void;
+  onRevoke: (link: ReflectionShareLink) => void;
+}
+
+function ShareReflectionModal({
+  reflection,
+  shareLinks,
+  selectedCardIds,
+  copiedToken,
+  isCreating,
+  onClose,
+  onToggleCard,
+  onCreate,
+  onCopy,
+  onRevoke,
+}: ShareReflectionModalProps) {
+  if (!reflection) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/20 p-3 md:items-center md:justify-center">
+      <section
+        className="w-full rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[640px]"
+        aria-label="Share reflection"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-bloom-border px-5 py-4">
+          <div>
+            <p className="label-text">Share</p>
+            <h2 className="mt-1 font-serif text-[24px]">Create reflect link</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg"
+            aria-label="Close share reflection"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-5 py-5">
+          <div>
+            <p className="text-[12px] font-medium text-bloom-text-secondary">
+              Cards to include
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {reflection.cards.map((card) => (
+                <label
+                  key={card.id}
+                  className={[
+                    "flex h-9 items-center gap-2 rounded-bloom-sm border px-3 text-[12px]",
+                    selectedCardIds.includes(card.id)
+                      ? "border-purple-border bg-purple-bg text-purple-text"
+                      : "border-bloom-border bg-bloom-bg text-bloom-text-secondary",
+                  ].join(" ")}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCardIds.includes(card.id)}
+                    onChange={() => onToggleCard(card.id)}
+                  />
+                  {card.title}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={isCreating || selectedCardIds.length === 0}
+            className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
+            {isCreating ? "Creating link" : "Create share link"}
+          </button>
+
+          <div className="border-t border-bloom-border pt-4">
+            <p className="text-[12px] font-medium text-bloom-text-secondary">
+              Active share links
+            </p>
+            {shareLinks.length === 0 ? (
+              <p className="mt-2 text-[13px] text-bloom-text-tertiary">
+                No share links yet.
+              </p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {shareLinks.map((link) => (
+                  <div
+                    key={link.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 py-2"
+                  >
+                    <a
+                      href={`/share/${link.token}`}
+                      className="min-w-0 truncate text-[12px] text-blue-text"
+                    >
+                      {shareUrl(link.token)}
+                    </a>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onCopy(link)}
+                        className="h-8 rounded-bloom-sm border border-bloom-border px-3 text-[12px] text-bloom-text-secondary"
+                      >
+                        {copiedToken === link.token ? "Copied" : "Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRevoke(link)}
+                        aria-label="Revoke share link"
+                        className="grid h-8 w-8 place-items-center rounded-bloom-sm border border-bloom-border text-bloom-text-secondary"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function JournalWorkspace() {
   const [groups, setGroups] = useState<EntryDayGroup[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
@@ -1083,6 +1242,11 @@ export function JournalWorkspace() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [isMapLoading, setMapLoading] = useState(false);
   const [reflections, setReflections] = useState<EntryReflection[]>([]);
+  const [shareLinks, setShareLinks] = useState<ReflectionShareLink[]>([]);
+  const [selectedShareCardIds, setSelectedShareCardIds] = useState<string[]>([]);
+  const [copiedShareToken, setCopiedShareToken] = useState<string | null>(null);
+  const [isShareModalOpen, setShareModalOpen] = useState(false);
+  const [isCreatingShareLink, setCreatingShareLink] = useState(false);
   const [reflectionError, setReflectionError] = useState<string | null>(null);
   const [isLoadingReflections, setLoadingReflections] = useState(false);
   const [isEntryDrawerOpen, setEntryDrawerOpen] = useState(false);
@@ -1354,6 +1518,10 @@ export function JournalWorkspace() {
     setMapError(null);
     setMapLoading(false);
     setReflections([]);
+    setShareLinks([]);
+    setSelectedShareCardIds([]);
+    setCopiedShareToken(null);
+    setShareModalOpen(false);
     setReflectionError(null);
     setLoadingReflections(false);
     mapRequestId.current += 1;
@@ -1375,6 +1543,22 @@ export function JournalWorkspace() {
 
     void loadEntryReflections(selectedEntry.id);
   }, [activeView, selectedEntry?.id]);
+
+  useEffect(() => {
+    const reflection = reflections[0] ?? null;
+    if (!reflection) {
+      setShareLinks([]);
+      setSelectedShareCardIds([]);
+      setCopiedShareToken(null);
+      return;
+    }
+
+    setSelectedShareCardIds(reflection.cards.map((card) => card.id));
+    setCopiedShareToken(null);
+    listReflectionShareLinks(reflection.id)
+      .then((response) => setShareLinks(response.shareLinks))
+      .catch(() => setError("MindBloom could not load share links for this reflection."));
+  }, [reflections]);
 
   useEffect(() => {
     if (isEditingTitle) {
@@ -1859,6 +2043,64 @@ export function JournalWorkspace() {
     }
   }
 
+  function toggleShareCard(cardId: string) {
+    setSelectedShareCardIds((current) =>
+      current.includes(cardId)
+        ? current.filter((item) => item !== cardId)
+        : [...current, cardId],
+    );
+  }
+
+  async function handleCreateShareLink() {
+    const reflection = reflections[0] ?? null;
+    if (!reflection || selectedShareCardIds.length === 0) {
+      return;
+    }
+
+    setCreatingShareLink(true);
+    setError(null);
+    try {
+      const response = await createReflectionShareLink(reflection.id, {
+        selectedCardIds: selectedShareCardIds,
+      });
+      await navigator.clipboard?.writeText(shareUrl(response.shareLink.token));
+      setCopiedShareToken(response.shareLink.token);
+      setShareLinks((current) => [response.shareLink, ...current]);
+    } catch (shareError) {
+      setError(
+        shareError instanceof Error
+          ? shareError.message
+          : "MindBloom could not create this share link.",
+      );
+    } finally {
+      setCreatingShareLink(false);
+    }
+  }
+
+  async function handleCopyShareLink(link: ReflectionShareLink) {
+    await navigator.clipboard?.writeText(shareUrl(link.token));
+    setCopiedShareToken(link.token);
+  }
+
+  async function handleRevokeShareLink(link: ReflectionShareLink) {
+    try {
+      await revokeReflectionShareLink(link.id);
+      setShareLinks((current) =>
+        current.map((item) =>
+          item.id === link.id
+            ? { ...item, revokedAt: item.revokedAt ?? new Date().toISOString() }
+            : item,
+        ),
+      );
+    } catch (revokeError) {
+      setError(
+        revokeError instanceof Error
+          ? revokeError.message
+          : "MindBloom could not revoke this share link.",
+      );
+    }
+  }
+
   const latestReflection = reflections[0] ?? null;
 
   return (
@@ -2104,15 +2346,27 @@ export function JournalWorkspace() {
                       {selectedEntry?.title ?? "Entry reflection"}
                     </h2>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleReflectEntry()}
-                    disabled={!selectedEntry || isReflecting}
-                    className="flex h-9 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                    {isReflecting ? "Reflecting" : "Create reflection"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {latestReflection ? (
+                      <button
+                        type="button"
+                        onClick={() => setShareModalOpen(true)}
+                        className="flex h-9 items-center gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] font-medium text-bloom-text-secondary"
+                      >
+                        <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Share
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleReflectEntry()}
+                      disabled={!selectedEntry || isReflecting}
+                      className="flex h-9 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                      {isReflecting ? "Reflecting" : "Create reflection"}
+                    </button>
+                  </div>
                 </div>
                 {isLoadingReflections ? (
                   <section className="rounded-bloom border border-bloom-border bg-bloom-surface p-6 text-[14px] text-bloom-text-secondary">
@@ -2149,14 +2403,15 @@ export function JournalWorkspace() {
                         <article
                           key={card.id}
                           className={[
-                            "rounded-bloom border border-bloom-border bg-bloom-surface p-4 shadow-sm",
+                            "rounded-bloom border p-4 shadow-sm",
                             isMapCard ? "md:col-span-2" : "",
+                            reflectionCardStyles[card.type],
                           ].join(" ")}
                         >
-                          <p className="text-[11px] font-medium uppercase text-bloom-text-tertiary">
+                          <p className="text-[11px] font-medium uppercase opacity-70">
                             {card.type}
                           </p>
-                          <h3 className="mt-1 font-serif text-[22px] leading-tight text-bloom-text-primary">
+                          <h3 className="mt-1 font-serif text-[22px] leading-tight">
                             {card.title}
                           </h3>
                           {isMapCard && latestReflection.graphSnapshot ? (
@@ -2167,13 +2422,13 @@ export function JournalWorkspace() {
                               />
                             </div>
                           ) : takeaways.length > 0 ? (
-                            <ul className="mt-3 space-y-2 text-[13px] leading-5 text-bloom-text-secondary">
+                            <ul className="mt-3 space-y-2 text-[13px] leading-5">
                               {takeaways.map((takeaway) => (
                                 <li key={takeaway}>{takeaway}</li>
                               ))}
                             </ul>
                           ) : (
-                            <p className="mt-3 whitespace-pre-line text-[13px] leading-6 text-bloom-text-secondary">
+                            <p className="mt-3 whitespace-pre-line text-[13px] leading-6">
                               {card.body}
                             </p>
                           )}
@@ -2285,6 +2540,20 @@ export function JournalWorkspace() {
         onClose={() => setNotePanelOpen(false)}
         onSave={handleSaveNote}
       />
+      {isShareModalOpen ? (
+        <ShareReflectionModal
+          reflection={latestReflection}
+          shareLinks={shareLinks.filter((link) => !link.revokedAt)}
+          selectedCardIds={selectedShareCardIds}
+          copiedToken={copiedShareToken}
+          isCreating={isCreatingShareLink}
+          onClose={() => setShareModalOpen(false)}
+          onToggleCard={toggleShareCard}
+          onCreate={handleCreateShareLink}
+          onCopy={handleCopyShareLink}
+          onRevoke={handleRevokeShareLink}
+        />
+      ) : null}
     </main>
   );
 }
