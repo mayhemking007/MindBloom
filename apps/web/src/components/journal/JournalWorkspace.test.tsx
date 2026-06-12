@@ -938,4 +938,118 @@ describe("JournalWorkspace", () => {
       ),
     ).toBe(true);
   });
+
+  it("reloads persisted writing and themes when switching back to an entry", async () => {
+    const secondEntry = {
+      ...entry,
+      id: "entry-2",
+      title: "Evening thoughts",
+      memoSessionId: "mindbloom-entry-entry-2",
+    } satisfies JournalEntry;
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({
+          entries: [entry, secondEntry],
+          groups: [{ date: "2026-06-04", entries: [entry, secondEntry] }],
+        });
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return jsonResponse({
+          document: {
+            id: "doc-1",
+            entryId: entry.id,
+            content: "Persisted morning writing about music and learning.",
+            version: 2,
+            lastIngestedVersion: 2,
+            createdAt: entry.createdAt,
+            updatedAt: entry.updatedAt,
+          },
+        });
+      }
+      if (url.endsWith("/api/entries/entry-2/document")) {
+        return jsonResponse({
+          document: {
+            id: "doc-2",
+            entryId: secondEntry.id,
+            content: "Persisted evening writing about rest and planning.",
+            version: 1,
+            lastIngestedVersion: 1,
+            createdAt: secondEntry.createdAt,
+            updatedAt: secondEntry.updatedAt,
+          },
+        });
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return jsonResponse({
+          sessionId: "mindbloom-entry-entry-1",
+          nodes: [
+            {
+              id: "morning-theme",
+              sessionId: "mindbloom-entry-entry-1",
+              label: "Music and learning",
+              summary: "The first entry theme.",
+              topicOrder: 1,
+            },
+          ],
+          edges: [],
+          memories: [],
+          memoryEdges: [],
+          capturedAt: "2026-06-04T08:00:00.000Z",
+        });
+      }
+      if (url.includes("/api/entries/entry-2/snapshot")) {
+        return jsonResponse({
+          sessionId: "mindbloom-entry-entry-2",
+          nodes: [
+            {
+              id: "evening-theme",
+              sessionId: "mindbloom-entry-entry-2",
+              label: "Rest and planning",
+              summary: "The second entry theme.",
+              topicOrder: 1,
+            },
+          ],
+          edges: [],
+          memories: [],
+          memoryEdges: [],
+          capturedAt: "2026-06-04T08:05:00.000Z",
+        });
+      }
+      if (url.includes("/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      if (url.includes("/grafts")) {
+        return jsonResponse({ grafts: [] });
+      }
+      return jsonResponse({});
+    });
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    expect(
+      await screen.findByDisplayValue(
+        "Persisted morning writing about music and learning.",
+      ),
+    ).toBeVisible();
+    expect(await screen.findByText("Music and learning")).toBeVisible();
+
+    await user.click(screen.getByText("Evening thoughts"));
+
+    expect(
+      await screen.findByDisplayValue(
+        "Persisted evening writing about rest and planning.",
+      ),
+    ).toBeVisible();
+    expect(await screen.findByText("Rest and planning")).toBeVisible();
+
+    await user.click(screen.getByText("Morning thoughts"));
+
+    expect(
+      await screen.findByDisplayValue(
+        "Persisted morning writing about music and learning.",
+      ),
+    ).toBeVisible();
+    expect(await screen.findByText("Music and learning")).toBeVisible();
+  });
 });

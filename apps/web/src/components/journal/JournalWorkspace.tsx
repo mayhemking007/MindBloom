@@ -126,7 +126,8 @@ interface NoteSourceSelection {
 }
 
 function topicPillsFromSnapshot(snapshot: GraphSnapshotResponse): TopicPill[] {
-  return [...snapshot.nodes]
+  const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : [];
+  return [...nodes]
     .sort((a, b) => a.topicOrder - b.topicOrder)
     .slice(0, 8)
     .map((node) => ({
@@ -1293,6 +1294,7 @@ export function JournalWorkspace() {
   const skipNextTitleSaveRef = useRef(false);
   const draftDirtyRef = useRef(false);
   const latestDraftRef = useRef("");
+  const draftEntryIdRef = useRef<string | null>(null);
 
   const entries = useMemo(
     () => groups.flatMap((group) => group.entries),
@@ -1470,6 +1472,8 @@ export function JournalWorkspace() {
     let isMounted = true;
 
     async function loadEntryDetails(entry: JournalEntry) {
+      draftDirtyRef.current = false;
+      draftEntryIdRef.current = null;
       setError(null);
       try {
         const [
@@ -1488,11 +1492,28 @@ export function JournalWorkspace() {
         }
         draftDirtyRef.current = false;
         const nextDocument = documentResponse.document?.content ?? "";
+        let nextTopicPills = topicPillsFromSnapshot(snapshotResponse);
+        if (nextTopicPills.length === 0 && nextDocument.trim().length >= 12) {
+          try {
+            const ingestResponse = await ingestEntryDocument(entry.id, {
+              content: nextDocument,
+              force: true,
+            });
+            if (!isMounted) {
+              return;
+            }
+            nextTopicPills = ingestResponse.topicPills ?? [];
+          } catch {
+            nextTopicPills = topicPillsFromSnapshot(snapshotResponse);
+          }
+        }
+
         latestDraftRef.current = nextDocument;
+        draftEntryIdRef.current = entry.id;
         setDocumentDraft(nextDocument);
         setMessages(messageResponse.messages);
         setGrafts(graftResponse.grafts ?? []);
-        setTopicPills(topicPillsFromSnapshot(snapshotResponse));
+        setTopicPills(nextTopicPills);
         setTitleDraft(entry.title);
         setSaveStatus(null);
       } catch (loadError) {
@@ -1568,7 +1589,11 @@ export function JournalWorkspace() {
   }, [isEditingTitle, selectedEntry?.id]);
 
   useEffect(() => {
-    if (!selectedEntry || !draftDirtyRef.current) {
+    if (
+      !selectedEntry ||
+      !draftDirtyRef.current ||
+      draftEntryIdRef.current !== selectedEntry.id
+    ) {
       return;
     }
 
@@ -1584,6 +1609,9 @@ export function JournalWorkspace() {
       saveEntryDocument(entryId, { content: contentToSave })
         .then(() => ingestEntryDocument(entryId, { content: contentToSave }))
         .then((response) => {
+          if (draftEntryIdRef.current !== entryId) {
+            return;
+          }
           setTopicPills(response.topicPills ?? []);
           if (latestDraftRef.current === contentToSave) {
             draftDirtyRef.current = false;
@@ -1659,6 +1687,7 @@ export function JournalWorkspace() {
       if (!nextEntry) {
         setDocumentDraft("");
         latestDraftRef.current = "";
+        draftEntryIdRef.current = null;
         setMessages([]);
         setGrafts([]);
         setTopicPills([]);
@@ -2263,6 +2292,7 @@ export function JournalWorkspace() {
                   value={documentDraft}
                   onChange={(event) => {
                     latestDraftRef.current = event.target.value;
+                    draftEntryIdRef.current = selectedEntry?.id ?? null;
                     draftDirtyRef.current = true;
                     setSaveStatus(null);
                     setDocumentDraft(event.target.value);
