@@ -19,11 +19,11 @@ import {
   getEntryForOwner,
   parseEntryId,
   readOwnerScope,
-} from "../http/ownerScope.js";
-import { getAgentForSession, invokeAgentWithStreaming } from "../lib/agent.js";
-import { buildEntryReflectionCards } from "../lib/entryReflection.js";
-import { entryStore } from "../lib/entryStore.js";
-import { normalizeGraphSnapshot } from "../lib/graphNormalizer.js";
+} from "../http/middleware/requireOwner.js";
+import { getAgentForSession, invokeAgentWithStreaming } from "../memo-grafter/memoGrafter.js";
+import { buildEntryReflectionCards } from "../memory/entryReflection.js";
+import { entryStore } from "../services/entries.service.js";
+import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
 
 const entryPurposeSchema = z.enum(["journal", "idea", "brainstorm"]);
 const entryModeSchema = z.enum(["classic", "chat", "mixed"]);
@@ -122,30 +122,30 @@ function isWithinDateRange(
   return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
 }
 
-function getOwnedSourceEntries(
-  owner: ReturnType<typeof readOwnerScope>,
+async function getOwnedSourceEntries(
+  owner: Awaited<ReturnType<typeof readOwnerScope>>,
   currentEntryId: string,
   sourceEntryIds?: string[],
   dateFrom?: string,
   dateTo?: string,
-) {
+): Promise<Awaited<ReturnType<typeof getEntryForOwner>>[]> {
   if (sourceEntryIds && sourceEntryIds.length > 0) {
-    return sourceEntryIds
-      .map((sourceEntryId) => getEntryForOwner(sourceEntryId, owner))
-      .filter(
-        (entry) =>
-          entry.id !== currentEntryId && isWithinDateRange(entry, dateFrom, dateTo),
-      );
+    const entries = await Promise.all(
+      sourceEntryIds.map((sourceEntryId) => getEntryForOwner(sourceEntryId, owner)),
+    );
+    return entries.filter(
+      (entry) =>
+        entry.id !== currentEntryId && isWithinDateRange(entry, dateFrom, dateTo),
+    );
   }
 
-  return entryStore
-    .listEntries(owner)
-    .filter(
-      (entry) =>
-        entry.id !== currentEntryId &&
-        entry.allowFutureContext &&
-        isWithinDateRange(entry, dateFrom, dateTo),
-    );
+  const entries = await entryStore.listEntries(owner);
+  return entries.filter(
+    (entry) =>
+      entry.id !== currentEntryId &&
+      entry.allowFutureContext &&
+      isWithinDateRange(entry, dateFrom, dateTo),
+  );
 }
 
 function parseReflectionId(params: unknown): string {
@@ -197,7 +197,7 @@ function buildBloomWritingContext(input: {
 
 entriesRouter.post("/", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const parsed = createEntrySchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -206,11 +206,11 @@ entriesRouter.post("/", async (req, res, next) => {
       );
     }
 
-    if (owner.ownerKind === "demo" && entryStore.listEntries(owner).length >= 1) {
+    if (owner.ownerKind === "demo" && (await entryStore.listEntries(owner)).length >= 1) {
       throw new ApiError(403, "Demo mode supports one journal entry");
     }
 
-    const entry = entryStore.createEntry({
+    const entry = await entryStore.createEntry({
       ...owner,
       ...parsed.data,
     });
@@ -224,10 +224,10 @@ entriesRouter.post("/", async (req, res, next) => {
 
 entriesRouter.get("/", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const response: EntryListResponse = {
-      entries: entryStore.listEntries(owner),
-      groups: entryStore.listEntriesGroupedByDay(owner),
+      entries: await entryStore.listEntries(owner),
+      groups: await entryStore.listEntriesGroupedByDay(owner),
     };
 
     res.json(response);
@@ -238,9 +238,9 @@ entriesRouter.get("/", async (req, res, next) => {
 
 entriesRouter.get("/:entryId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const response: EntryResponse = { entry };
 
     res.json(response);
@@ -251,9 +251,9 @@ entriesRouter.get("/:entryId", async (req, res, next) => {
 
 entriesRouter.patch("/:entryId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const existing = getEntryForOwner(entryId, owner);
+    const existing = await getEntryForOwner(entryId, owner);
     const parsed = updateEntrySchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -266,7 +266,7 @@ entriesRouter.patch("/:entryId", async (req, res, next) => {
       parsed.data.status === "completed" && parsed.data.completedAt === undefined
         ? new Date().toISOString()
         : parsed.data.completedAt;
-    const entry = entryStore.updateEntry(existing.id, {
+    const entry = await entryStore.updateEntry(existing.id, {
       ...parsed.data,
       completedAt,
     });
@@ -283,10 +283,10 @@ entriesRouter.patch("/:entryId", async (req, res, next) => {
 
 entriesRouter.delete("/:entryId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
-    entryStore.deleteEntry(entry.id);
+    const entry = await getEntryForOwner(entryId, owner);
+    await entryStore.deleteEntry(entry.id);
 
     res.status(204).send();
   } catch (error) {
@@ -296,9 +296,9 @@ entriesRouter.delete("/:entryId", async (req, res, next) => {
 
 entriesRouter.put("/:entryId/document", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const parsed = upsertDocumentSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -307,7 +307,7 @@ entriesRouter.put("/:entryId/document", async (req, res, next) => {
       );
     }
 
-    const document = entryStore.upsertDocument({
+    const document = await entryStore.upsertDocument({
       entryId: entry.id,
       content: parsed.data.content,
     });
@@ -321,11 +321,11 @@ entriesRouter.put("/:entryId/document", async (req, res, next) => {
 
 entriesRouter.get("/:entryId/document", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const response: EntryDocumentResponse = {
-      document: entryStore.getDocument(entry.id) ?? null,
+      document: await entryStore.getDocument(entry.id) ?? null,
     };
 
     res.json(response);
@@ -336,9 +336,9 @@ entriesRouter.get("/:entryId/document", async (req, res, next) => {
 
 entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const parsed = ingestDocumentSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(
@@ -349,8 +349,8 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
 
     const document =
       parsed.data.content === undefined
-        ? entryStore.getDocument(entry.id)
-        : entryStore.upsertDocument({
+        ? await entryStore.getDocument(entry.id)
+        : await entryStore.upsertDocument({
             entryId: entry.id,
             content: parsed.data.content,
           });
@@ -378,7 +378,7 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
         ).clearSession?.();
       }
       const clearedDocument = shouldClear
-        ? entryStore.markDocumentIngested(entry.id, document.version)
+        ? await entryStore.markDocumentIngested(entry.id, document.version)
         : document;
       const response: EntryIngestResponse = {
         document: clearedDocument ?? document,
@@ -412,7 +412,7 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
       source: `entry:${entry.id}`,
       replace: true,
     });
-    const ingestedDocument = entryStore.markDocumentIngested(
+    const ingestedDocument = await entryStore.markDocumentIngested(
       entry.id,
       document.version,
     );
@@ -430,11 +430,11 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
 
 entriesRouter.get("/:entryId/grafts", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const response: EntryGraftsResponse = {
-      grafts: entryStore.listGrafts(entry.id),
+      grafts: await entryStore.listGrafts(entry.id),
     };
 
     res.json(response);
@@ -445,9 +445,9 @@ entriesRouter.get("/:entryId/grafts", async (req, res, next) => {
 
 entriesRouter.get("/:entryId/snapshot", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const parsedScope = snapshotScopeSchema.safeParse(req.query.scope);
     if (!parsedScope.success) {
       throw new ApiError(400, "Invalid snapshot scope");
@@ -541,9 +541,9 @@ entriesRouter.get("/:entryId/snapshot", async (req, res, next) => {
 
 entriesRouter.post("/:entryId/grafts/relevance", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const parsed = graftByRelevanceSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -552,7 +552,7 @@ entriesRouter.post("/:entryId/grafts/relevance", async (req, res, next) => {
       );
     }
 
-    const sourceEntries = getOwnedSourceEntries(
+    const sourceEntries = await getOwnedSourceEntries(
       owner,
       entry.id,
       parsed.data.sourceEntryIds,
@@ -584,7 +584,7 @@ entriesRouter.post("/:entryId/grafts/relevance", async (req, res, next) => {
 
       for (const node of relevanceResult.nodes) {
         storedGrafts.push(
-          entryStore.createGraft({
+          await entryStore.createGraft({
             entryId: entry.id,
             query: parsed.data.query,
             sourceEntryId: sourceEntry.id,
@@ -613,11 +613,11 @@ entriesRouter.post("/:entryId/grafts/relevance", async (req, res, next) => {
 
 entriesRouter.get("/:entryId/reflections", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const response: EntryReflectionsResponse = {
-      reflections: entryStore.listReflections(entry.id),
+      reflections: await entryStore.listReflections(entry.id),
     };
 
     res.json(response);
@@ -628,9 +628,9 @@ entriesRouter.get("/:entryId/reflections", async (req, res, next) => {
 
 entriesRouter.post("/:entryId/reflections", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const agent = await getAgentForSession(entry.memoSessionId);
     const [snapshot, activeNodes] = await Promise.all([
       agent.getGraphSnapshot(),
@@ -639,13 +639,13 @@ entriesRouter.post("/:entryId/reflections", async (req, res, next) => {
     const graphSnapshot = normalizeGraphSnapshot(snapshot);
     const cards = await buildEntryReflectionCards({
       entry,
-      documentText: entryStore.getDocument(entry.id)?.content ?? "",
-      messages: entryStore.listMessages(entry.id),
-      notes: entryStore.listNotesForEntry(entry.id, owner),
+      documentText: (await entryStore.getDocument(entry.id))?.content ?? "",
+      messages: await entryStore.listMessages(entry.id),
+      notes: await entryStore.listNotesForEntry(entry.id, owner),
       topicPills: toTopicPills(activeNodes),
       graphSnapshot,
     });
-    const reflection = entryStore.createReflection({
+    const reflection = await entryStore.createReflection({
       entryId: entry.id,
       cards,
       graphSnapshot,
@@ -660,11 +660,11 @@ entriesRouter.post("/:entryId/reflections", async (req, res, next) => {
 
 entriesRouter.get("/:entryId/reflections/:reflectionId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const reflectionId = parseReflectionId(req.params);
-    const reflection = entryStore.getReflection(reflectionId);
+    const reflection = await entryStore.getReflection(reflectionId);
     if (!reflection) {
       throw new ApiError(404, "Reflection not found");
     }
@@ -681,9 +681,9 @@ entriesRouter.get("/:entryId/reflections/:reflectionId", async (req, res, next) 
 
 entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const parsed = streamMessageSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -703,7 +703,7 @@ entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
       isConnected = false;
     });
 
-    const userMessage = entryStore.addMessage({
+    const userMessage = await entryStore.addMessage({
       entryId: entry.id,
       role: "user",
       content: parsed.data.content,
@@ -731,7 +731,7 @@ entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
         return;
       }
 
-      const assistantMessage = entryStore.addMessage({
+      const assistantMessage = await entryStore.addMessage({
         entryId: entry.id,
         role: "assistant",
         content: reply,
@@ -765,11 +765,11 @@ entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
 
 entriesRouter.get("/:entryId/messages", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const response: EntryMessagesResponse = {
-      messages: entryStore.listMessages(entry.id),
+      messages: await entryStore.listMessages(entry.id),
     };
 
     res.json(response);
@@ -780,9 +780,9 @@ entriesRouter.get("/:entryId/messages", async (req, res, next) => {
 
 entriesRouter.post("/:entryId/messages", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const entryId = parseEntryId(req.params);
-    const entry = getEntryForOwner(entryId, owner);
+    const entry = await getEntryForOwner(entryId, owner);
     const parsed = createMessageSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -791,7 +791,7 @@ entriesRouter.post("/:entryId/messages", async (req, res, next) => {
       );
     }
 
-    const message = entryStore.addMessage({
+    const message = await entryStore.addMessage({
       entryId: entry.id,
       ...parsed.data,
     });

@@ -9,7 +9,13 @@ import {
 } from "react";
 import type { AuthUser } from "@mindbloom/shared";
 
-import { getCurrentAuth, loginUser, logoutUser, registerUser } from "../lib/api";
+import {
+  getCurrentAuth,
+  loginUser,
+  logoutUser,
+  registerUser,
+  setApiOwnerKind,
+} from "../lib/api";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -36,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await getCurrentAuth();
     setUser(response.user);
     setOwnerKind(response.ownerKind);
+    setApiOwnerKind(response.ownerKind);
   }, []);
 
   useEffect(() => {
@@ -43,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         setUser(null);
         setOwnerKind("demo");
+        setApiOwnerKind("demo");
       })
       .finally(() => setLoading(false));
   }, [refresh]);
@@ -56,16 +64,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await loginUser({ email, password });
         setUser(response.user);
         setOwnerKind("authenticated");
+        setApiOwnerKind("authenticated");
       },
       async register(email, password, displayName) {
         const response = await registerUser({ email, password, displayName });
         setUser(response.user);
         setOwnerKind("authenticated");
+        setApiOwnerKind("authenticated");
       },
       async logout() {
         await logoutUser();
         setUser(null);
         setOwnerKind("demo");
+        setApiOwnerKind("demo");
       },
       refresh,
     }),

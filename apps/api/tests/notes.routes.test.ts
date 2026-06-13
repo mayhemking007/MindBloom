@@ -2,7 +2,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app.js";
-import { entryStore } from "../src/lib/entryStore.js";
+import { entryStore } from "../src/services/entries.service.js";
 
 const app = createApp();
 
@@ -17,8 +17,8 @@ const ownerBHeaders = {
 };
 
 describe("note routes", () => {
-  beforeEach(() => {
-    entryStore.clear();
+  beforeEach(async () => {
+    await entryStore.clear();
   });
 
   it("creates and lists blank notes grouped by day", async () => {

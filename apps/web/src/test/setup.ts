@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, beforeEach } from "vitest";
+import { setApiOwnerKind } from "../lib/api";
 
 Object.defineProperty(window, "scrollTo", {
   value: () => undefined,
@@ -22,6 +23,10 @@ Object.defineProperty(window, "ResizeObserver", {
 Object.defineProperty(globalThis, "ResizeObserver", {
   value: ResizeObserverMock,
   writable: true,
+});
+
+beforeEach(() => {
+  setApiOwnerKind("authenticated");
 });
 
 afterEach(() => {

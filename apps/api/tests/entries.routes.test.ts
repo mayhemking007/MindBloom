@@ -17,12 +17,12 @@ const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate } =
   openaiCreate: vi.fn(),
 }));
 
-vi.mock("../src/lib/agent.js", () => ({
+vi.mock("../src/memo-grafter/memoGrafter.js", () => ({
   getAgentForSession,
   invokeAgentWithStreaming,
 }));
 
-vi.mock("../src/lib/openai.js", () => ({
+vi.mock("../src/memory/openai.js", () => ({
   openai: {
     chat: {
       completions: {
@@ -33,7 +33,7 @@ vi.mock("../src/lib/openai.js", () => ({
 }));
 
 import { createApp } from "../src/app.js";
-import { entryStore } from "../src/lib/entryStore.js";
+import { entryStore } from "../src/services/entries.service.js";
 
 const app = createApp();
 
@@ -78,9 +78,9 @@ function graphSnapshot() {
 }
 
 describe("entry routes", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    entryStore.clear();
+    await entryStore.clear();
     getAgentForSession.mockResolvedValue(agent);
     agent.ingestText.mockResolvedValue(undefined);
     agent.graftByRelevance.mockResolvedValue({

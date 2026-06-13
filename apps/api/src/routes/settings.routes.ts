@@ -6,8 +6,8 @@ import type {
 } from "@mindbloom/shared";
 
 import { ApiError } from "../http/errors.js";
-import { readOwnerScope } from "../http/ownerScope.js";
-import { entryStore } from "../lib/entryStore.js";
+import { readOwnerScope } from "../http/middleware/requireOwner.js";
+import { entryStore } from "../services/entries.service.js";
 
 const updateSettingsSchema = z.object({
   calendarEnabled: z.boolean().optional(),
@@ -17,11 +17,11 @@ const updateSettingsSchema = z.object({
 
 export const settingsRouter = Router();
 
-settingsRouter.get("/settings", (req, res, next) => {
+settingsRouter.get("/settings", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const response: SettingsResponse = {
-      settings: entryStore.getSettings(owner),
+      settings: await entryStore.getSettings(owner),
     };
 
     res.json(response);
@@ -30,9 +30,9 @@ settingsRouter.get("/settings", (req, res, next) => {
   }
 });
 
-settingsRouter.patch("/settings", (req, res, next) => {
+settingsRouter.patch("/settings", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const parsed = updateSettingsSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new ApiError(
@@ -42,7 +42,7 @@ settingsRouter.patch("/settings", (req, res, next) => {
     }
 
     const response: SettingsResponse = {
-      settings: entryStore.updateSettings(owner, parsed.data),
+      settings: await entryStore.updateSettings(owner, parsed.data),
     };
 
     res.json(response);
@@ -51,12 +51,12 @@ settingsRouter.patch("/settings", (req, res, next) => {
   }
 });
 
-settingsRouter.get("/calendar/activity", (req, res, next) => {
+settingsRouter.get("/calendar/activity", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const response: CalendarActivityResponse = {
-      days: entryStore.listCalendarActivity(owner),
-      settings: entryStore.getSettings(owner),
+      days: await entryStore.listCalendarActivity(owner),
+      settings: await entryStore.getSettings(owner),
     };
 
     res.json(response);

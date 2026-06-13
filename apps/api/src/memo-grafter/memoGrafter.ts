@@ -1,19 +1,19 @@
-import { MemoGrafterAgent } from "../../../../node_modules/memo-grafter/dist/MemoGrafterAgent.js";
 import {
+  MemoGrafterAgent,
   OpenAIEmbedAdapter,
   OpenAILLMAdapter,
-} from "../../../../node_modules/memo-grafter/dist/adapters/OpenAIAdapter.js";
+} from "memo-grafter";
 import type { MemoGrafterAgent as MemoGrafterAgentType } from "memo-grafter";
 
 import { env } from "../config/env.js";
-import { journalingSystemPrompt } from "./prompts.js";
+import { journalingSystemPrompt } from "../memory/prompts.js";
 
-const agentCache = new Map<string, MemoGrafterAgentType>();
+const memoGrafterCache = new Map<string, MemoGrafterAgentType>();
 
-export async function getAgentForSession(
+export async function getMemoGrafterForSession(
   sessionId: string,
 ): Promise<MemoGrafterAgentType> {
-  const cachedAgent = agentCache.get(sessionId);
+  const cachedAgent = memoGrafterCache.get(sessionId);
   if (cachedAgent) {
     return cachedAgent;
   }
@@ -57,11 +57,11 @@ export async function getAgentForSession(
     throw error;
   }
 
-  agentCache.set(sessionId, agent);
+  memoGrafterCache.set(sessionId, agent);
   return agent;
 }
 
-export async function invokeAgentWithStreaming(
+export async function invokeMemoGrafterWithStreaming(
   agent: MemoGrafterAgentType,
   message: string,
   onChunk: (chunk: string) => void | Promise<void>,
@@ -88,9 +88,9 @@ export async function invokeAgentWithStreaming(
   }
 }
 
-export async function shutdownAgents(): Promise<void> {
-  const agents = [...agentCache.entries()];
-  agentCache.clear();
+export async function shutdownMemoGrafters(): Promise<void> {
+  const agents = [...memoGrafterCache.entries()];
+  memoGrafterCache.clear();
 
   await Promise.allSettled(
     agents.map(async ([sessionId, agent]) => {
@@ -106,6 +106,11 @@ export async function shutdownAgents(): Promise<void> {
   );
 }
 
-export function getCachedAgentCount(): number {
-  return agentCache.size;
+export function getCachedMemoGrafterCount(): number {
+  return memoGrafterCache.size;
 }
+
+export const getAgentForSession = getMemoGrafterForSession;
+export const invokeAgentWithStreaming = invokeMemoGrafterWithStreaming;
+export const shutdownAgents = shutdownMemoGrafters;
+export const getCachedAgentCount = getCachedMemoGrafterCount;

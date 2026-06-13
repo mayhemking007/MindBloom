@@ -39,6 +39,7 @@ import type {
   UpdateSettingsRequest,
   UpsertEntryDocumentRequest,
 } from "@mindbloom/shared";
+import { demoStore } from "./demoStore";
 
 export interface BloomStreamHandlers {
   onUserMessage?: (message: EntryMessage) => void;
@@ -52,6 +53,16 @@ export interface BloomStreamHandlers {
 
 export const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+
+let apiOwnerKind: "authenticated" | "demo" = "demo";
+
+export function setApiOwnerKind(ownerKind: "authenticated" | "demo") {
+  apiOwnerKind = ownerKind;
+}
+
+function isDemoMode() {
+  return apiOwnerKind === "demo";
+}
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => null);
@@ -112,6 +123,9 @@ export async function getCurrentAuth(): Promise<AuthMeResponse> {
 }
 
 export async function getSettings(): Promise<SettingsResponse> {
+  if (isDemoMode()) {
+    return demoStore.getSettings();
+  }
   const response = await fetch(`${apiBaseUrl}/api/settings`, credentialOptions);
   return parseJsonResponse<SettingsResponse>(response);
 }
@@ -119,6 +133,9 @@ export async function getSettings(): Promise<SettingsResponse> {
 export async function updateSettings(
   payload: UpdateSettingsRequest,
 ): Promise<SettingsResponse> {
+  if (isDemoMode()) {
+    return demoStore.updateSettings(payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/settings`, {
     method: "PATCH",
     headers: jsonHeaders(),
@@ -129,6 +146,9 @@ export async function updateSettings(
 }
 
 export async function getCalendarActivity(): Promise<CalendarActivityResponse> {
+  if (isDemoMode()) {
+    return demoStore.getCalendarActivity();
+  }
   const response = await fetch(
     `${apiBaseUrl}/api/calendar/activity`,
     credentialOptions,
@@ -193,6 +213,9 @@ export async function generateReflection(
 }
 
 export async function listEntries(): Promise<EntryListResponse> {
+  if (isDemoMode()) {
+    return demoStore.listEntries();
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries`, credentialOptions);
   return parseJsonResponse<EntryListResponse>(response);
 }
@@ -201,6 +224,9 @@ export async function updateEntry(
   entryId: string,
   payload: UpdateEntryRequest,
 ): Promise<EntryResponse> {
+  if (isDemoMode()) {
+    return demoStore.updateEntry(entryId, payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}`, {
     method: "PATCH",
     headers: jsonHeaders(),
@@ -213,6 +239,9 @@ export async function updateEntry(
 export async function createEntry(
   payload: CreateEntryRequest,
 ): Promise<EntryResponse> {
+  if (isDemoMode()) {
+    return demoStore.createEntry(payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries`, {
     method: "POST",
     headers: jsonHeaders(),
@@ -223,6 +252,10 @@ export async function createEntry(
 }
 
 export async function deleteEntry(entryId: string): Promise<void> {
+  if (isDemoMode()) {
+    demoStore.deleteEntry(entryId);
+    return;
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}`, {
     method: "DELETE",
     credentials: "include",
@@ -236,6 +269,9 @@ export async function deleteEntry(entryId: string): Promise<void> {
 export async function getEntryDocument(
   entryId: string,
 ): Promise<EntryDocumentResponse> {
+  if (isDemoMode()) {
+    return demoStore.getEntryDocument(entryId);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/document`, {
     ...credentialOptions,
   });
@@ -246,6 +282,9 @@ export async function saveEntryDocument(
   entryId: string,
   payload: UpsertEntryDocumentRequest,
 ): Promise<EntryDocumentResponse> {
+  if (isDemoMode()) {
+    return demoStore.saveEntryDocument(entryId, payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/document`, {
     method: "PUT",
     headers: jsonHeaders(),
@@ -259,6 +298,9 @@ export async function ingestEntryDocument(
   entryId: string,
   payload: { content?: string; force?: boolean } = {},
 ): Promise<EntryIngestResponse> {
+  if (isDemoMode()) {
+    return demoStore.ingestEntryDocument(entryId, payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/ingest`, {
     method: "POST",
     headers: jsonHeaders(),
@@ -272,6 +314,9 @@ export async function getEntrySnapshot(
   entryId: string,
   scope = "overall",
 ): Promise<GraphSnapshotResponse> {
+  if (isDemoMode()) {
+    return demoStore.getEntrySnapshot(entryId);
+  }
   const params = new URLSearchParams({ scope });
   const response = await fetch(
     `${apiBaseUrl}/api/entries/${entryId}/snapshot?${params}`,
@@ -283,6 +328,9 @@ export async function getEntrySnapshot(
 export async function listEntryMessages(
   entryId: string,
 ): Promise<EntryMessagesResponse> {
+  if (isDemoMode()) {
+    return demoStore.listEntryMessages(entryId);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages`, {
     ...credentialOptions,
   });
@@ -293,6 +341,9 @@ export async function createEntryMessage(
   entryId: string,
   payload: CreateEntryMessageRequest,
 ): Promise<EntryMessageResponse> {
+  if (isDemoMode()) {
+    return demoStore.createEntryMessage(entryId, payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages`, {
     method: "POST",
     headers: jsonHeaders(),
@@ -314,6 +365,10 @@ export async function streamEntryMessage(
     selectedText?: string;
   },
 ): Promise<void> {
+  if (isDemoMode()) {
+    await demoStore.streamEntryMessage(entryId, content, handlers);
+    return;
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/messages/stream`, {
     method: "POST",
     headers: jsonHeaders(),
@@ -413,6 +468,9 @@ export async function streamEntryMessage(
 export async function listEntryGrafts(
   entryId: string,
 ): Promise<EntryGraftsResponse> {
+  if (isDemoMode()) {
+    return demoStore.listEntryGrafts(entryId);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/grafts`, {
     ...credentialOptions,
   });
@@ -423,6 +481,9 @@ export async function graftEntryByRelevance(
   entryId: string,
   payload: GraftByRelevanceRequest,
 ): Promise<EntryGraftRelevanceResponse> {
+  if (isDemoMode()) {
+    return demoStore.graftEntryByRelevance(entryId, payload);
+  }
   const response = await fetch(
     `${apiBaseUrl}/api/entries/${entryId}/grafts/relevance`,
     {
@@ -438,6 +499,9 @@ export async function graftEntryByRelevance(
 export async function listEntryReflections(
   entryId: string,
 ): Promise<EntryReflectionsResponse> {
+  if (isDemoMode()) {
+    return demoStore.listEntryReflections(entryId);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/reflections`, {
     ...credentialOptions,
   });
@@ -447,6 +511,9 @@ export async function listEntryReflections(
 export async function createEntryReflection(
   entryId: string,
 ): Promise<EntryReflectionResponse> {
+  if (isDemoMode()) {
+    return demoStore.createEntryReflection(entryId);
+  }
   const response = await fetch(`${apiBaseUrl}/api/entries/${entryId}/reflections`, {
     method: "POST",
     headers: jsonHeaders(),
@@ -460,6 +527,9 @@ export async function getEntryReflection(
   entryId: string,
   reflectionId: string,
 ): Promise<EntryReflectionResponse> {
+  if (isDemoMode()) {
+    return demoStore.getEntryReflection(entryId, reflectionId);
+  }
   const response = await fetch(
     `${apiBaseUrl}/api/entries/${entryId}/reflections/${reflectionId}`,
     {
@@ -472,6 +542,9 @@ export async function getEntryReflection(
 export async function listReflectionShareLinks(
   reflectionId: string,
 ): Promise<ReflectionShareLinksResponse> {
+  if (isDemoMode()) {
+    return demoStore.listReflectionShareLinks(reflectionId);
+  }
   const response = await fetch(
     `${apiBaseUrl}/api/reflections/${reflectionId}/share-links`,
     {
@@ -485,6 +558,9 @@ export async function createReflectionShareLink(
   reflectionId: string,
   payload: { selectedCardIds: string[]; expiresAt?: string | null },
 ): Promise<ReflectionShareLinkResponse> {
+  if (isDemoMode()) {
+    return demoStore.createReflectionShareLink(reflectionId, payload);
+  }
   const response = await fetch(
     `${apiBaseUrl}/api/reflections/${reflectionId}/share-links`,
     {
@@ -500,6 +576,10 @@ export async function createReflectionShareLink(
 export async function revokeReflectionShareLink(
   shareLinkId: string,
 ): Promise<void> {
+  if (isDemoMode()) {
+    demoStore.revokeReflectionShareLink(shareLinkId);
+    return;
+  }
   const response = await fetch(`${apiBaseUrl}/api/share-links/${shareLinkId}`, {
     method: "DELETE",
     credentials: "include",
@@ -513,11 +593,17 @@ export async function revokeReflectionShareLink(
 export async function getPublicReflectionShare(
   token: string,
 ): Promise<PublicReflectionShareResponse> {
+  if (isDemoMode()) {
+    return demoStore.getPublicReflectionShare(token);
+  }
   const response = await fetch(`${apiBaseUrl}/api/share/${token}`);
   return parseJsonResponse<PublicReflectionShareResponse>(response);
 }
 
 export async function listNotes(): Promise<NotesResponse> {
+  if (isDemoMode()) {
+    return demoStore.listNotes();
+  }
   const response = await fetch(`${apiBaseUrl}/api/notes`, credentialOptions);
   return parseJsonResponse<NotesResponse>(response);
 }
@@ -525,6 +611,9 @@ export async function listNotes(): Promise<NotesResponse> {
 export async function createNote(
   payload: CreateNoteRequest,
 ): Promise<NoteResponse> {
+  if (isDemoMode()) {
+    return demoStore.createNote(payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/notes`, {
     method: "POST",
     headers: jsonHeaders(),
@@ -538,6 +627,9 @@ export async function updateNote(
   noteId: string,
   payload: UpdateNoteRequest,
 ): Promise<NoteResponse> {
+  if (isDemoMode()) {
+    return demoStore.updateNote(noteId, payload);
+  }
   const response = await fetch(`${apiBaseUrl}/api/notes/${noteId}`, {
     method: "PATCH",
     headers: jsonHeaders(),
@@ -548,6 +640,10 @@ export async function updateNote(
 }
 
 export async function deleteNote(noteId: string): Promise<void> {
+  if (isDemoMode()) {
+    demoStore.deleteNote(noteId);
+    return;
+  }
   const response = await fetch(`${apiBaseUrl}/api/notes/${noteId}`, {
     method: "DELETE",
     credentials: "include",

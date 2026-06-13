@@ -2,8 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { ApiError } from "../http/errors.js";
-import { getAgentForSession } from "../lib/agent.js";
-import { normalizeGraphSnapshot } from "../lib/graphNormalizer.js";
+import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
 
 const snapshotQuerySchema = z.object({
   sessionId: z.string().trim().min(1, "sessionId is required").max(128),

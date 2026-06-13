@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { EntryOwnerKind, JournalEntry } from "@mindbloom/shared";
 
-import { readCookie } from "./cookies.js";
-import { ApiError } from "./errors.js";
-import { entryStore, type OwnerScope } from "../lib/entryStore.js";
-import { authStore, sessionCookieName } from "../lib/authStore.js";
+import { readCookie } from "../cookies.js";
+import { ApiError } from "../errors.js";
+import { authStore, sessionCookieName } from "../../services/auth.service.js";
+import { entryStore, type OwnerScope } from "../../services/entries.service.js";
 
 const ownerKindSchema = z.enum(["authenticated", "demo"]);
 
@@ -12,10 +12,10 @@ const entryIdParamSchema = z.object({
   entryId: z.string().trim().min(1, "entryId is required").max(128),
 });
 
-export function readOwnerScope(req: {
+export async function readOwnerScope(req: {
   get(name: string): string | undefined;
-}): OwnerScope {
-  const sessionUser = authStore.getUserForToken(
+}): Promise<OwnerScope> {
+  const sessionUser = await authStore.getUserForToken(
     readCookie(req.get("cookie"), sessionCookieName),
   );
   if (sessionUser) {
@@ -62,11 +62,11 @@ export function parseEntryId(params: unknown): string {
   return parsed.data.entryId;
 }
 
-export function getEntryForOwner(
+export async function getEntryForOwner(
   entryId: string,
   owner: OwnerScope,
-): JournalEntry {
-  const entry = entryStore.getEntry(entryId);
+): Promise<JournalEntry> {
+  const entry = await entryStore.getEntry(entryId);
   if (!entry) {
     throw new ApiError(404, "Entry not found");
   }

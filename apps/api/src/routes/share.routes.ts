@@ -7,8 +7,8 @@ import type {
 } from "@mindbloom/shared";
 
 import { ApiError } from "../http/errors.js";
-import { readOwnerScope } from "../http/ownerScope.js";
-import { entryStore, type OwnerScope } from "../lib/entryStore.js";
+import { readOwnerScope } from "../http/middleware/requireOwner.js";
+import { entryStore, type OwnerScope } from "../services/entries.service.js";
 
 const reflectionIdParamSchema = z.object({
   reflectionId: z.string().trim().min(1, "reflectionId is required").max(128),
@@ -66,17 +66,17 @@ function parseToken(params: unknown): string {
   return parsed.data.token;
 }
 
-function getReflectionForOwner(reflectionId: string, owner: OwnerScope) {
+async function getReflectionForOwner(reflectionId: string, owner: OwnerScope) {
   if (owner.ownerKind !== "authenticated") {
     throw new ApiError(403, "Sign in to share reflections");
   }
 
-  const reflection = entryStore.getReflection(reflectionId);
+  const reflection = await entryStore.getReflection(reflectionId);
   if (!reflection) {
     throw new ApiError(404, "Reflection not found");
   }
 
-  const entry = entryStore.getEntry(reflection.entryId);
+  const entry = await entryStore.getEntry(reflection.entryId);
   if (!entry) {
     throw new ApiError(404, "Entry not found");
   }
@@ -95,8 +95,8 @@ export const shareRouter = Router();
 
 shareRouter.post("/reflections/:reflectionId/share-links", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
-    const reflection = getReflectionForOwner(parseReflectionId(req.params), owner);
+    const owner = await readOwnerScope(req);
+    const reflection = await getReflectionForOwner(parseReflectionId(req.params), owner);
     const parsed = createShareLinkSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -113,7 +113,7 @@ shareRouter.post("/reflections/:reflectionId/share-links", async (req, res, next
       throw new ApiError(400, `Unknown reflection card: ${invalidCardId}`);
     }
 
-    const shareLink = entryStore.createShareLink({
+    const shareLink = await entryStore.createShareLink({
       reflectionId: reflection.id,
       selectedCardIds: [...new Set(parsed.data.selectedCardIds)],
       expiresAt: parsed.data.expiresAt ?? null,
@@ -128,10 +128,10 @@ shareRouter.post("/reflections/:reflectionId/share-links", async (req, res, next
 
 shareRouter.get("/reflections/:reflectionId/share-links", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
-    const reflection = getReflectionForOwner(parseReflectionId(req.params), owner);
+    const owner = await readOwnerScope(req);
+    const reflection = await getReflectionForOwner(parseReflectionId(req.params), owner);
     const response: ReflectionShareLinksResponse = {
-      shareLinks: entryStore.listShareLinks(reflection.id),
+      shareLinks: await entryStore.listShareLinks(reflection.id),
     };
 
     res.json(response);
@@ -142,15 +142,15 @@ shareRouter.get("/reflections/:reflectionId/share-links", async (req, res, next)
 
 shareRouter.delete("/share-links/:shareLinkId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const shareLinkId = parseShareLinkId(req.params);
-    const shareLink = entryStore.getShareLink(shareLinkId);
+    const shareLink = await entryStore.getShareLink(shareLinkId);
     if (!shareLink) {
       throw new ApiError(404, "Share link not found");
     }
 
-    getReflectionForOwner(shareLink.reflectionId, owner);
-    entryStore.revokeShareLink(shareLink.id);
+    await getReflectionForOwner(shareLink.reflectionId, owner);
+    await entryStore.revokeShareLink(shareLink.id);
 
     res.status(204).send();
   } catch (error) {
@@ -161,12 +161,12 @@ shareRouter.delete("/share-links/:shareLinkId", async (req, res, next) => {
 shareRouter.get("/share/:token", async (req, res, next) => {
   try {
     const token = parseToken(req.params);
-    const shareLink = entryStore.getShareLinkByToken(token);
+    const shareLink = await entryStore.getShareLinkByToken(token);
     if (!shareLink || shareLink.revokedAt || isExpired(shareLink.expiresAt)) {
       throw new ApiError(404, "Shared reflection not found");
     }
 
-    const reflection = entryStore.getReflection(shareLink.reflectionId);
+    const reflection = await entryStore.getReflection(shareLink.reflectionId);
     if (!reflection) {
       throw new ApiError(404, "Shared reflection not found");
     }

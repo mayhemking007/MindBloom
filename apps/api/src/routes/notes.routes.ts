@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { NoteResponse, NotesResponse } from "@mindbloom/shared";
 
 import { ApiError } from "../http/errors.js";
-import { getEntryForOwner, readOwnerScope } from "../http/ownerScope.js";
-import { entryStore, type OwnerScope } from "../lib/entryStore.js";
+import { getEntryForOwner, readOwnerScope } from "../http/middleware/requireOwner.js";
+import { entryStore, type OwnerScope } from "../services/entries.service.js";
 
 const noteSourceTypeSchema = z.enum([
   "entry-selection",
@@ -61,8 +61,8 @@ function parseNoteId(params: unknown): string {
   return parsed.data.noteId;
 }
 
-function getNoteForOwner(noteId: string, owner: OwnerScope) {
-  const note = entryStore.getNote(noteId);
+async function getNoteForOwner(noteId: string, owner: OwnerScope) {
+  const note = await entryStore.getNote(noteId);
   if (!note) {
     throw new ApiError(404, "Note not found");
   }
@@ -77,7 +77,7 @@ export const notesRouter = Router();
 
 notesRouter.post("/", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const parsed = createNoteSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -87,10 +87,10 @@ notesRouter.post("/", async (req, res, next) => {
     }
 
     if (parsed.data.entryId) {
-      getEntryForOwner(parsed.data.entryId, owner);
+      await getEntryForOwner(parsed.data.entryId, owner);
     }
 
-    const note = entryStore.createNote({
+    const note = await entryStore.createNote({
       ...owner,
       ...parsed.data,
     });
@@ -104,10 +104,10 @@ notesRouter.post("/", async (req, res, next) => {
 
 notesRouter.get("/", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
+    const owner = await readOwnerScope(req);
     const response: NotesResponse = {
-      notes: entryStore.listNotes(owner),
-      groups: entryStore.listNotesGroupedByDay(owner),
+      notes: await entryStore.listNotes(owner),
+      groups: await entryStore.listNotesGroupedByDay(owner),
     };
 
     res.json(response);
@@ -118,8 +118,8 @@ notesRouter.get("/", async (req, res, next) => {
 
 notesRouter.get("/:noteId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
-    const note = getNoteForOwner(parseNoteId(req.params), owner);
+    const owner = await readOwnerScope(req);
+    const note = await getNoteForOwner(parseNoteId(req.params), owner);
     const response: NoteResponse = { note };
 
     res.json(response);
@@ -130,8 +130,8 @@ notesRouter.get("/:noteId", async (req, res, next) => {
 
 notesRouter.patch("/:noteId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
-    const note = getNoteForOwner(parseNoteId(req.params), owner);
+    const owner = await readOwnerScope(req);
+    const note = await getNoteForOwner(parseNoteId(req.params), owner);
     const parsed = updateNoteSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new ApiError(
@@ -140,7 +140,7 @@ notesRouter.patch("/:noteId", async (req, res, next) => {
       );
     }
 
-    const updated = entryStore.updateNote(note.id, parsed.data);
+    const updated = await entryStore.updateNote(note.id, parsed.data);
     if (!updated) {
       throw new ApiError(404, "Note not found");
     }
@@ -154,9 +154,9 @@ notesRouter.patch("/:noteId", async (req, res, next) => {
 
 notesRouter.delete("/:noteId", async (req, res, next) => {
   try {
-    const owner = readOwnerScope(req);
-    const note = getNoteForOwner(parseNoteId(req.params), owner);
-    entryStore.deleteNote(note.id);
+    const owner = await readOwnerScope(req);
+    const note = await getNoteForOwner(parseNoteId(req.params), owner);
+    await entryStore.deleteNote(note.id);
 
     res.status(204).send();
   } catch (error) {

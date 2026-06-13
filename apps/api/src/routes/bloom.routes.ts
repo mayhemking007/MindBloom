@@ -7,11 +7,11 @@ import {
   buildBloomContext,
   getFallbackBloomInsights,
   parseBloomInsights,
-} from "../lib/bloom.js";
-import { getAgentForSession } from "../lib/agent.js";
-import { normalizeGraphSnapshot } from "../lib/graphNormalizer.js";
-import { openai } from "../lib/openai.js";
-import { bloomSystemPrompt, buildBloomUserPrompt } from "../lib/prompts.js";
+} from "../memory/bloom.js";
+import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
+import { openai } from "../memory/openai.js";
+import { bloomSystemPrompt, buildBloomUserPrompt } from "../memory/prompts.js";
 
 const bloomRequestSchema = z.object({
   sessionId: z.string().trim().min(1, "sessionId is required").max(128),

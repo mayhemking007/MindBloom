@@ -9,7 +9,6 @@ apps/web/.env
 apps/web/dist
 apps/api/dist
 packages/shared/dist
-apps/api/.mindbloom-data
 .DS_Store
 *.log
 *.tsbuildinfo

@@ -2,8 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { ApiError } from "../http/errors.js";
-import { getAgentForSession } from "../lib/agent.js";
-import { normalizeRecallResult } from "../lib/graphNormalizer.js";
+import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { normalizeRecallResult } from "../memory/graphNormalizer.js";
 
 const recallQuerySchema = z.object({
   sessionId: z.string().trim().min(1, "sessionId is required").max(128),

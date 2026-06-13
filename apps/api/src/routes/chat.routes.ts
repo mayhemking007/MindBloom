@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ChatResponse, TopicPill } from "@mindbloom/shared";
 
 import { ApiError } from "../http/errors.js";
-import { getAgentForSession } from "../lib/agent.js";
+import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
 
 const chatRequestSchema = z.object({
   sessionId: z.string().trim().min(1, "sessionId is required").max(128),

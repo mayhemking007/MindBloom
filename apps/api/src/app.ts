@@ -6,18 +6,18 @@ import {
 } from "@mindbloom/shared";
 
 import { env } from "./config/env.js";
-import { errorHandler, notFoundHandler } from "./http/errors.js";
-import { getDateStamp, getTodaySessionId } from "./lib/sessionStore.js";
-import { bloomRouter } from "./routes/bloom.js";
-import { authRouter } from "./routes/auth.js";
-import { chatRouter } from "./routes/chat.js";
-import { entriesRouter } from "./routes/entries.js";
-import { notesRouter } from "./routes/notes.js";
-import { recallRouter } from "./routes/recall.js";
-import { reflectRouter } from "./routes/reflect.js";
-import { shareRouter } from "./routes/share.js";
-import { snapshotRouter } from "./routes/snapshot.js";
-import { settingsRouter } from "./routes/settings.js";
+import { errorHandler, notFoundHandler } from "./http/middleware/errorHandler.js";
+import { getDateStamp, getTodaySessionId } from "./services/session.service.js";
+import { bloomRouter } from "./routes/bloom.routes.js";
+import { authRouter } from "./routes/auth.routes.js";
+import { chatRouter } from "./routes/chat.routes.js";
+import { entriesRouter } from "./routes/entries.routes.js";
+import { notesRouter } from "./routes/notes.routes.js";
+import { recallRouter } from "./routes/recall.routes.js";
+import { reflectRouter } from "./routes/reflect.routes.js";
+import { shareRouter } from "./routes/share.routes.js";
+import { snapshotRouter } from "./routes/snapshot.routes.js";
+import { settingsRouter } from "./routes/settings.routes.js";
 
 export function createApp() {
   const app = express();

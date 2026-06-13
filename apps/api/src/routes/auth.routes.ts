@@ -5,7 +5,7 @@ import type { AuthMeResponse, AuthResponse } from "@mindbloom/shared";
 import { env } from "../config/env.js";
 import { readCookie } from "../http/cookies.js";
 import { ApiError } from "../http/errors.js";
-import { authStore, sessionCookieName } from "../lib/authStore.js";
+import { authStore, sessionCookieName } from "../services/auth.service.js";
 
 const registerSchema = z.object({
   email: z.string().trim().email().max(240),
@@ -56,12 +56,12 @@ authRouter.post("/register", async (req, res, next) => {
 
     let user;
     try {
-      user = authStore.createUser(parsed.data);
+      user = await authStore.createUser(parsed.data);
     } catch {
       throw new ApiError(409, "A user with this email already exists");
     }
 
-    const session = authStore.createSession(user.id);
+    const session = await authStore.createSession(user.id);
     const response: AuthResponse = { user: session.user };
     res.setHeader("Set-Cookie", sessionCookie(session.token, session.expiresAt));
     res.status(201).json(response);
@@ -80,12 +80,15 @@ authRouter.post("/login", async (req, res, next) => {
       );
     }
 
-    const user = authStore.authenticate(parsed.data.email, parsed.data.password);
+    const user = await authStore.authenticate(
+      parsed.data.email,
+      parsed.data.password,
+    );
     if (!user) {
       throw new ApiError(401, "Invalid email or password");
     }
 
-    const session = authStore.createSession(user.id);
+    const session = await authStore.createSession(user.id);
     const response: AuthResponse = { user: session.user };
     res.setHeader("Set-Cookie", sessionCookie(session.token, session.expiresAt));
     res.json(response);
@@ -96,7 +99,7 @@ authRouter.post("/login", async (req, res, next) => {
 
 authRouter.post("/logout", async (req, res, next) => {
   try {
-    authStore.revokeToken(readCookie(req.get("cookie"), sessionCookieName));
+    await authStore.revokeToken(readCookie(req.get("cookie"), sessionCookieName));
     res.setHeader("Set-Cookie", clearSessionCookie());
     res.status(204).send();
   } catch (error) {
@@ -106,7 +109,7 @@ authRouter.post("/logout", async (req, res, next) => {
 
 authRouter.get("/me", async (req, res, next) => {
   try {
-    const user = authStore.getUserForToken(
+    const user = await authStore.getUserForToken(
       readCookie(req.get("cookie"), sessionCookieName),
     );
     const response: AuthMeResponse = {

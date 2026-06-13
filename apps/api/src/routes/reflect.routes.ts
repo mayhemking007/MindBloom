@@ -7,18 +7,18 @@ import {
 } from "@mindbloom/shared";
 
 import { ApiError } from "../http/errors.js";
-import { getAgentForSession } from "../lib/agent.js";
-import { normalizeGraphSnapshot } from "../lib/graphNormalizer.js";
-import { openai } from "../lib/openai.js";
+import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
+import { openai } from "../memory/openai.js";
 import {
   buildReflectionUserPrompt,
   reflectionSystemPrompt,
-} from "../lib/prompts.js";
+} from "../memory/prompts.js";
 import {
   buildReflectionContext,
   getFallbackReflectionInsights,
   parseReflectionInsights,
-} from "../lib/reflection.js";
+} from "../memory/reflection.js";
 
 const dailySessionIdSchema = z
   .string()
