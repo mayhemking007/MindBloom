@@ -25,14 +25,12 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   EntryDayGroup,
-  EntryGraft,
   EntryMessage,
   EntryReflection,
   GraphSnapshotResponse,
   JournalEntry,
   ReflectionCard,
   ReflectionShareLink,
-  TopicPill,
 } from "@mindbloom/shared";
 
 import { MindMap } from "../graph/MindMap";
@@ -44,12 +42,10 @@ import {
   deleteEntry,
   getEntryDocument,
   getEntrySnapshot,
-  graftEntryByRelevance,
   ingestEntryDocument,
   listEntries,
   listEntryReflections,
   listEntryMessages,
-  listEntryGrafts,
   listReflectionShareLinks,
   revokeReflectionShareLink,
   saveEntryDocument,
@@ -123,18 +119,6 @@ interface NoteSourceSelection {
   start: number | null;
   end: number | null;
   excerpt: string | null;
-}
-
-function topicPillsFromSnapshot(snapshot: GraphSnapshotResponse): TopicPill[] {
-  const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : [];
-  return [...nodes]
-    .sort((a, b) => a.topicOrder - b.topicOrder)
-    .slice(0, 8)
-    .map((node) => ({
-      id: node.id,
-      label: node.label,
-      topicOrder: node.topicOrder,
-    }));
 }
 
 interface EntrySidebarProps {
@@ -835,11 +819,8 @@ function DeleteEntryPanel({
 interface BloomSidebarProps {
   entry: JournalEntry | null;
   messages: EntryMessage[];
-  grafts: EntryGraft[];
-  topicPills: TopicPill[];
   isOpen: boolean;
   isSending: boolean;
-  isGrafting: boolean;
   streamingContent: string;
   failedMessage: string | null;
   error: string | null;
@@ -847,17 +828,13 @@ interface BloomSidebarProps {
   onSend: (message: string) => void;
   onCancel: () => void;
   onRetry: () => void;
-  onGraft: (query: string) => void;
 }
 
 function BloomSidebar({
   entry,
   messages,
-  grafts,
-  topicPills,
   isOpen,
   isSending,
-  isGrafting,
   streamingContent,
   failedMessage,
   error,
@@ -865,10 +842,8 @@ function BloomSidebar({
   onSend,
   onCancel,
   onRetry,
-  onGraft,
 }: BloomSidebarProps) {
   const [draft, setDraft] = useState("");
-  const [contextQuery, setContextQuery] = useState("");
   const bloomMessages = messages.filter((message) => message.role !== "system");
 
   function submitMessage() {
@@ -878,15 +853,6 @@ function BloomSidebar({
     }
     setDraft("");
     onSend(message);
-  }
-
-  function submitContextQuery() {
-    const query = contextQuery.trim();
-    if (!query || isGrafting || !entry) {
-      return;
-    }
-    setContextQuery("");
-    onGraft(query);
   }
 
   return (
@@ -923,87 +889,6 @@ function BloomSidebar({
 
         {isOpen ? (
           <>
-            <div className="border-b border-bloom-border px-4 py-3">
-              <p className="text-[11px] font-medium uppercase text-bloom-text-tertiary">
-                Current themes
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {topicPills.length > 0 ? (
-                  topicPills.map((pill) => (
-                    <span
-                      key={pill.id}
-                      className="rounded-full border border-teal-border bg-teal-bg px-3 py-1 text-[12px] text-teal-text"
-                    >
-                      {pill.label}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-[12px] leading-5 text-bloom-text-tertiary">
-                    Themes will appear after Bloom has more to work with.
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="border-b border-bloom-border px-4 py-3">
-              <p className="text-[11px] font-medium uppercase text-bloom-text-tertiary">
-                Brought-in context
-              </p>
-              <div className="mt-2 flex gap-2">
-                <label className="sr-only" htmlFor="previous-theme-query">
-                  Bring in a previous theme
-                </label>
-                <input
-                  id="previous-theme-query"
-                  value={contextQuery}
-                  onChange={(event) => setContextQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      submitContextQuery();
-                    }
-                  }}
-                  placeholder="Try setting boundaries..."
-                  className="h-9 min-w-0 flex-1 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 text-[12px] outline-none placeholder:text-bloom-text-tertiary focus:border-bloom-border-mid"
-                />
-                <button
-                  type="button"
-                  onClick={submitContextQuery}
-                  disabled={!contextQuery.trim() || isGrafting || !entry}
-                  className="h-9 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Bring in
-                </button>
-              </div>
-              <p className="mt-2 text-[11px] leading-4 text-bloom-text-tertiary">
-                Bloom is only using this entry unless you bring in previous
-                themes.
-              </p>
-              <div className="mt-3 space-y-2">
-                {grafts.length > 0 ? (
-                  grafts.map((graft) => (
-                    <div
-                      key={graft.id}
-                      className="rounded-bloom-sm border border-blue-border bg-blue-bg px-3 py-2 text-blue-text"
-                    >
-                      <p className="text-[12px] font-semibold">
-                        {graft.themeLabel}
-                      </p>
-                      {graft.sourceEntryTitle ? (
-                        <p className="mt-1 text-[11px] leading-4">
-                          From {graft.sourceEntryTitle}
-                        </p>
-                      ) : null}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-[12px] leading-5 text-bloom-text-tertiary">
-                    No previous themes are connected yet.
-                  </p>
-                )}
-              </div>
-            </div>
-
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {bloomMessages.length === 0 ? (
                 <div className="rounded-bloom-sm border border-dashed border-bloom-border-mid bg-bloom-bg p-4">
@@ -1237,8 +1122,6 @@ export function JournalWorkspace() {
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
   const [documentDraft, setDocumentDraft] = useState("");
   const [messages, setMessages] = useState<EntryMessage[]>([]);
-  const [grafts, setGrafts] = useState<EntryGraft[]>([]);
-  const [topicPills, setTopicPills] = useState<TopicPill[]>([]);
   const [mapSnapshot, setMapSnapshot] = useState<GraphSnapshotResponse | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [isMapLoading, setMapLoading] = useState(false);
@@ -1271,7 +1154,6 @@ export function JournalWorkspace() {
   const [isSavingNote, setSavingNote] = useState(false);
   const [isReflecting, setReflecting] = useState(false);
   const [isSending, setSending] = useState(false);
-  const [isGrafting, setGrafting] = useState(false);
   const [isEditingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
@@ -1476,35 +1358,26 @@ export function JournalWorkspace() {
       draftEntryIdRef.current = null;
       setError(null);
       try {
-        const [
-          documentResponse,
-          messageResponse,
-          graftResponse,
-          snapshotResponse,
-        ] = await Promise.all([
+        const [documentResponse, messageResponse] = await Promise.all([
           getEntryDocument(entry.id),
           listEntryMessages(entry.id),
-          listEntryGrafts(entry.id),
-          getEntrySnapshot(entry.id),
         ]);
         if (!isMounted) {
           return;
         }
         draftDirtyRef.current = false;
         const nextDocument = documentResponse.document?.content ?? "";
-        let nextTopicPills = topicPillsFromSnapshot(snapshotResponse);
-        if (nextTopicPills.length === 0 && nextDocument.trim().length >= 12) {
+        if (nextDocument.trim().length >= 12) {
           try {
-            const ingestResponse = await ingestEntryDocument(entry.id, {
+            await ingestEntryDocument(entry.id, {
               content: nextDocument,
               force: true,
             });
             if (!isMounted) {
               return;
             }
-            nextTopicPills = ingestResponse.topicPills ?? [];
           } catch {
-            nextTopicPills = topicPillsFromSnapshot(snapshotResponse);
+            // Bloom can still chat if theme refresh fails.
           }
         }
 
@@ -1512,8 +1385,6 @@ export function JournalWorkspace() {
         draftEntryIdRef.current = entry.id;
         setDocumentDraft(nextDocument);
         setMessages(messageResponse.messages);
-        setGrafts(graftResponse.grafts ?? []);
-        setTopicPills(nextTopicPills);
         setTitleDraft(entry.title);
         setSaveStatus(null);
       } catch (loadError) {
@@ -1608,11 +1479,10 @@ export function JournalWorkspace() {
       setAutosaving(true);
       saveEntryDocument(entryId, { content: contentToSave })
         .then(() => ingestEntryDocument(entryId, { content: contentToSave }))
-        .then((response) => {
+        .then(() => {
           if (draftEntryIdRef.current !== entryId) {
             return;
           }
-          setTopicPills(response.topicPills ?? []);
           if (latestDraftRef.current === contentToSave) {
             draftDirtyRef.current = false;
           }
@@ -1689,8 +1559,6 @@ export function JournalWorkspace() {
         latestDraftRef.current = "";
         draftEntryIdRef.current = null;
         setMessages([]);
-        setGrafts([]);
-        setTopicPills([]);
       }
       setSaveStatus("Entry deleted.");
       setEntryPendingDelete(null);
@@ -1809,7 +1677,6 @@ export function JournalWorkspace() {
       const response = await ingestEntryDocument(selectedEntry.id, {
         content: contentToSave,
       });
-      setTopicPills(response.topicPills ?? []);
       draftDirtyRef.current = false;
       if (activeView === "map") {
         await loadEntryMap(selectedEntry.id);
@@ -1848,7 +1715,6 @@ export function JournalWorkspace() {
         content: contentToSave,
         force: true,
       });
-      setTopicPills(ingestResponse.topicPills ?? []);
       draftDirtyRef.current = false;
       const reflectionResponse = await createEntryReflection(selectedEntry.id);
       setReflections((current) =>
@@ -1890,10 +1756,9 @@ export function JournalWorkspace() {
     try {
       const contentToSave = latestDraftRef.current;
       await saveEntryDocument(selectedEntry.id, { content: contentToSave });
-      const ingestResponse = await ingestEntryDocument(selectedEntry.id, {
+      await ingestEntryDocument(selectedEntry.id, {
         content: contentToSave,
       });
-      setTopicPills(ingestResponse.topicPills ?? []);
       draftDirtyRef.current = false;
 
       await streamEntryMessage(
@@ -1910,9 +1775,8 @@ export function JournalWorkspace() {
           onToken: (chunk) => {
             setStreamingContent((current) => `${current}${chunk}`);
           },
-          onDone: ({ message, topicPills: nextTopicPills }) => {
+          onDone: ({ message }) => {
             setMessages((current) => [...current, message]);
-            setTopicPills(nextTopicPills ?? []);
             setStreamingContent("");
           },
           onError: (message) => {
@@ -1925,7 +1789,6 @@ export function JournalWorkspace() {
         {
           documentDraft: contentToSave,
           entryTags: selectedEntry.tags ?? [],
-          broughtInContext: grafts.map((graft) => graft.themeLabel),
         },
       );
     } catch (sendError) {
@@ -2038,37 +1901,6 @@ export function JournalWorkspace() {
       );
     } finally {
       setSavingNote(false);
-    }
-  }
-
-  async function handleBringInContext(query: string) {
-    if (!selectedEntry) {
-      return;
-    }
-
-    setGrafting(true);
-    setError(null);
-    try {
-      const response = await graftEntryByRelevance(selectedEntry.id, {
-        query,
-        maxThemes: 4,
-        minSimilarity: 0.6,
-        expansionDepth: 1,
-        expansionStrategy: "graph",
-      });
-      setGrafts((current) => [...response.grafts, ...current]);
-      setTopicPills(response.topicPills ?? []);
-      if (activeView === "map") {
-        await loadEntryMap(selectedEntry.id);
-      }
-    } catch (graftError) {
-      setError(
-        graftError instanceof Error
-          ? graftError.message
-          : "Bloom could not bring in previous context.",
-      );
-    } finally {
-      setGrafting(false);
     }
   }
 
@@ -2509,11 +2341,8 @@ export function JournalWorkspace() {
             <BloomSidebar
               entry={selectedEntry}
               messages={messages}
-              grafts={grafts}
-              topicPills={topicPills}
               isOpen={isBloomOpen}
               isSending={isSending}
-              isGrafting={isGrafting}
               streamingContent={streamingContent}
               failedMessage={failedBloomMessage}
               error={error}
@@ -2521,7 +2350,6 @@ export function JournalWorkspace() {
               onSend={handleBloomMessage}
               onCancel={handleCancelBloomMessage}
               onRetry={handleRetryBloomMessage}
-              onGraft={handleBringInContext}
             />
           </div>
         </div>

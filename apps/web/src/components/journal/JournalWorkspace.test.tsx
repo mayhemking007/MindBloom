@@ -225,7 +225,7 @@ describe("JournalWorkspace", () => {
     await waitFor(() => {
       expect(screen.getByText("You are circling a useful starting point.")).toBeVisible();
     });
-    expect(screen.getByText("Writing momentum")).toBeVisible();
+    expect(screen.queryByText("Writing momentum")).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([url]) =>
         String(url).endsWith("/api/entries/entry-1/messages/stream"),
@@ -320,7 +320,7 @@ describe("JournalWorkspace", () => {
     expect(streamAttempts).toBe(2);
   });
 
-  it("clears current themes after saving an emptied entry", async () => {
+  it("keeps current themes out of the Bloom sidebar after saving", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/api/entries") && init?.method !== "POST") {
@@ -404,7 +404,8 @@ describe("JournalWorkspace", () => {
 
     render(<JournalWorkspace />);
 
-    expect(await screen.findByText("Old writing theme")).toBeVisible();
+    expect(await screen.findByLabelText("Ask Bloom")).toBeVisible();
+    expect(screen.queryByText("Old writing theme")).not.toBeInTheDocument();
     const editor = await screen.findByLabelText("Journal entry");
     await user.clear(editor);
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -415,7 +416,7 @@ describe("JournalWorkspace", () => {
     expect(await screen.findByText(/Add a little more writing/)).toBeVisible();
   });
 
-  it("brings previous themes into the Bloom sidebar", async () => {
+  it("keeps brought-in context controls out of the Bloom sidebar", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/api/entries") && init?.method !== "POST") {
@@ -427,61 +428,19 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-1/messages")) {
         return Promise.resolve(jsonResponse({ messages: [] }));
       }
-      if (url.endsWith("/api/entries/entry-1/grafts/relevance")) {
-        return Promise.resolve(
-          jsonResponse({
-            grafts: [
-              {
-                id: "graft-1",
-                entryId: "entry-1",
-                query: "setting boundaries",
-                sourceEntryId: "entry-old",
-                sourceEntryTitle: "Earlier boundary note",
-                sourceEntryCreatedAt: "2026-06-03T08:00:00.000Z",
-                sourceSessionId: "mindbloom-entry-entry-old",
-                sourceThemeId: "theme-old",
-                themeLabel: "Setting better boundaries",
-                similarity: null,
-                graftedAt: "2026-06-04T08:01:00.000Z",
-              },
-            ],
-            topicPills: [
-              {
-                id: "theme-1",
-                label: "Boundaries",
-                topicOrder: 1,
-              },
-            ],
-            tokenCount: 42,
-          }),
-        );
-      }
-      if (url.endsWith("/api/entries/entry-1/grafts")) {
-        return Promise.resolve(jsonResponse({ grafts: [] }));
-      }
       return Promise.resolve(jsonResponse({}));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const user = userEvent.setup();
 
     render(<JournalWorkspace />);
 
-    const contextInput = await screen.findByLabelText("Bring in a previous theme");
-    await user.type(contextInput, "setting boundaries{Enter}");
-
-    await waitFor(() => {
-      expect(screen.getByText("Setting better boundaries")).toBeVisible();
-    });
-    expect(screen.getByText("From Earlier boundary note")).toBeVisible();
-    expect(screen.getByText("Boundaries")).toBeVisible();
+    expect(await screen.findByLabelText("Ask Bloom")).toBeVisible();
+    expect(screen.queryByText("Brought-in context")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Bring in a previous theme")).not.toBeInTheDocument();
     const graftCall = fetchMock.mock.calls.find(([url]) =>
       String(url).endsWith("/api/entries/entry-1/grafts/relevance"),
     );
-    expect(JSON.parse(String(graftCall?.[1]?.body))).toMatchObject({
-      query: "setting boundaries",
-      maxThemes: 4,
-      minSimilarity: 0.6,
-    });
+    expect(graftCall).toBeUndefined();
   });
 
   it("creates an entry from optional and custom tags", async () => {
@@ -939,7 +898,7 @@ describe("JournalWorkspace", () => {
     ).toBe(true);
   });
 
-  it("reloads persisted writing and themes when switching back to an entry", async () => {
+  it("reloads persisted writing when switching back to an entry", async () => {
     const secondEntry = {
       ...entry,
       id: "entry-2",
@@ -1032,7 +991,7 @@ describe("JournalWorkspace", () => {
         "Persisted morning writing about music and learning.",
       ),
     ).toBeVisible();
-    expect(await screen.findByText("Music and learning")).toBeVisible();
+    expect(screen.queryByText("Music and learning")).not.toBeInTheDocument();
 
     await user.click(screen.getByText("Evening thoughts"));
 
@@ -1041,7 +1000,7 @@ describe("JournalWorkspace", () => {
         "Persisted evening writing about rest and planning.",
       ),
     ).toBeVisible();
-    expect(await screen.findByText("Rest and planning")).toBeVisible();
+    expect(screen.queryByText("Rest and planning")).not.toBeInTheDocument();
 
     await user.click(screen.getByText("Morning thoughts"));
 
@@ -1050,6 +1009,6 @@ describe("JournalWorkspace", () => {
         "Persisted morning writing about music and learning.",
       ),
     ).toBeVisible();
-    expect(await screen.findByText("Music and learning")).toBeVisible();
+    expect(screen.queryByText("Music and learning")).not.toBeInTheDocument();
   });
 });
