@@ -20,6 +20,7 @@ import type {
   EntryResponse,
   GraftByRelevanceRequest,
   GraphSnapshotResponse,
+  MemoryType,
   JournalEntry,
   Note,
   NoteResponse,
@@ -160,6 +161,25 @@ function topicPillsFor(text: string, tags: string[] = []): TopicPill[] {
   }));
 }
 
+const demoMemoryTypes: MemoryType[] = ["insight", "question", "fact"];
+
+function demoMemoryValue(label: string, type: MemoryType): string {
+  switch (type) {
+    case "insight":
+      return `There is energy around ${label}, and it may be asking for attention.`;
+    case "question":
+      return `What would make ${label} feel clearer or lighter today?`;
+    case "fact":
+      return `${label} appeared as a theme in this entry.`;
+    case "task":
+      return `Choose one small next step for ${label}.`;
+    case "reference":
+      return `This entry mentioned ${label} as useful context.`;
+    default:
+      return `${label} appeared as a theme in this entry.`;
+  }
+}
+
 export const demoStore = {
   listEntries(): EntryListResponse {
     const entries = readState().entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -298,11 +318,43 @@ export const demoStore = {
       agentId: null,
       createdAt: entry.createdAt,
     }));
+    const memories = nodes.flatMap((node, nodeIndex) =>
+      demoMemoryTypes.slice(0, nodeIndex === 0 ? 3 : 2).map((memoryType, memoryIndex) => ({
+        id: `${node.id}-memory-${memoryType}`,
+        segmentId: node.segmentId,
+        topicNodeId: node.id,
+        agentId: null,
+        sessionId: node.sessionId,
+        memoryType,
+        sourceType: "document" as const,
+        subject: node.label,
+        predicate: memoryType,
+        value: demoMemoryValue(node.label, memoryType),
+        confidence: Math.max(0.52, 0.92 - nodeIndex * 0.08 - memoryIndex * 0.12),
+        tags: [],
+        sourceUrl: null,
+        sourceTitle: entry.title,
+        supersededBy: null,
+        decayed: false,
+        hasConflict: false,
+        agentColor: null,
+        fleetId: null,
+        createdAt: entry.createdAt,
+      })),
+    );
+    const edges = nodes.slice(1).map((node, index) => ({
+      sourceId: nodes[index]?.id ?? node.id,
+      targetId: node.id,
+      type: index % 3 === 1 ? "semantic" : index % 3 === 2 ? "reentry" : "temporal",
+      connectionLabel: index % 3 === 2 ? "Returning thought" : "Related thought",
+      helperText: "Demo connection between nearby themes.",
+      weight: 0.7,
+    }));
     return {
       sessionId: entry.memoSessionId,
       nodes,
-      edges: [],
-      memories: [],
+      edges,
+      memories,
       memoryEdges: [],
       capturedAt: nowIso(),
     };

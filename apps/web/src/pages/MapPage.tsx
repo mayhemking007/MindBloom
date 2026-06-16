@@ -2,7 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphSnapshotResponse, JournalEntry } from "@mindbloom/shared";
 
-import { MindMap } from "../components/graph/MindMap";
+import { MapViews } from "../components/map/MapViews";
 import { getEntrySnapshot, listEntries } from "../lib/api";
 
 const mapScopes = [
@@ -221,10 +221,9 @@ export function MapPage() {
       ) : null}
 
       {!isLoading && !error && snapshot ? (
-        <MindMap
+        <MapViews
           key={`${selectedEntryId ?? "none"}-${scope}-${snapshot.capturedAt}`}
-          nodes={snapshot.nodes}
-          edges={snapshot.edges}
+          snapshot={snapshot}
         />
       ) : null}
     </main>

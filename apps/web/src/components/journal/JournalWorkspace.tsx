@@ -33,7 +33,7 @@ import type {
   ReflectionShareLink,
 } from "@mindbloom/shared";
 
-import { MindMap } from "../graph/MindMap";
+import { MapViews } from "../map/MapViews";
 import {
   createEntry,
   createEntryReflection,
@@ -2192,10 +2192,9 @@ export function JournalWorkspace() {
                   </section>
                 ) : null}
                 {!isMapLoading && !mapError && mapSnapshot ? (
-                  <MindMap
+                  <MapViews
                     key={`${selectedEntry?.id ?? "none"}-${mapSnapshot.capturedAt}`}
-                    nodes={mapSnapshot.nodes}
-                    edges={mapSnapshot.edges}
+                    snapshot={mapSnapshot}
                   />
                 ) : null}
               </div>
@@ -2278,10 +2277,7 @@ export function JournalWorkspace() {
                           </h3>
                           {isMapCard && latestReflection.graphSnapshot ? (
                             <div className="mt-3 overflow-hidden rounded-bloom-sm">
-                              <MindMap
-                                nodes={latestReflection.graphSnapshot.nodes}
-                                edges={latestReflection.graphSnapshot.edges}
-                              />
+                              <MapViews snapshot={latestReflection.graphSnapshot} compact />
                             </div>
                           ) : takeaways.length > 0 ? (
                             <ul className="mt-3 space-y-2 text-[13px] leading-5">

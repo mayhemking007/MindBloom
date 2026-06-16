@@ -12,6 +12,7 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
+import { ThemeToggle } from "../theme/ThemeToggle";
 
 const navItems = [
   { to: "/", label: "Today", icon: PencilLine },
@@ -59,7 +60,7 @@ export function BottomNav() {
         <p className="font-serif text-[22px] text-bloom-text-primary">MindBloom</p>
       </div>
 
-      <div className="grid h-full grid-cols-5 items-center gap-1 md:flex md:h-auto md:flex-1 md:items-center md:justify-center md:gap-1">
+      <div className="grid h-full grid-cols-6 items-center gap-1 md:flex md:h-auto md:flex-1 md:items-center md:justify-center md:gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
 
@@ -109,9 +110,13 @@ export function BottomNav() {
             <span>Login</span>
           </NavLink>
         )}
+        <div className="md:hidden">
+          <ThemeToggle mobile />
+        </div>
       </div>
 
       <div className="hidden min-w-0 items-center justify-end gap-3 md:flex">
+        <ThemeToggle />
         {isLoading ? (
           <p className="text-[12px] text-bloom-text-secondary">Checking...</p>
         ) : user ? (

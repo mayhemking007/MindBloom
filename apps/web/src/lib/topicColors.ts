@@ -133,3 +133,16 @@ export const colorClasses: Record<
     fill: "fill-gray-border",
   },
 };
+
+export const constellationRamps: Record<
+  ColorRamp,
+  { bright: string; mid: string; dim: string }
+> = {
+  coral: { bright: "#d85a30", mid: "#f0997b", dim: "#f5c4b3" },
+  purple: { bright: "#534ab7", mid: "#7f77dd", dim: "#afa9ec" },
+  teal: { bright: "#1d9e75", mid: "#5dcaa5", dim: "#9fe1cb" },
+  amber: { bright: "#ba7517", mid: "#ef9f27", dim: "#fac775" },
+  blue: { bright: "#185fa5", mid: "#378add", dim: "#85b7eb" },
+  pink: { bright: "#993556", mid: "#d4537e", dim: "#ed93b1" },
+  gray: { bright: "#5f5e5a", mid: "#888780", dim: "#b4b2a9" },
+};

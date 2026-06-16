@@ -7,7 +7,7 @@ import type {
   ReflectionShareLink,
 } from "@mindbloom/shared";
 
-import { MindMap } from "../components/graph/MindMap";
+import { MapViews } from "../components/map/MapViews";
 import {
   createEntryReflection,
   createReflectionShareLink,
@@ -81,10 +81,7 @@ function ReflectionCardView({
       <h2 className="mt-1 font-serif text-[22px] leading-tight">{card.title}</h2>
       {isMapCard && reflection.graphSnapshot ? (
         <div className="mt-4 overflow-hidden rounded-bloom-sm">
-          <MindMap
-            nodes={reflection.graphSnapshot.nodes}
-            edges={reflection.graphSnapshot.edges}
-          />
+          <MapViews snapshot={reflection.graphSnapshot} compact />
         </div>
       ) : (
         cardBody(card)

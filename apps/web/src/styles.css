@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --bloom-bg: #fafaf8;
   --bloom-surface: #ffffff;
   --bloom-border: rgba(0, 0, 0, 0.08);
@@ -32,6 +33,41 @@
   --bloom-accent: #534ab7;
   --bloom-accent-bg: #eeedfe;
   --bloom-accent-text: #3c3489;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bloom-bg: #171715;
+  --bloom-surface: #22221f;
+  --bloom-border: rgba(255, 255, 255, 0.12);
+  --bloom-border-mid: rgba(255, 255, 255, 0.22);
+  --bloom-text-primary: #f3f0e8;
+  --bloom-text-secondary: #c3bfb5;
+  --bloom-text-tertiary: #918d84;
+  --coral-bg: #3a2119;
+  --coral-border: #d86f49;
+  --coral-text: #ffb59a;
+  --purple-bg: #262342;
+  --purple-border: #7f77dd;
+  --purple-text: #d5d1ff;
+  --teal-bg: #17352d;
+  --teal-border: #43b891;
+  --teal-text: #a9ead4;
+  --amber-bg: #382713;
+  --amber-border: #ef9f27;
+  --amber-text: #ffd28a;
+  --blue-bg: #17283a;
+  --blue-border: #5b9de2;
+  --blue-text: #b7d8fb;
+  --pink-bg: #381c28;
+  --pink-border: #d4537e;
+  --pink-text: #f6bdd0;
+  --gray-bg: #2b2a26;
+  --gray-border: #747168;
+  --gray-text: #ded9cf;
+  --bloom-accent: #afa9ec;
+  --bloom-accent-bg: #262342;
+  --bloom-accent-text: #e7e4ff;
 }
 
 @theme inline {
