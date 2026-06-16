@@ -10,18 +10,18 @@ function driftToHeight(score: number): number {
 
 function heightColor(height: number): string {
   if (height < 30) {
-    return "bg-purple-bg";
+    return "var(--map-terrain-low)";
   }
   if (height < 50) {
-    return "bg-purple-border/60";
+    return "color-mix(in srgb, var(--map-terrain-low) 45%, var(--map-terrain-mid))";
   }
   if (height < 68) {
-    return "bg-purple-border";
+    return "var(--map-terrain-mid)";
   }
   if (height < 82) {
-    return "bg-bloom-accent/75";
+    return "color-mix(in srgb, var(--map-terrain-mid) 45%, var(--map-terrain-high))";
   }
-  return "bg-bloom-accent";
+  return "var(--map-terrain-high)";
 }
 
 export function DriftTerrain({ nodes }: DriftTerrainProps) {
@@ -35,23 +35,29 @@ export function DriftTerrain({ nodes }: DriftTerrainProps) {
   }));
 
   return (
-    <div className="mt-6 border-t border-bloom-border pt-4">
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.08em] text-bloom-text-tertiary">
+    <div className="mt-6 border-t pt-4" style={{ borderColor: "var(--map-border)" }}>
+      <p
+        className="mb-3 text-[10px] font-medium uppercase tracking-[0.08em]"
+        style={{ color: "var(--map-faint)" }}
+      >
         Topic shift intensity
       </p>
       <div className="flex h-14 items-end gap-1 pb-4">
         {segments.map((segment, index) => (
           <div
             key={`${index}-${segment.height}`}
-            className={[
-              "relative min-w-2 flex-1 rounded-t-[3px] transition-[height]",
-              heightColor(segment.height),
-            ].join(" ")}
-            style={{ height: `${segment.height}%` }}
+            className="relative min-w-2 flex-1 rounded-t-[3px] transition-[height]"
+            style={{
+              height: `${segment.height}%`,
+              background: heightColor(segment.height),
+            }}
             title={`Drift intensity: ${Math.round((segment.height - 15) / 0.8)}%`}
           >
             {segment.label ? (
-              <span className="absolute bottom-[-16px] left-1/2 -translate-x-1/2 text-[9px] text-bloom-text-tertiary">
+              <span
+                className="absolute bottom-[-16px] left-1/2 -translate-x-1/2 text-[9px]"
+                style={{ color: "var(--map-faint)" }}
+              >
                 {segment.label}
               </span>
             ) : null}

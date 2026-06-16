@@ -40,12 +40,12 @@ function truncateLabel(label: string): string {
 
 function edgeStroke(edge: GraphEdge): string {
   if (edge.type === "reentry") {
-    return "#ef9f27";
+    return "var(--map-reentry)";
   }
   if (edge.type === "grafted") {
-    return "#7f77dd";
+    return "var(--map-grafted)";
   }
-  return "#b4b2a9";
+  return "var(--map-line)";
 }
 
 function edgeDash(edge: GraphEdge): string | undefined {
@@ -96,7 +96,11 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
     <div>
       <div
         ref={wrapRef}
-        className="relative overflow-hidden rounded-bloom border border-bloom-border bg-bloom-bg"
+        className="relative overflow-hidden rounded-bloom border"
+        style={{
+          background: "var(--map-canvas)",
+          borderColor: "var(--map-border)",
+        }}
       >
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -104,7 +108,7 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
           aria-label="Insight constellation map"
           className="block h-auto min-h-[250px] w-full"
         >
-          <rect width={svgWidth} height={svgHeight} fill="var(--bloom-bg)" />
+          <rect width={svgWidth} height={svgHeight} fill="var(--map-canvas)" />
 
           {edges.map((edge, index) => {
             const from = centerMap.get(edge.sourceId);
@@ -122,7 +126,7 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                 stroke={edgeStroke(edge)}
                 strokeWidth={edge.type === "reentry" ? 1.8 : 1.1}
                 strokeDasharray={edgeDash(edge)}
-                opacity={edge.type === "reentry" ? 0.72 : 0.42}
+              opacity={edge.type === "reentry" ? 0.72 : 0.42}
               />
             );
           })}
@@ -195,7 +199,7 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
               y={svgHeight / 2}
               textAnchor="middle"
               fontSize={14}
-              fill="var(--bloom-text-tertiary)"
+              fill="var(--map-faint)"
             >
               Memories will appear here as stars.
             </text>
@@ -204,16 +208,25 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
 
         {tooltip.visible && tooltip.memory ? (
           <div
-            className="pointer-events-none absolute z-10 max-w-[220px] rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 py-2 text-[11px] leading-4 shadow-sm"
-            style={{ left: tooltip.x, top: tooltip.y }}
+            className="pointer-events-none absolute z-10 max-w-[220px] rounded-bloom-sm border px-3 py-2 text-[11px] leading-4 shadow-sm"
+            style={{
+              left: tooltip.x,
+              top: tooltip.y,
+              background: "var(--map-card)",
+              borderColor: "var(--map-card-border)",
+              color: "var(--map-text)",
+            }}
           >
-            <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-bloom-text-tertiary">
+            <p
+              className="text-[10px] font-medium uppercase tracking-[0.06em]"
+              style={{ color: "var(--map-faint)" }}
+            >
               {tooltip.memory.memoryType}
             </p>
-            <p className="mt-1 font-medium text-bloom-text-secondary">
+            <p className="mt-1 font-medium" style={{ color: "var(--map-muted)" }}>
               {tooltip.nodeLabel}
             </p>
-            <p className="mt-1 text-bloom-text-primary">{tooltip.memory.value}</p>
+            <p className="mt-1">{tooltip.memory.value}</p>
           </div>
         ) : null}
       </div>

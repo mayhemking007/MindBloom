@@ -32,15 +32,25 @@ export function MapViews({ snapshot, compact = false }: MapViewsProps) {
 
   if (nodes.length === 0) {
     return (
-      <section className="grid min-h-[360px] place-items-center rounded-bloom border border-bloom-border bg-bloom-surface">
+      <section
+        className="grid min-h-[360px] place-items-center rounded-bloom border"
+        style={{
+          background: "var(--map-surface)",
+          borderColor: "var(--map-border)",
+          color: "var(--map-text)",
+        }}
+      >
         <div className="px-8 text-center">
           <div className="mx-auto mb-4 h-10 w-10 rounded-full border border-blue-border bg-blue-bg p-3">
             <span className="block h-full w-full rounded-full bg-blue-border" />
           </div>
-          <p className="font-serif text-[18px] text-bloom-text-primary">
+          <p className="font-serif text-[18px]" style={{ color: "var(--map-text)" }}>
             Your mind map is still forming
           </p>
-          <p className="mt-2 max-w-[360px] text-[13px] leading-5 text-bloom-text-secondary">
+          <p
+            className="mt-2 max-w-[360px] text-[13px] leading-5"
+            style={{ color: "var(--map-muted)" }}
+          >
             Write and save a little more. Themes and memories will appear here as
             your entry takes shape.
           </p>
@@ -50,11 +60,23 @@ export function MapViews({ snapshot, compact = false }: MapViewsProps) {
   }
 
   return (
-    <section className="rounded-bloom border border-bloom-border bg-bloom-surface">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bloom-border px-3 py-3 md:px-4">
+    <section
+      className="rounded-bloom border"
+      style={{
+        background: "var(--map-surface)",
+        borderColor: "var(--map-border)",
+        color: "var(--map-text)",
+      }}
+    >
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-3 md:px-4"
+        style={{ borderColor: "var(--map-border)" }}
+      >
         <div>
-          <p className="label-text">Map view</p>
-          <p className="mt-1 text-[12px] text-bloom-text-secondary">
+          <p className="label-text" style={{ color: "var(--map-faint)" }}>
+            Map view
+          </p>
+          <p className="mt-1 text-[12px]" style={{ color: "var(--map-muted)" }}>
             {nodes.length} theme{nodes.length === 1 ? "" : "s"} -{" "}
             {snapshot.memories.length} {memoryLabel}
           </p>

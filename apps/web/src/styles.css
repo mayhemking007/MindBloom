@@ -33,6 +33,22 @@
   --bloom-accent: #534ab7;
   --bloom-accent-bg: #eeedfe;
   --bloom-accent-text: #3c3489;
+  --map-surface: #ffffff;
+  --map-canvas: #fbfbf9;
+  --map-card: #ffffff;
+  --map-card-border: rgba(0, 0, 0, 0.1);
+  --map-border: rgba(0, 0, 0, 0.1);
+  --map-line: rgba(0, 0, 0, 0.2);
+  --map-line-muted: rgba(0, 0, 0, 0.12);
+  --map-text: #1c1c1a;
+  --map-muted: #6f6e68;
+  --map-faint: #9b9b96;
+  --map-insight: #534ab7;
+  --map-reentry: #ef9f27;
+  --map-grafted: #7f77dd;
+  --map-terrain-low: #e7e5ff;
+  --map-terrain-mid: #afa9ec;
+  --map-terrain-high: #6f65d6;
 }
 
 :root[data-theme="dark"] {
@@ -68,6 +84,22 @@
   --bloom-accent: #afa9ec;
   --bloom-accent-bg: #262342;
   --bloom-accent-text: #e7e4ff;
+  --map-surface: #1d1d1b;
+  --map-canvas: #232320;
+  --map-card: #2b2b27;
+  --map-card-border: rgba(255, 255, 255, 0.14);
+  --map-border: rgba(255, 255, 255, 0.16);
+  --map-line: rgba(255, 255, 255, 0.36);
+  --map-line-muted: rgba(255, 255, 255, 0.22);
+  --map-text: #f1eee7;
+  --map-muted: #c4bfb5;
+  --map-faint: #918d84;
+  --map-insight: #afa9ec;
+  --map-reentry: #ef9f27;
+  --map-grafted: #afa9ec;
+  --map-terrain-low: #d7f2ea;
+  --map-terrain-mid: #9b94e7;
+  --map-terrain-high: #6f65d6;
 }
 
 @theme inline {
