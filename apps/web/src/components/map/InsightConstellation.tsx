@@ -19,8 +19,8 @@ interface TooltipState {
   nodeLabel: string;
 }
 
-const svgWidth = 640;
-const svgHeight = 360;
+const svgWidth = 760;
+const svgHeight = 430;
 const tooltipWidth = 220;
 
 function starFill(star: StarPoint): string {
@@ -106,7 +106,7 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           role="img"
           aria-label="Insight constellation map"
-          className="block h-auto min-h-[250px] w-full"
+          className="block h-auto min-h-[300px] w-full"
         >
           <rect width={svgWidth} height={svgHeight} fill="var(--map-canvas)" />
 
@@ -124,9 +124,9 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                 x2={to.x}
                 y2={to.y}
                 stroke={edgeStroke(edge)}
-                strokeWidth={edge.type === "reentry" ? 1.8 : 1.1}
+                strokeWidth={edge.type === "reentry" ? 2.2 : 1.2}
                 strokeDasharray={edgeDash(edge)}
-              opacity={edge.type === "reentry" ? 0.72 : 0.42}
+                opacity={edge.type === "reentry" ? 0.78 : 0.45}
               />
             );
           })}
@@ -141,8 +141,8 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                 x2={star.x}
                 y2={star.y}
                 stroke={ramp.mid}
-                strokeWidth={0.8}
-                opacity={0.48}
+                strokeWidth={0.9}
+                opacity={0.5}
               />
             ));
           })}
@@ -154,18 +154,18 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                 <circle
                   cx={group.cx}
                   cy={group.cy}
-                  r={4}
+                  r={6}
                   fill={ramp.bright}
-                  opacity={0.45}
+                  opacity={0.58}
                 />
                 <text
                   x={group.cx}
-                  y={group.cy - 24}
+                  y={group.cy - 30}
                   textAnchor="middle"
-                  fontSize={10}
-                  fontWeight={600}
+                  fontSize={12}
+                  fontWeight={700}
                   fill={ramp.bright}
-                  opacity={0.86}
+                  opacity={0.9}
                   style={{ pointerEvents: "none" }}
                 >
                   {truncateLabel(group.node.label)}

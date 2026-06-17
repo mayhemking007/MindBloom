@@ -31,14 +31,14 @@ export function MapToggle({ active, onChange }: MapToggleProps) {
           type="button"
           onClick={() => onChange(value)}
           aria-pressed={active === value}
-          className="flex h-8 items-center gap-1.5 rounded-bloom-sm px-3 text-[12px] font-medium transition-colors"
+          className="flex h-9 items-center gap-2 rounded-bloom-sm px-3 text-[13px] font-semibold transition-colors md:h-10 md:px-4 md:text-[14px]"
           style={{
             background: active === value ? "var(--map-card)" : "transparent",
             boxShadow: active === value ? "0 0 0 1px var(--map-card-border)" : "none",
             color: active === value ? "var(--map-text)" : "var(--map-faint)",
           }}
         >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          <Icon className="h-4 w-4" aria-hidden="true" />
           {label}
         </button>
       ))}

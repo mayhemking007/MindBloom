@@ -22,7 +22,7 @@ export function MapLegend({ view }: MapLegendProps) {
 
   return (
     <div
-      className="flex flex-wrap gap-x-4 gap-y-2 text-[11px]"
+      className="flex flex-wrap gap-x-5 gap-y-2 text-[12px] font-medium"
       style={{ color: "var(--map-muted)" }}
     >
       {items.map((item) => (

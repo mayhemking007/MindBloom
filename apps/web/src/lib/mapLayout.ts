@@ -54,13 +54,13 @@ export function computeConstellationLayout(
 
   const centerX = width / 2;
   const centerY = height / 2;
-  const ringRadius = Math.min(width, height) * (nodes.length <= 2 ? 0.22 : 0.31);
+  const ringRadius = Math.min(width, height) * (nodes.length <= 2 ? 0.24 : 0.34);
 
   return nodes.map((node, index) => {
     const angle = (index / nodes.length) * Math.PI * 2 - Math.PI / 2;
     const cx = centerX + ringRadius * Math.cos(angle);
     const cy = centerY + ringRadius * Math.sin(angle);
-    const spread = Math.min(36, 14 + node.memories.length * 4);
+    const spread = Math.min(44, 16 + node.memories.length * 4.5);
     const offsets = sunflowerPoints(node.memories.length, spread);
 
     const stars = node.memories.map((memory, memoryIndex) => ({

@@ -25,8 +25,8 @@ export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
 
   return (
     <div>
-      <div className="overflow-x-auto pb-2">
-        <div className="flex min-w-max items-start px-1 py-2">
+      <div className="overflow-x-auto pb-3">
+        <div className="flex min-w-max items-start px-1 py-3">
           {nodes.map((node, index) => {
             const nextNode = nodes[index + 1];
             const edge = nextNode ? edgeBetween(edges, node.id, nextNode.id) : undefined;

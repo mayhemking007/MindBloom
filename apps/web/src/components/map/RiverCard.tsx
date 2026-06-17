@@ -51,44 +51,44 @@ export function RiverCard({ node, isExpanded, onToggle }: RiverCardProps) {
   const uniqueTypes = [...new Set(node.memories.map((memory) => memory.memoryType))].slice(0, 2);
 
   return (
-    <div className="w-44 shrink-0">
+    <div className="w-[190px] shrink-0">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={isExpanded}
-        className="w-full rounded-bloom border p-3 text-left shadow-sm transition-colors"
+        className="min-h-[150px] w-full rounded-bloom border p-4 text-left shadow-sm transition-colors"
         style={{
           background: "var(--map-card)",
           borderColor: isExpanded ? "var(--map-line)" : "var(--map-card-border)",
           color: "var(--map-text)",
         }}
       >
-        <span className={`mb-3 block h-1 rounded-full ${color.dot}`} />
-        <span className="block text-[12px] font-semibold leading-4">
+        <span className={`mb-4 block h-1 rounded-full ${color.dot}`} />
+        <span className="block text-[14px] font-semibold leading-5">
           {node.label}
         </span>
         {node.topMemory ? (
           <span
-            className="mt-2 block text-[11px] leading-4"
+            className="mt-2 block text-[12px] font-medium leading-5"
             style={{ color: "var(--map-muted)" }}
           >
             {previewText(node.topMemory.value)}
           </span>
         ) : (
           <span
-            className="mt-2 block text-[11px] leading-4"
+            className="mt-2 block text-[12px] font-medium leading-5"
             style={{ color: "var(--map-faint)" }}
           >
             {previewText(node.summary)}
           </span>
         )}
         {uniqueTypes.length > 0 ? (
-          <span className="mt-3 flex flex-wrap gap-1">
+          <span className="mt-4 flex flex-wrap gap-1.5">
             {uniqueTypes.map((type) => (
               <span
                 key={type}
                 className={[
-                  "rounded-bloom-sm border px-1.5 py-0.5 text-[10px] font-medium",
+                  "rounded-bloom-sm border px-2 py-0.5 text-[11px] font-semibold",
                   memoryTone[type],
                 ].join(" ")}
               >
@@ -108,7 +108,7 @@ export function RiverCard({ node, isExpanded, onToggle }: RiverCardProps) {
           }}
         >
           {node.memories.length === 0 ? (
-            <p className="text-[11px] leading-4" style={{ color: "var(--map-faint)" }}>
+            <p className="text-[12px] leading-5" style={{ color: "var(--map-faint)" }}>
               No extracted memories yet.
             </p>
           ) : (
@@ -118,7 +118,7 @@ export function RiverCard({ node, isExpanded, onToggle }: RiverCardProps) {
                 return (
                   <section key={type}>
                     <p
-                      className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.06em]"
+                      className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
                       style={{ color: "var(--map-faint)" }}
                     >
                       <Icon className="h-3 w-3" aria-hidden="true" />
@@ -128,7 +128,7 @@ export function RiverCard({ node, isExpanded, onToggle }: RiverCardProps) {
                       {memories.map((memory) => (
                         <p
                           key={memory.id}
-                          className="text-[11px] leading-4"
+                          className="text-[12px] leading-5"
                           style={{ color: "var(--map-muted)" }}
                         >
                           {memory.value}

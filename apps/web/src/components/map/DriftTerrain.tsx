@@ -35,14 +35,14 @@ export function DriftTerrain({ nodes }: DriftTerrainProps) {
   }));
 
   return (
-    <div className="mt-6 border-t pt-4" style={{ borderColor: "var(--map-border)" }}>
+    <div className="mt-7 border-t pt-5" style={{ borderColor: "var(--map-border)" }}>
       <p
-        className="mb-3 text-[10px] font-medium uppercase tracking-[0.08em]"
+        className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em]"
         style={{ color: "var(--map-faint)" }}
       >
         Topic shift intensity
       </p>
-      <div className="flex h-14 items-end gap-1 pb-4">
+      <div className="flex h-16 items-end gap-1 pb-5">
         {segments.map((segment, index) => (
           <div
             key={`${index}-${segment.height}`}
@@ -55,7 +55,7 @@ export function DriftTerrain({ nodes }: DriftTerrainProps) {
           >
             {segment.label ? (
               <span
-                className="absolute bottom-[-16px] left-1/2 -translate-x-1/2 text-[9px]"
+                className="absolute bottom-[-18px] left-1/2 -translate-x-1/2 text-[10px] font-medium"
                 style={{ color: "var(--map-faint)" }}
               >
                 {segment.label}

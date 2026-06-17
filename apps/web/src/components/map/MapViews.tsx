@@ -1,23 +1,29 @@
 import { useMemo, useState } from "react";
 import type { GraphSnapshotResponse } from "@mindbloom/shared";
 
-import { getColorForTopic } from "../../lib/topicColors";
+import { getColorForTopic, type ColorRamp } from "../../lib/topicColors";
 import { InsightConstellation } from "./InsightConstellation";
 import { MapToggle } from "./MapToggle";
 import { ThoughtRiver } from "./ThoughtRiver";
 import type { EnrichedMapNode, MapViewType, MapViewsProps } from "./types";
 
+const fallbackRamps: ColorRamp[] = ["coral", "purple", "teal", "amber", "blue", "pink"];
+
 function enrichSnapshot(snapshot: GraphSnapshotResponse): EnrichedMapNode[] {
   return [...snapshot.nodes]
     .sort((a, b) => a.topicOrder - b.topicOrder)
-    .map((node) => {
+    .map((node, index) => {
       const memories = snapshot.memories
         .filter((memory) => memory.topicNodeId === node.id && !memory.decayed)
         .sort((a, b) => b.confidence - a.confidence);
+      const topicColor = getColorForTopic(node.label);
 
       return {
         ...node,
-        color: getColorForTopic(node.label),
+        color:
+          topicColor === "gray"
+            ? fallbackRamps[index % fallbackRamps.length] ?? "gray"
+            : topicColor,
         memories,
         topMemory: memories[0] ?? null,
         edgesOut: snapshot.edges.filter((edge) => edge.sourceId === node.id),
@@ -61,7 +67,7 @@ export function MapViews({ snapshot, compact = false }: MapViewsProps) {
 
   return (
     <section
-      className="rounded-bloom border"
+      className="overflow-hidden rounded-bloom border"
       style={{
         background: "var(--map-surface)",
         borderColor: "var(--map-border)",
@@ -69,22 +75,33 @@ export function MapViews({ snapshot, compact = false }: MapViewsProps) {
       }}
     >
       <div
-        className="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-3 md:px-4"
+        className="grid gap-3 border-b px-4 py-4 md:grid-cols-[1fr_auto_1fr] md:items-center md:px-6"
         style={{ borderColor: "var(--map-border)" }}
       >
         <div>
-          <p className="label-text" style={{ color: "var(--map-faint)" }}>
-            Map view
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.11em]"
+            style={{ color: "var(--map-faint)" }}
+          >
+            Mind map
           </p>
           <p className="mt-1 text-[12px]" style={{ color: "var(--map-muted)" }}>
-            {nodes.length} theme{nodes.length === 1 ? "" : "s"} -{" "}
+            Today's entry - {nodes.length} theme{nodes.length === 1 ? "" : "s"} -{" "}
             {snapshot.memories.length} {memoryLabel}
           </p>
         </div>
-        <MapToggle active={activeView} onChange={setActiveView} />
+        <div className="md:justify-self-center">
+          <MapToggle active={activeView} onChange={setActiveView} />
+        </div>
+        <p
+          className="hidden justify-self-end text-[11px] uppercase tracking-[0.08em] md:block"
+          style={{ color: "var(--map-faint)" }}
+        >
+          {activeView === "river" ? "Chronological flow" : "Extracted memories"}
+        </p>
       </div>
 
-      <div className={compact ? "p-3" : "p-4 md:p-5"}>
+      <div className={compact ? "p-3" : "p-4 md:p-6"}>
         <div style={{ display: activeView === "river" ? "block" : "none" }}>
           <ThoughtRiver nodes={nodes} edges={snapshot.edges} />
         </div>

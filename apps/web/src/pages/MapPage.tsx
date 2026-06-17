@@ -124,7 +124,7 @@ export function MapPage() {
             selected entry.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
           {entries.length > 0 ? (
             <label className="sr-only" htmlFor="map-entry">
               Entry
@@ -135,7 +135,7 @@ export function MapPage() {
               id="map-entry"
               value={selectedEntryId ?? ""}
               onChange={(event) => setSelectedEntryId(event.target.value)}
-              className="h-9 max-w-[220px] rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] text-bloom-text-secondary outline-none focus:border-bloom-border-mid"
+              className="h-9 max-w-[190px] rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] text-bloom-text-secondary outline-none focus:border-bloom-border-mid md:max-w-[220px]"
             >
               {entries.map((entry) => (
                 <option key={entry.id} value={entry.id}>
@@ -145,7 +145,7 @@ export function MapPage() {
             </select>
           ) : null}
           {entries.length > 0 ? (
-            <div className="flex rounded-bloom-sm border border-bloom-border bg-bloom-surface p-1">
+            <div className="flex max-w-full overflow-x-auto rounded-bloom-sm border border-bloom-border bg-bloom-surface p-1">
               {mapScopes.map((item) => (
                 <button
                   key={item.value}
