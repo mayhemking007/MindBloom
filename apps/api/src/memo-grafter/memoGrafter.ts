@@ -29,8 +29,8 @@ export async function getMemoGrafterForSession(
     systemPrompt: journalingSystemPrompt,
     drift: {
       mode: "intent",
-      driftSensitivity: "medium",
-      minSegmentMessages: 3,
+      driftSensitivity: "low",
+      minSegmentMessages: 5,
       reentryDetection: true,
       reentryThreshold: 0.82,
     },

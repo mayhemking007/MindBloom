@@ -77,6 +77,88 @@ function graphSnapshot() {
   };
 }
 
+function multiThemeGraphSnapshot(sessionId = "mindbloom-entry-entry-1") {
+  const nodes = Array.from({ length: 4 }, (_, index) => {
+    const topicOrder = index + 1;
+    return {
+      id: `theme-${topicOrder}`,
+      sessionId,
+      segmentId: `segment-${topicOrder}`,
+      label: `Theme ${topicOrder}`,
+      summary: `Summary ${topicOrder}`,
+      embedding: [],
+      messageRange: [index, topicOrder] as [number, number],
+      topicOrder,
+      driftScore: topicOrder === 3 ? 0.7 : 0.2,
+      agentColor: null,
+      fleetId: null,
+      agentId: null,
+      createdAt,
+    };
+  });
+
+  return {
+    sessionId,
+    nodes,
+    snapshotNodes: [],
+    edges: [
+      {
+        srcId: "theme-1",
+        dstId: "theme-2",
+        type: "temporal",
+        weight: 1,
+      },
+      {
+        srcId: "theme-2",
+        dstId: "theme-3",
+        type: "semantic",
+        weight: 0.8,
+      },
+    ],
+    memories: nodes.map((node) => ({
+      id: `memory-${node.topicOrder}`,
+      segmentId: node.segmentId,
+      topicNodeId: node.id,
+      agentId: null,
+      sessionId,
+      memoryType: "insight",
+      sourceType: "document",
+      subject: node.label,
+      predicate: "noticed",
+      value: `Memory ${node.topicOrder}`,
+      confidence: 0.8,
+      tags: [],
+      sourceUrl: null,
+      sourceTitle: null,
+      supersededBy: null,
+      decayed: false,
+      hasConflict: false,
+      agentColor: null,
+      fleetId: null,
+      createdAt,
+    })),
+    memoryEdges: [
+      {
+        id: "memory-edge-1",
+        sourceId: "memory-1",
+        targetId: "memory-2",
+        edgeType: "related",
+        weight: 0.6,
+        createdAt,
+      },
+      {
+        id: "memory-edge-2",
+        sourceId: "memory-2",
+        targetId: "memory-3",
+        edgeType: "related",
+        weight: 0.6,
+        createdAt,
+      },
+    ],
+    capturedAt: createdAt.toISOString(),
+  };
+}
+
 describe("entry routes", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -433,6 +515,37 @@ describe("entry routes", () => {
     ]);
   });
 
+  it("limits visible topic pills for short document ingestion", async () => {
+    agent.getActiveNodes.mockResolvedValueOnce([
+      { id: "theme-1", label: "Theme 1", topicOrder: 1 },
+      { id: "theme-2", label: "Theme 2", topicOrder: 2 },
+      { id: "theme-3", label: "Theme 3", topicOrder: 3 },
+      { id: "theme-4", label: "Theme 4", topicOrder: 4 },
+    ]);
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({
+        title: "Short note",
+        purpose: "journal",
+        mode: "classic",
+      })
+      .expect(201);
+
+    const response = await request(app)
+      .post(`/api/entries/${created.body.entry.id}/ingest`)
+      .set(ownerAHeaders)
+      .send({
+        content: "I felt scattered, but the same product idea kept coming back.",
+      })
+      .expect(200);
+
+    expect(response.body.topicPills).toEqual([
+      { id: "theme-1", label: "Theme 1", topicOrder: 1 },
+      { id: "theme-2", label: "Theme 2", topicOrder: 2 },
+    ]);
+  });
+
   it("skips missing, empty, and unchanged document ingestion gracefully", async () => {
     const created = await request(app)
       .post("/api/entries")
@@ -600,6 +713,49 @@ describe("entry routes", () => {
     expect(response.body.nodes.map((node: { id: string }) => node.id)).toEqual([
       "runtime-theme",
     ]);
+  });
+
+  it("limits short entry snapshots to the earliest consolidated themes", async () => {
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({ title: "Short snapshot entry" })
+      .expect(201);
+
+    await request(app)
+      .put(`/api/entries/${created.body.entry.id}/document`)
+      .set(ownerAHeaders)
+      .send({
+        content: "A brief note about pressure, an idea, and returning to it.",
+      })
+      .expect(200);
+
+    agent.getGraphSnapshot.mockResolvedValue(
+      multiThemeGraphSnapshot(created.body.entry.memoSessionId),
+    );
+
+    const response = await request(app)
+      .get(`/api/entries/${created.body.entry.id}/snapshot`)
+      .set(ownerAHeaders)
+      .expect(200);
+
+    expect(response.body.nodes.map((node: { id: string }) => node.id)).toEqual([
+      "theme-1",
+      "theme-2",
+    ]);
+    expect(response.body.edges).toEqual([
+      expect.objectContaining({
+        sourceId: "theme-1",
+        targetId: "theme-2",
+      }),
+    ]);
+    expect(response.body.memories.map((memory: { id: string }) => memory.id)).toEqual([
+      "memory-1",
+      "memory-2",
+    ]);
+    expect(
+      response.body.memoryEdges.map((edge: { id: string }) => edge.id),
+    ).toEqual(["memory-edge-1"]);
   });
 
   it("brings in previous themes by relevance from owned source entries", async () => {
@@ -807,6 +963,58 @@ describe("entry routes", () => {
       .get(`/api/entries/${entryId}/reflections/${response.body.reflection.id}`)
       .set(ownerAHeaders)
       .expect(200);
+  });
+
+  it("stores capped graph snapshots when reflecting on short entries", async () => {
+    const created = await request(app)
+      .post("/api/entries")
+      .set(ownerAHeaders)
+      .send({
+        title: "Short reflection",
+        purpose: "journal",
+        mode: "mixed",
+      })
+      .expect(201);
+    const entryId = created.body.entry.id;
+
+    await request(app)
+      .put(`/api/entries/${entryId}/document`)
+      .set(ownerAHeaders)
+      .send({
+        content: "A compact note about work pressure and a project idea returning.",
+      })
+      .expect(200);
+
+    agent.getActiveNodes.mockResolvedValueOnce([
+      { id: "theme-1", label: "Theme 1", topicOrder: 1 },
+      { id: "theme-2", label: "Theme 2", topicOrder: 2 },
+      { id: "theme-3", label: "Theme 3", topicOrder: 3 },
+    ]);
+    agent.getGraphSnapshot.mockResolvedValueOnce(
+      multiThemeGraphSnapshot(created.body.entry.memoSessionId),
+    );
+
+    const response = await request(app)
+      .post(`/api/entries/${entryId}/reflections`)
+      .set(ownerAHeaders)
+      .send({})
+      .expect(201);
+
+    expect(
+      response.body.reflection.graphSnapshot.nodes.map(
+        (node: { id: string }) => node.id,
+      ),
+    ).toEqual(["theme-1", "theme-2"]);
+    expect(response.body.reflection.cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "mind-map",
+          metadata: expect.objectContaining({
+            themeLabels: ["Theme 1", "Theme 2"],
+          }),
+        }),
+      ]),
+    );
   });
 
   it("protects entry reflections from other owner scopes", async () => {

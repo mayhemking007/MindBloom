@@ -11,6 +11,7 @@ import type {
   EntryReflectionResponse,
   EntryReflectionsResponse,
   EntryResponse,
+  GraphSnapshotResponse,
   TopicPill,
 } from "@mindbloom/shared";
 
@@ -102,6 +103,11 @@ const reflectionIdParamSchema = z.object({
 export const entriesRouter = Router();
 
 const minIngestTextLength = 12;
+const shortEntryTopicCaps = [
+  { maxCharacters: 300, maxTopics: 2 },
+  { maxCharacters: 900, maxTopics: 3 },
+  { maxCharacters: 1800, maxTopics: 5 },
+] as const;
 
 function toTopicPills(
   activeNodes: Array<{ id: string; label: string; topicOrder: number }>,
@@ -111,6 +117,63 @@ function toTopicPills(
     label: node.label,
     topicOrder: node.topicOrder,
   }));
+}
+
+function maxTopicsForText(text: string): number | null {
+  const characterCount = text.trim().length;
+  if (characterCount < minIngestTextLength) {
+    return null;
+  }
+
+  return (
+    shortEntryTopicCaps.find((cap) => characterCount <= cap.maxCharacters)
+      ?.maxTopics ?? null
+  );
+}
+
+function byTopicOrder<T extends { topicOrder: number }>(left: T, right: T): number {
+  return left.topicOrder - right.topicOrder;
+}
+
+function limitTopicPillsForText(
+  topicPills: TopicPill[],
+  text: string,
+): TopicPill[] {
+  const maxTopics = maxTopicsForText(text);
+  if (!maxTopics || topicPills.length <= maxTopics) {
+    return topicPills;
+  }
+
+  return [...topicPills].sort(byTopicOrder).slice(0, maxTopics);
+}
+
+function limitSnapshotForText(
+  snapshot: GraphSnapshotResponse,
+  text: string,
+): GraphSnapshotResponse {
+  const maxTopics = maxTopicsForText(text);
+  if (!maxTopics || snapshot.nodes.length <= maxTopics) {
+    return snapshot;
+  }
+
+  const nodes = [...snapshot.nodes].sort(byTopicOrder).slice(0, maxTopics);
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const memories = snapshot.memories.filter((memory) =>
+    nodeIds.has(memory.topicNodeId),
+  );
+  const memoryIds = new Set(memories.map((memory) => memory.id));
+
+  return {
+    ...snapshot,
+    nodes,
+    edges: snapshot.edges.filter(
+      (edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId),
+    ),
+    memories,
+    memoryEdges: snapshot.memoryEdges.filter(
+      (edge) => memoryIds.has(edge.sourceId) && memoryIds.has(edge.targetId),
+    ),
+  };
 }
 
 function isWithinDateRange(
@@ -400,7 +463,10 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
         document,
         ingested: false,
         skippedReason: "unchanged-document",
-        topicPills: toTopicPills(await agent.getActiveNodes()),
+        topicPills: limitTopicPillsForText(
+          toTopicPills(await agent.getActiveNodes()),
+          document.content,
+        ),
       };
       res.json(response);
       return;
@@ -419,7 +485,10 @@ entriesRouter.post("/:entryId/ingest", async (req, res, next) => {
     const response: EntryIngestResponse = {
       document: ingestedDocument ?? document,
       ingested: true,
-      topicPills: toTopicPills(await agent.getActiveNodes()),
+      topicPills: limitTopicPillsForText(
+        toTopicPills(await agent.getActiveNodes()),
+        document.content,
+      ),
     };
 
     res.json(response);
@@ -453,6 +522,7 @@ entriesRouter.get("/:entryId/snapshot", async (req, res, next) => {
       throw new ApiError(400, "Invalid snapshot scope");
     }
     const agent = await getAgentForSession(entry.memoSessionId);
+    const document = await entryStore.getDocument(entry.id);
     const snapshot = await agent.getGraphSnapshot();
     const normalizedSnapshot = normalizeGraphSnapshot(snapshot);
     const currentSessionIds = new Set([
@@ -504,9 +574,13 @@ entriesRouter.get("/:entryId/snapshot", async (req, res, next) => {
           entryMemoryIds.has(edge.sourceId) && entryMemoryIds.has(edge.targetId),
       ),
     };
+    const cappedEntrySnapshot = limitSnapshotForText(
+      entrySnapshot,
+      document?.content ?? "",
+    );
 
     if (parsedScope.data === "overall") {
-      res.json(entrySnapshot);
+      res.json(cappedEntrySnapshot);
       return;
     }
 
@@ -514,21 +588,21 @@ entriesRouter.get("/:entryId/snapshot", async (req, res, next) => {
       parsedScope.data === "writing"
         ? new Set(["document", "note"])
         : new Set(["conversation"]);
-    const memories = entrySnapshot.memories.filter((memory) =>
+    const memories = cappedEntrySnapshot.memories.filter((memory) =>
       allowedSources.has(memory.sourceType),
     );
     const nodeIds = new Set(memories.map((memory) => memory.topicNodeId));
-    const nodes = entrySnapshot.nodes.filter((node) => nodeIds.has(node.id));
-    const edges = entrySnapshot.edges.filter(
+    const nodes = cappedEntrySnapshot.nodes.filter((node) => nodeIds.has(node.id));
+    const edges = cappedEntrySnapshot.edges.filter(
       (edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId),
     );
     const memoryIds = new Set(memories.map((memory) => memory.id));
-    const memoryEdges = entrySnapshot.memoryEdges.filter(
+    const memoryEdges = cappedEntrySnapshot.memoryEdges.filter(
       (edge) => memoryIds.has(edge.sourceId) && memoryIds.has(edge.targetId),
     );
 
     res.json({
-      ...entrySnapshot,
+      ...cappedEntrySnapshot,
       nodes,
       edges,
       memories,
@@ -632,17 +706,22 @@ entriesRouter.post("/:entryId/reflections", async (req, res, next) => {
     const entryId = parseEntryId(req.params);
     const entry = await getEntryForOwner(entryId, owner);
     const agent = await getAgentForSession(entry.memoSessionId);
-    const [snapshot, activeNodes] = await Promise.all([
+    const [snapshot, activeNodes, document] = await Promise.all([
       agent.getGraphSnapshot(),
       agent.getActiveNodes(),
+      entryStore.getDocument(entry.id),
     ]);
-    const graphSnapshot = normalizeGraphSnapshot(snapshot);
+    const documentText = document?.content ?? "";
+    const graphSnapshot = limitSnapshotForText(
+      normalizeGraphSnapshot(snapshot),
+      documentText,
+    );
     const cards = await buildEntryReflectionCards({
       entry,
-      documentText: (await entryStore.getDocument(entry.id))?.content ?? "",
+      documentText,
       messages: await entryStore.listMessages(entry.id),
       notes: await entryStore.listNotesForEntry(entry.id, owner),
-      topicPills: toTopicPills(activeNodes),
+      topicPills: limitTopicPillsForText(toTopicPills(activeNodes), documentText),
       graphSnapshot,
     });
     const reflection = await entryStore.createReflection({
