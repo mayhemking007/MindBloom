@@ -109,7 +109,7 @@ describe("MapViews", () => {
     expect(screen.getByText("Your mind map is still forming")).toBeVisible();
   });
 
-  it("renders river cards and expands grouped memories", () => {
+  it("renders river cards and shows grouped memories in the detail panel", () => {
     render(<MapViews snapshot={snapshot} />);
 
     expect(screen.getByText("Thought River")).toBeVisible();
@@ -117,11 +117,24 @@ describe("MapViews", () => {
     fireEvent.click(screen.getByRole("button", { name: /Work pressure/i }));
 
     expect(screen.getByText("Insights")).toBeVisible();
+    expect(screen.getByLabelText("Work pressure thought details")).toBeVisible();
     expect(
       screen.getAllByText("Work pressure is connected to wanting more breathing room.")
         .length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText(/topicNodeId|sourceId|targetId/i)).not.toBeInTheDocument();
+  });
+
+  it("draws the thought river with curved paths", () => {
+    const { container } = render(<MapViews snapshot={snapshot} />);
+
+    const paths = [...container.querySelectorAll("[data-river-path]")];
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.every((path) => path.getAttribute("d")?.includes(" C "))).toBe(true);
+    expect(container.querySelector(".overflow-x-auto")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Rest/i }));
+    expect(container.querySelector(".river-flow-highlight")).toBeInTheDocument();
   });
 
   it("switches to the constellation without refetching", () => {

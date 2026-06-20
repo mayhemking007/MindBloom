@@ -102,6 +102,23 @@
   --map-terrain-high: #6f65d6;
 }
 
+@keyframes river-flow {
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+
+.river-flow-highlight {
+  stroke-dasharray: 0.08 0.18;
+  animation: river-flow 3.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .river-flow-highlight {
+    animation: none;
+  }
+}
+
 @theme inline {
   --color-bloom-bg: var(--bloom-bg);
   --color-bloom-surface: var(--bloom-surface);
