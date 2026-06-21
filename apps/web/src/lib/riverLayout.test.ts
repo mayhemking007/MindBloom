@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GraphEdge } from "@mindbloom/shared";
 
 import type { EnrichedMapNode } from "../components/map/types";
-import { buildRiverLayout } from "./riverLayout";
+import { buildRiverLayout, directConnectionSelection } from "./riverLayout";
 
 function node(id: string, topicOrder: number): EnrichedMapNode {
   return {
@@ -33,6 +33,7 @@ describe("buildRiverLayout", () => {
     expect(new Set(layout.nodes.map((item) => item.row)).size).toBeGreaterThan(1);
     expect(layout.paths).toHaveLength(4);
     expect(layout.paths.every((path) => path.d.includes(" C "))).toBe(true);
+    expect(layout.nodes.every((item) => item.width <= 150 && item.height === 88)).toBe(true);
   });
 
   it("adds a separate returning branch to an earlier thought", () => {
@@ -49,5 +50,14 @@ describe("buildRiverLayout", () => {
 
     expect(layout.paths.some((path) => path.kind === "return")).toBe(true);
     expect(layout.parentByNodeId.get("topic-4")).toBe("topic-1");
+
+    const selection = directConnectionSelection("topic-1", layout.paths);
+    expect(selection.nodeIds).toEqual(new Set(["topic-1", "topic-2", "topic-4"]));
+    expect(selection.pathIds.size).toBe(2);
+    expect(
+      layout.paths
+        .filter((path) => selection.pathIds.has(path.id))
+        .every((path) => path.fromId === "topic-1" || path.toId === "topic-1"),
+    ).toBe(true);
   });
 });

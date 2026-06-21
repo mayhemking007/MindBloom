@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdge } from "@mindbloom/shared";
 
-import { buildRiverLayout, selectedJourney } from "../../lib/riverLayout";
+import { buildRiverLayout, directConnectionSelection } from "../../lib/riverLayout";
 import { constellationRamps } from "../../lib/topicColors";
 import { RiverCard } from "./RiverCard";
 import { RiverDetailPanel } from "./RiverDetailPanel";
+import { RiverMemoryDots } from "./RiverMemoryDots";
 import type { EnrichedMapNode } from "./types";
+
+type RiverSelection =
+  | { kind: "topic"; topicId: string }
+  | { kind: "memory"; topicId: string; memoryId: string }
+  | null;
 
 interface ThoughtRiverProps {
   nodes: EnrichedMapNode[];
@@ -29,17 +35,22 @@ function gradientId(pathId: string): string {
 export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasWidth, setCanvasWidth] = useState(760);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<RiverSelection>(null);
+  const selectedTopicId = selection?.topicId ?? null;
   const layout = useMemo(
     () => buildRiverLayout(nodes, edges, canvasWidth),
     [canvasWidth, edges, nodes],
   );
-  const journey = useMemo(
-    () => selectedJourney(selectedId, layout.parentByNodeId),
-    [layout.parentByNodeId, selectedId],
+  const directSelection = useMemo(
+    () => directConnectionSelection(selectedTopicId, layout.paths),
+    [layout.paths, selectedTopicId],
   );
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const selectedNode = selectedId ? nodeById.get(selectedId) ?? null : null;
+  const selectedNode = selectedTopicId ? nodeById.get(selectedTopicId) ?? null : null;
+  const selectedMemory =
+    selection?.kind === "memory"
+      ? selectedNode?.memories.find((memory) => memory.id === selection.memoryId) ?? null
+      : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -102,10 +113,9 @@ export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
           </defs>
           {layout.paths.map((path) => {
             const isActive =
-              selectedId !== null &&
-              path.parentRelation &&
-              journey.relationKeys.has(`${path.fromId}:${path.toId}`);
-            const isDimmed = selectedId !== null && !isActive;
+              selectedTopicId !== null &&
+              directSelection.pathIds.has(path.id);
+            const isDimmed = selectedTopicId !== null && !isActive;
             const stroke =
               specialPathColor(path.kind) ?? `url(#${gradientId(path.id)})`;
 
@@ -139,8 +149,9 @@ export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
         </svg>
 
         {layout.nodes.map((item) => {
-          const isSelected = selectedId === item.node.id;
-          const isDimmed = selectedId !== null && !journey.nodeIds.has(item.node.id);
+          const isSelected = selectedTopicId === item.node.id;
+          const isDimmed =
+            selectedTopicId !== null && !directSelection.nodeIds.has(item.node.id);
           return (
             <div
               key={item.node.id}
@@ -152,11 +163,29 @@ export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
                 height: item.height,
               }}
             >
+              <RiverMemoryDots
+                memories={item.node.memories}
+                color={item.node.color}
+                cardWidth={item.width}
+                cardHeight={item.height}
+                selectedMemoryId={
+                  selection?.kind === "memory" ? selection.memoryId : null
+                }
+                onSelectMemory={(memory) =>
+                  setSelection({
+                    kind: "memory",
+                    topicId: item.node.id,
+                    memoryId: memory.id,
+                  })
+                }
+              />
               <RiverCard
                 node={item.node}
                 isSelected={isSelected}
                 isDimmed={isDimmed}
-                onSelect={() => setSelectedId(item.node.id)}
+                onSelect={() =>
+                  setSelection({ kind: "topic", topicId: item.node.id })
+                }
               />
             </div>
           );
@@ -164,7 +193,11 @@ export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
       </div>
 
       {selectedNode ? (
-        <RiverDetailPanel node={selectedNode} onClose={() => setSelectedId(null)} />
+        <RiverDetailPanel
+          node={selectedNode}
+          memory={selectedMemory}
+          onClose={() => setSelection(null)}
+        />
       ) : null}
     </div>
   );

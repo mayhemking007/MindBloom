@@ -2,11 +2,11 @@ import type { GraphEdge } from "@mindbloom/shared";
 
 import type { EnrichedMapNode } from "../components/map/types";
 
-export const RIVER_CARD_HEIGHT = 146;
+export const RIVER_CARD_HEIGHT = 88;
 
-const DESKTOP_CARD_WIDTH = 188;
-const MIN_CARD_WIDTH = 164;
-const MAX_COLUMNS = 4;
+const DESKTOP_CARD_WIDTH = 150;
+const MIN_CARD_WIDTH = 128;
+const MAX_COLUMNS = 5;
 
 export interface RiverLayoutNode {
   node: EnrichedMapNode;
@@ -109,7 +109,7 @@ function primaryPath(source: RiverLayoutNode, target: RiverLayoutNode, bend: num
   const startY = source.y + source.height;
   const endY = target.y;
   const turnDirection = source.column === 0 ? -1 : 1;
-  const turnDepth = 58 * turnDirection;
+  const turnDepth = 46 * turnDirection;
 
   return `M ${startX} ${startY} C ${startX + turnDepth} ${startY + 30}, ${endX + turnDepth} ${endY - 30}, ${endX} ${endY}`;
 }
@@ -149,7 +149,7 @@ export function buildRiverLayout(
   const horizontalPadding = width < 520 ? 14 : 24;
   const topPadding = width < 520 ? 64 : 84;
   const bottomPadding = 24;
-  const horizontalGap = width < 720 ? 34 : 66;
+  const horizontalGap = width < 720 ? 30 : 44;
   const availableWidth = width - horizontalPadding * 2;
   const cardWidth = Math.min(
     DESKTOP_CARD_WIDTH,
@@ -165,7 +165,7 @@ export function buildRiverLayout(
   const actualGap =
     columns > 1 ? (availableWidth - cardWidth * columns) / (columns - 1) : 0;
   const singleColumnOffset = columns === 1 ? (availableWidth - cardWidth) / 2 : 0;
-  const rowGap = width < 520 ? 74 : 92;
+  const rowGap = width < 520 ? 60 : 72;
 
   const layoutNodes = nodes.map((node, index): RiverLayoutNode => {
     const row = Math.floor(index / columns);
@@ -248,41 +248,24 @@ export function buildRiverLayout(
   };
 }
 
-export function selectedJourney(
+export function directConnectionSelection(
   selectedId: string | null,
-  parentByNodeId: Map<string, string>,
-): { nodeIds: Set<string>; relationKeys: Set<string> } {
+  paths: RiverPath[],
+): { nodeIds: Set<string>; pathIds: Set<string> } {
   const nodeIds = new Set<string>();
-  const relationKeys = new Set<string>();
+  const pathIds = new Set<string>();
   if (!selectedId) {
-    return { nodeIds, relationKeys };
+    return { nodeIds, pathIds };
   }
 
-  const childrenByParent = new Map<string, string[]>();
-  for (const [childId, parentId] of parentByNodeId) {
-    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), childId]);
-  }
-
-  let currentId: string | undefined = selectedId;
-  while (currentId && !nodeIds.has(currentId)) {
-    nodeIds.add(currentId);
-    const parentId: string | undefined = parentByNodeId.get(currentId);
-    if (parentId) {
-      relationKeys.add(`${parentId}:${currentId}`);
+  nodeIds.add(selectedId);
+  for (const path of paths) {
+    if (path.fromId === selectedId || path.toId === selectedId) {
+      nodeIds.add(path.fromId);
+      nodeIds.add(path.toId);
+      pathIds.add(path.id);
     }
-    currentId = parentId;
   }
 
-  const visitChildren = (parentId: string) => {
-    for (const childId of childrenByParent.get(parentId) ?? []) {
-      relationKeys.add(`${parentId}:${childId}`);
-      if (!nodeIds.has(childId)) {
-        nodeIds.add(childId);
-        visitChildren(childId);
-      }
-    }
-  };
-  visitChildren(selectedId);
-
-  return { nodeIds, relationKeys };
+  return { nodeIds, pathIds };
 }

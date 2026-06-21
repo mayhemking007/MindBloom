@@ -1963,10 +1963,18 @@ export function JournalWorkspace() {
   }
 
   const latestReflection = reflections[0] ?? null;
+  const isEditorView = activeView === "editor";
 
   return (
     <main className="min-h-dvh bg-bloom-bg md:min-h-[calc(100dvh-56px)]">
-      <div className="grid min-h-dvh grid-cols-1 md:min-h-[calc(100dvh-56px)] md:grid-cols-[260px_minmax(0,1fr)_380px]">
+      <div
+        className={[
+          "grid min-h-dvh grid-cols-1 md:min-h-[calc(100dvh-56px)]",
+          isEditorView
+            ? "md:grid-cols-[260px_minmax(0,1fr)_380px]"
+            : "md:grid-cols-[260px_minmax(0,1fr)]",
+        ].join(" ")}
+      >
         {isEntryDrawerOpen ? (
           <button
             type="button"
@@ -2017,14 +2025,16 @@ export function JournalWorkspace() {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setBloomOpen((current) => !current)}
-              className="flex h-9 items-center gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] text-bloom-text-secondary md:hidden"
-            >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
-              Bloom
-            </button>
+            {isEditorView ? (
+              <button
+                type="button"
+                onClick={() => setBloomOpen((current) => !current)}
+                className="flex h-9 items-center gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] text-bloom-text-secondary md:hidden"
+              >
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                Bloom
+              </button>
+            ) : null}
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-7">
@@ -2332,37 +2342,41 @@ export function JournalWorkspace() {
           </div>
         </section>
 
-        <div className="fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:h-[calc(100dvh-56px)] md:max-h-none md:overflow-visible md:border-t-0">
-          <div className={isBloomOpen ? "block" : "hidden md:block"}>
-            <BloomSidebar
-              entry={selectedEntry}
-              messages={messages}
-              isOpen={isBloomOpen}
-              isSending={isSending}
-              streamingContent={streamingContent}
-              failedMessage={failedBloomMessage}
-              error={error}
-              onToggle={() => setBloomOpen((current) => !current)}
-              onSend={handleBloomMessage}
-              onCancel={handleCancelBloomMessage}
-              onRetry={handleRetryBloomMessage}
-            />
+        {isEditorView ? (
+          <div className="fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:h-[calc(100dvh-56px)] md:max-h-none md:overflow-visible md:border-t-0">
+            <div className={isBloomOpen ? "block" : "hidden md:block"}>
+              <BloomSidebar
+                entry={selectedEntry}
+                messages={messages}
+                isOpen={isBloomOpen}
+                isSending={isSending}
+                streamingContent={streamingContent}
+                failedMessage={failedBloomMessage}
+                error={error}
+                onToggle={() => setBloomOpen((current) => !current)}
+                onSend={handleBloomMessage}
+                onCancel={handleCancelBloomMessage}
+                onRetry={handleRetryBloomMessage}
+              />
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setBloomOpen((current) => !current)}
-        className="fixed bottom-[76px] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-bloom-accent text-white shadow-lg md:hidden"
-        aria-label={isBloomOpen ? "Hide Bloom" : "Open Bloom"}
-      >
-        {isBloomOpen ? (
-          <ChevronRight className="h-5 w-5" aria-hidden="true" />
-        ) : (
-          <MessageCircle className="h-5 w-5" aria-hidden="true" />
-        )}
-      </button>
+      {isEditorView ? (
+        <button
+          type="button"
+          onClick={() => setBloomOpen((current) => !current)}
+          className="fixed bottom-[76px] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-bloom-accent text-white shadow-lg md:hidden"
+          aria-label={isBloomOpen ? "Hide Bloom" : "Open Bloom"}
+        >
+          {isBloomOpen ? (
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <MessageCircle className="h-5 w-5" aria-hidden="true" />
+          )}
+        </button>
+      ) : null}
 
       <CreateEntryPanel
         isOpen={isCreatePanelOpen}

@@ -844,7 +844,13 @@ describe("JournalWorkspace", () => {
                 sessionId: "mindbloom-entry-entry-2",
                 label: "Evening theme",
                 summary: "A map theme from the second entry.",
+                messageRange: [0, 1],
                 topicOrder: 1,
+                driftScore: 0.2,
+                agentColor: null,
+                fleetId: null,
+                agentId: null,
+                createdAt: "2026-06-04T08:05:00.000Z",
               },
             ],
             edges: [],
@@ -875,6 +881,9 @@ describe("JournalWorkspace", () => {
       if (url.endsWith("/api/entries/entry-2/grafts")) {
         return Promise.resolve(jsonResponse({ grafts: [] }));
       }
+      if (url.endsWith("/reflections")) {
+        return Promise.resolve(jsonResponse({ reflections: [] }));
+      }
       return Promise.resolve(jsonResponse({}));
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -886,16 +895,24 @@ describe("JournalWorkspace", () => {
     expect(screen.getByRole("button", { name: "Map" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Reflect" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Calendar" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Bloom assistant")).toBeInTheDocument();
 
     await user.click(screen.getByText("Evening thoughts"));
     await user.click(screen.getByRole("button", { name: "Map" }));
 
     expect(await screen.findByText("Evening theme")).toBeVisible();
+    expect(screen.queryByLabelText("Bloom assistant")).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([url]) =>
         String(url).includes("/api/entries/entry-2/snapshot?scope=overall"),
       ),
     ).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Reflect" }));
+    expect(screen.queryByLabelText("Bloom assistant")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Editor" }));
+    expect(await screen.findByLabelText("Bloom assistant")).toBeInTheDocument();
   });
 
   it("reloads persisted writing when switching back to an entry", async () => {

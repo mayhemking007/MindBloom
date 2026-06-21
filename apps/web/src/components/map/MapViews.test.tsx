@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { GraphSnapshotResponse } from "@mindbloom/shared";
 
@@ -110,18 +110,59 @@ describe("MapViews", () => {
   });
 
   it("renders river cards and shows grouped memories in the detail panel", () => {
-    render(<MapViews snapshot={snapshot} />);
+    const { container } = render(<MapViews snapshot={snapshot} />);
 
     expect(screen.getByText("Thought River")).toBeVisible();
     expect(screen.getAllByText("Work pressure").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /Work pressure/i }));
+    const workCard = screen.getByRole("button", { name: /Work pressure/i });
+    expect(workCard).not.toHaveTextContent(
+      "Work pressure is connected to wanting more breathing room.",
+    );
+    expect(workCard).not.toHaveTextContent(/memor(y|ies)/i);
 
-    expect(screen.getByText("Insights")).toBeVisible();
-    expect(screen.getByLabelText("Work pressure thought details")).toBeVisible();
+    const memoryDots = [...container.querySelectorAll<HTMLElement>("[data-memory-dot]")];
+    expect(memoryDots).toHaveLength(2);
+    const dotWidths = memoryDots.map((dot) => Number.parseFloat(dot.style.width));
+    expect(Math.max(...dotWidths)).toBeGreaterThan(Math.min(...dotWidths));
+    expect(Math.min(...dotWidths)).toBeGreaterThanOrEqual(7);
+    expect(Math.max(...dotWidths)).toBeLessThanOrEqual(11);
     expect(
-      screen.getAllByText("Work pressure is connected to wanting more breathing room.")
-        .length,
-    ).toBeGreaterThan(0);
+      memoryDots.every((dot) => {
+        const left = Number.parseFloat(dot.style.left);
+        const top = Number.parseFloat(dot.style.top);
+        const diameter = Number.parseFloat(dot.style.width);
+        return left + diameter < 0 || left > 150 || top + diameter < 0 || top > 88;
+      }),
+    ).toBe(true);
+
+    fireEvent.click(workCard);
+
+    const topicDetails = screen.getByLabelText("Work pressure thought details");
+    expect(topicDetails).toBeVisible();
+    expect(within(topicDetails).getByText("Pressure around work showed up first.")).toBeVisible();
+    expect(
+      within(topicDetails).queryByText(
+        "Work pressure is connected to wanting more breathing room.",
+      ),
+    ).not.toBeInTheDocument();
+
+    const workMemory = container.querySelector<HTMLElement>(
+      '[data-memory-id="memory-1"]',
+    );
+    expect(workMemory).not.toBeNull();
+    fireEvent.click(workMemory!);
+
+    const memoryDetails = screen.getByLabelText("Work pressure memory details");
+    expect(memoryDetails).toBeVisible();
+    expect(within(memoryDetails).getByText("Insight")).toBeVisible();
+    expect(
+      within(memoryDetails).getByText(
+        "Work pressure is connected to wanting more breathing room.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(memoryDetails).queryByText("Pressure around work showed up first."),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/topicNodeId|sourceId|targetId/i)).not.toBeInTheDocument();
   });
 
@@ -149,17 +190,21 @@ describe("MapViews", () => {
   it("uses summaries and seed stars when there are no memories yet", () => {
     render(<MapViews snapshot={{ ...snapshot, memories: [] }} />);
 
-    expect(screen.getAllByText("Pressure around work showed up first.").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Pressure around work showed up first.")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Constellation/i }));
 
     expect(screen.getByRole("img", { name: "Insight constellation map" })).toBeVisible();
     expect(screen.queryByText("Memories will appear here as stars.")).not.toBeInTheDocument();
     expect(screen.queryByText("Topic detail")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText("Select Work pressure"));
+    fireEvent.click(
+      within(screen.getByRole("img", { name: "Insight constellation map" })).getByLabelText(
+        "Select Work pressure",
+      ),
+    );
 
     expect(screen.getByText("Topic detail")).toBeVisible();
     expect(screen.getAllByText("Pressure around work showed up first.").length)
-      .toBeGreaterThan(1);
+      .toBeGreaterThan(0);
   });
 });
