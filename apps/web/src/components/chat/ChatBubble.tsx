@@ -20,7 +20,7 @@ export function ChatBubble({ message }: ChatBubbleProps) {
         className={[
           "max-w-[82%] rounded-bloom px-4 py-3 text-[15px] leading-6",
           isUser
-            ? "bg-bloom-accent text-bloom-surface"
+            ? "bg-bloom-accent text-bloom-on-accent"
             : "border border-bloom-border bg-bloom-surface text-bloom-text-primary",
         ].join(" ")}
       >

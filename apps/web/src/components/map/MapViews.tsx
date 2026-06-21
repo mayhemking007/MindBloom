@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { GraphSnapshotResponse } from "@mindbloom/shared";
 
 import { getColorForTopic, type ColorRamp } from "../../lib/topicColors";
+import { formatTopicSummary } from "../../lib/topicSummary";
 import { InsightConstellation } from "./InsightConstellation";
 import { MapToggle } from "./MapToggle";
 import { ThoughtRiver } from "./ThoughtRiver";
@@ -20,6 +21,7 @@ function enrichSnapshot(snapshot: GraphSnapshotResponse): EnrichedMapNode[] {
 
       return {
         ...node,
+        summary: formatTopicSummary(node.summary),
         color:
           topicColor === "gray"
             ? fallbackRamps[index % fallbackRamps.length] ?? "gray"

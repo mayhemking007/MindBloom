@@ -897,7 +897,9 @@ describe("JournalWorkspace", () => {
     expect(screen.queryByRole("button", { name: "Calendar" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Bloom assistant")).toBeInTheDocument();
 
-    await user.click(screen.getByText("Evening thoughts"));
+    await user.click(
+      screen.getByRole("button", { name: "Open entry Evening thoughts" }),
+    );
     await user.click(screen.getByRole("button", { name: "Map" }));
 
     expect(await screen.findByText("Evening theme")).toBeVisible();

@@ -275,7 +275,7 @@ export function BloomOverlay({
                       setSavedNotice(true);
                       window.setTimeout(() => setSavedNotice(false), 2000);
                     }}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-bloom bg-bloom-accent text-[14px] font-medium text-bloom-surface"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-bloom bg-bloom-accent text-[14px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover"
                   >
                     <Check className="h-4 w-4" strokeWidth={1.8} />
                     {savedNotice ? "Saved" : "Save to journal"}

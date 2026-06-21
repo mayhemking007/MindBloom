@@ -170,7 +170,7 @@ function NoteEditor({ selectedNote, onSaved, onCancel }: NoteEditorProps) {
         type="button"
         onClick={saveNote}
         disabled={isSaving}
-        className="mt-4 h-10 w-full rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-4 h-10 w-full rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving ? "Saving" : "Save note"}
       </button>
@@ -258,7 +258,7 @@ function NoteReadModal({
           <button
             type="button"
             onClick={() => onEdit(note)}
-            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white"
+            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover"
           >
             Edit
           </button>

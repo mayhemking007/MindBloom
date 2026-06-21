@@ -31,6 +31,8 @@
   --gray-border: #b4b2a9;
   --gray-text: #444441;
   --bloom-accent: #534ab7;
+  --bloom-accent-hover: #463d9c;
+  --bloom-on-accent: #ffffff;
   --bloom-accent-bg: #eeedfe;
   --bloom-accent-text: #3c3489;
   --map-surface: #ffffff;
@@ -81,7 +83,9 @@
   --gray-bg: #2b2a26;
   --gray-border: #747168;
   --gray-text: #ded9cf;
-  --bloom-accent: #afa9ec;
+  --bloom-accent: #5548a8;
+  --bloom-accent-hover: #6357bc;
+  --bloom-on-accent: #ffffff;
   --bloom-accent-bg: #262342;
   --bloom-accent-text: #e7e4ff;
   --map-surface: #1d1d1b;
@@ -128,6 +132,8 @@
   --color-bloom-text-secondary: var(--bloom-text-secondary);
   --color-bloom-text-tertiary: var(--bloom-text-tertiary);
   --color-bloom-accent: var(--bloom-accent);
+  --color-bloom-accent-hover: var(--bloom-accent-hover);
+  --color-bloom-on-accent: var(--bloom-on-accent);
   --color-bloom-accent-bg: var(--bloom-accent-bg);
   --color-bloom-accent-text: var(--bloom-accent-text);
   --color-coral-bg: var(--coral-bg);

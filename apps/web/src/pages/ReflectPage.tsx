@@ -175,7 +175,7 @@ function ShareReflectionModal({
             type="button"
             onClick={onCreate}
             disabled={isCreating || selectedCardIds.length === 0}
-            className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Copy className="h-4 w-4" aria-hidden="true" />
             {isCreating ? "Creating link" : "Create share link"}
@@ -474,7 +474,7 @@ export function ReflectPage() {
           type="button"
           onClick={() => void generateReflection()}
           disabled={!selectedEntry || isGenerating}
-          className="flex h-11 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-11 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           {isGenerating ? "Creating cards" : "Reflect on this entry"}
@@ -593,7 +593,7 @@ export function ReflectPage() {
                     <button
                       type="button"
                       onClick={() => setShareModalOpen(true)}
-                      className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Share2 className="h-4 w-4" aria-hidden="true" />
                       Share reflection

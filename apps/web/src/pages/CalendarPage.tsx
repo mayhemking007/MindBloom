@@ -121,7 +121,7 @@ export function CalendarPage() {
         </header>
         <Link
           to="/settings"
-          className="inline-flex h-10 w-fit items-center rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-semibold text-white"
+          className="inline-flex h-10 w-fit items-center rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-semibold text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover"
         >
           Open settings
         </Link>

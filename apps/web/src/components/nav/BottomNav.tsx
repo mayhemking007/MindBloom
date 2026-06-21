@@ -130,7 +130,7 @@ export function BottomNav() {
               aria-expanded={isAccountMenuOpen}
               aria-label="Open account menu"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bloom-accent text-[12px] font-semibold text-white">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bloom-accent text-[12px] font-semibold text-bloom-on-accent">
                 {initials}
               </span>
               <ChevronDown className="h-4 w-4" aria-hidden="true" strokeWidth={1.8} />

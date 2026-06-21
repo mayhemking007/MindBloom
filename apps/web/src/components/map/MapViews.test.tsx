@@ -178,6 +178,26 @@ describe("MapViews", () => {
     expect(container.querySelector(".river-flow-highlight")).toBeInTheDocument();
   });
 
+  it("presents structured topic summaries in second-person language", () => {
+    const structuredSummary =
+      "User wanted: The user expressed anxiety about pursuing perfection. Outcome: The conversation highlighted that the user is aware of their excessive worry.";
+    render(
+      <MapViews
+        snapshot={{
+          ...snapshot,
+          nodes: snapshot.nodes.map((node) =>
+            node.id === "topic-1" ? { ...node, summary: structuredSummary } : node,
+          ),
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Work pressure/i }));
+    const details = screen.getByLabelText("Work pressure thought details");
+    expect(within(details).getByText(/You wrote about anxiety/)).toBeVisible();
+    expect(within(details).queryByText(/User wanted|Outcome:/i)).not.toBeInTheDocument();
+  });
+
   it("switches to the constellation without refetching", () => {
     render(<MapViews snapshot={snapshot} />);
 

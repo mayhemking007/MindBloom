@@ -134,7 +134,7 @@ export function SettingsPage() {
                 className={[
                   "h-10 rounded-bloom-sm px-4 text-[13px] font-semibold transition-colors",
                   settings.calendarEnabled
-                    ? "bg-bloom-accent text-white"
+                    ? "bg-bloom-accent text-bloom-on-accent"
                     : "border border-bloom-border-mid bg-bloom-bg text-bloom-text-secondary",
                 ].join(" ")}
               >

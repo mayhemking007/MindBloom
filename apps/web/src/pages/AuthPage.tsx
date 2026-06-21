@@ -103,7 +103,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           type="button"
           onClick={() => void submit()}
           disabled={isSubmitting}
-          className="mt-5 h-11 w-full rounded-bloom-sm bg-bloom-accent px-4 text-[14px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-5 h-11 w-full rounded-bloom-sm bg-bloom-accent px-4 text-[14px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting
             ? "Please wait"

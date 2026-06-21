@@ -123,7 +123,7 @@ export function ChatInterface() {
               type="submit"
               disabled={!canSend}
               aria-label="Send message"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-bloom bg-bloom-accent text-bloom-surface transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-bloom bg-bloom-accent text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Send className="h-4 w-4" strokeWidth={1.9} />
             </button>

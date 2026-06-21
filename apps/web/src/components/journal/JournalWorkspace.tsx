@@ -230,7 +230,7 @@ function EntrySidebar({
           <button
             type="button"
             onClick={onCreateEntry}
-            className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-bloom-sm bg-bloom-accent px-3 text-[13px] font-medium text-white"
+            className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-bloom-sm bg-bloom-accent px-3 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             New Entry
@@ -266,13 +266,13 @@ function EntrySidebar({
                               : "text-bloom-text-primary hover:bg-gray-bg",
                           ].join(" ")}
                         >
-                          <div className="flex w-full items-start gap-3 rounded-bloom-sm px-3 py-3 pr-11 text-left">
-                            <Icon
-                              className="mt-0.5 h-4 w-4 shrink-0"
-                              aria-hidden="true"
-                            />
-                            <div className="min-w-0 flex-1">
-                              {isEditingEntryTitle ? (
+                          {isEditingEntryTitle ? (
+                            <div className="flex w-full items-start gap-3 rounded-bloom-sm px-3 py-3 pr-11 text-left">
+                              <Icon
+                                className="mt-0.5 h-4 w-4 shrink-0"
+                                aria-hidden="true"
+                              />
+                              <div className="min-w-0 flex-1">
                                 <input
                                   ref={entryTitleInputRef}
                                   value={entryTitleDraft}
@@ -293,24 +293,36 @@ function EntrySidebar({
                                   className="h-7 w-full rounded-bloom-sm border border-bloom-border bg-bloom-surface px-2 text-[13px] font-medium outline-none focus:border-bloom-border-mid"
                                   aria-label={`Rename entry ${entry.title}`}
                                 />
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenActionEntryId(null);
-                                    onSelectEntry(entry);
-                                    onClose();
-                                  }}
-                                  className="block w-full truncate text-left text-[13px] font-medium"
-                                >
-                                  {entry.title}
-                                </button>
-                              )}
-                              <span className="mt-1 block text-[11px] text-bloom-text-tertiary">
-                                {formatTags(entry.tags ?? [])}
-                              </span>
+                                <span className="mt-1 block text-[11px] text-bloom-text-tertiary">
+                                  {formatTags(entry.tags ?? [])}
+                                </span>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenActionEntryId(null);
+                                onSelectEntry(entry);
+                                onClose();
+                              }}
+                              className="flex w-full items-start gap-3 rounded-bloom-sm px-3 py-3 pr-11 text-left"
+                              aria-label={`Open entry ${entry.title}`}
+                            >
+                              <Icon
+                                className="mt-0.5 h-4 w-4 shrink-0"
+                                aria-hidden="true"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block w-full truncate text-[13px] font-medium">
+                                  {entry.title}
+                                </span>
+                                <span className="mt-1 block text-[11px] text-bloom-text-tertiary">
+                                  {formatTags(entry.tags ?? [])}
+                                </span>
+                              </span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             data-entry-action-trigger
@@ -557,7 +569,7 @@ function CreateEntryPanel({
                 <button
                   type="button"
                   onClick={() => onNavigateAuth("register")}
-                  className="h-9 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-white"
+                  className="h-9 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover"
                 >
                   Create account
                 </button>
@@ -608,7 +620,7 @@ function CreateEntryPanel({
                 startingPrompt,
               })
             }
-            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isCreating ? "Creating" : "Create entry"}
           </button>
@@ -733,7 +745,7 @@ function SaveNotePanel({
                 pinned,
               })
             }
-            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-10 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? "Saving" : "Save note"}
           </button>
@@ -904,7 +916,7 @@ function BloomSidebar({
                     className={[
                       "rounded-bloom-sm px-3 py-2 text-[13px] leading-5",
                       message.role === "user"
-                        ? "ml-8 bg-bloom-accent text-white"
+                        ? "ml-8 bg-bloom-accent text-bloom-on-accent"
                         : "mr-8 border border-bloom-border bg-bloom-bg text-bloom-text-primary",
                     ].join(" ")}
                   >
@@ -960,7 +972,7 @@ function BloomSidebar({
                   onClick={isSending ? onCancel : submitMessage}
                   disabled={(!draft.trim() && !isSending) || !entry}
                   className={[
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-bloom-sm text-white disabled:cursor-not-allowed disabled:opacity-40",
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-bloom-sm text-bloom-on-accent disabled:cursor-not-allowed disabled:opacity-40",
                     isSending ? "bg-coral-border" : "bg-bloom-accent",
                   ].join(" ")}
                   aria-label={isSending ? "Stop Bloom response" : "Send message to Bloom"}
@@ -1061,7 +1073,7 @@ function ShareReflectionModal({
             type="button"
             onClick={onCreate}
             disabled={isCreating || selectedCardIds.length === 0}
-            className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Copy className="h-4 w-4" aria-hidden="true" />
             {isCreating ? "Creating link" : "Create share link"}
@@ -2232,7 +2244,7 @@ export function JournalWorkspace() {
                       type="button"
                       onClick={() => void handleReflectEntry()}
                       disabled={!selectedEntry || isReflecting}
-                      className="flex h-9 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex h-9 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-3 text-[12px] font-medium text-bloom-on-accent transition-colors hover:bg-bloom-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                       {isReflecting ? "Reflecting" : "Create reflection"}
@@ -2329,7 +2341,7 @@ export function JournalWorkspace() {
                     className={[
                       "flex h-10 items-center justify-center gap-2 rounded-bloom-sm text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                       activeView === item.value
-                        ? "bg-bloom-accent text-white"
+                        ? "bg-bloom-accent text-bloom-on-accent"
                         : "text-bloom-text-secondary hover:bg-gray-bg",
                     ].join(" ")}
                   >
@@ -2367,7 +2379,7 @@ export function JournalWorkspace() {
         <button
           type="button"
           onClick={() => setBloomOpen((current) => !current)}
-          className="fixed bottom-[76px] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-bloom-accent text-white shadow-lg md:hidden"
+          className="fixed bottom-[76px] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-bloom-accent text-bloom-on-accent shadow-lg transition-colors hover:bg-bloom-accent-hover md:hidden"
           aria-label={isBloomOpen ? "Hide Bloom" : "Open Bloom"}
         >
           {isBloomOpen ? (
