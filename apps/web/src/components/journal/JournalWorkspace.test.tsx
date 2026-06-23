@@ -52,6 +52,42 @@ function streamResponse(events: string[]) {
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function snapshotWithTheme(label: string, capturedAt: string) {
+  return jsonResponse({
+    sessionId: "mindbloom-entry-entry-1",
+    nodes: [
+      {
+        id: `theme-${label.toLowerCase().replace(/\s+/g, "-")}`,
+        sessionId: "mindbloom-entry-entry-1",
+        segmentId: "segment-1",
+        label,
+        summary: `A summary of ${label}.`,
+        messageRange: [0, 1],
+        topicOrder: 1,
+        driftScore: 0.2,
+        agentColor: null,
+        fleetId: null,
+        agentId: null,
+        createdAt: capturedAt,
+      },
+    ],
+    edges: [],
+    memories: [],
+    memoryEdges: [],
+    capturedAt,
+  });
+}
+
 function snapshotResponse() {
   return jsonResponse({
     sessionId: "mindbloom-entry-entry-1",
@@ -63,7 +99,9 @@ function snapshotResponse() {
   });
 }
 
-function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
+function mockFetch(
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+) {
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
@@ -915,6 +953,66 @@ describe("JournalWorkspace", () => {
 
     await user.click(screen.getByRole("button", { name: "Editor" }));
     expect(await screen.findByLabelText("Bloom assistant")).toBeInTheDocument();
+  });
+
+  it("keeps the last graph visible while refreshing in the background", async () => {
+    const initialSnapshot = deferred<Response>();
+    const refreshedSnapshot = deferred<Response>();
+    let snapshotRequests = 0;
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({ entries: [entry], groups });
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        snapshotRequests += 1;
+        if (snapshotRequests === 1) {
+          return initialSnapshot.promise;
+        }
+        if (snapshotRequests === 2) {
+          return refreshedSnapshot.promise;
+        }
+        return jsonResponse({ message: "Refresh failed" }, { status: 500 });
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return jsonResponse({ document: null });
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return jsonResponse({ grafts: [] });
+      }
+      return jsonResponse({});
+    });
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+    await user.click(await screen.findByRole("button", { name: "Map" }));
+
+    expect(screen.getByText("Loading this entry map...")).toBeVisible();
+    initialSnapshot.resolve(
+      snapshotWithTheme("Original graph", "2026-06-04T08:00:00.000Z"),
+    );
+    expect(await screen.findByText("Original graph")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Refresh map" }));
+    expect(screen.getByText("Original graph")).toBeVisible();
+    expect(screen.queryByText("Loading this entry map...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refreshing" })).toBeDisabled();
+
+    refreshedSnapshot.resolve(
+      snapshotWithTheme("Updated graph", "2026-06-04T08:05:00.000Z"),
+    );
+    expect(await screen.findByText("Updated graph")).toBeVisible();
+    expect(screen.queryByText("Original graph")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Refresh map" }));
+    expect(
+      await screen.findByText(
+        "The map could not refresh. Showing the previous version.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("Updated graph")).toBeVisible();
   });
 
   it("reloads persisted writing when switching back to an entry", async () => {

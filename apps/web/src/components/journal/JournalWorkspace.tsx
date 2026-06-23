@@ -1134,7 +1134,10 @@ export function JournalWorkspace() {
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
   const [documentDraft, setDocumentDraft] = useState("");
   const [messages, setMessages] = useState<EntryMessage[]>([]);
-  const [mapSnapshot, setMapSnapshot] = useState<GraphSnapshotResponse | null>(null);
+  const [entryMap, setEntryMap] = useState<{
+    entryId: string;
+    snapshot: GraphSnapshotResponse;
+  } | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [isMapLoading, setMapLoading] = useState(false);
   const [reflections, setReflections] = useState<EntryReflection[]>([]);
@@ -1213,7 +1216,6 @@ export function JournalWorkspace() {
   async function loadEntryMap(entryId: string) {
     const requestId = mapRequestId.current + 1;
     mapRequestId.current = requestId;
-    setMapSnapshot(null);
     setMapError(null);
     setMapLoading(true);
 
@@ -1222,7 +1224,7 @@ export function JournalWorkspace() {
       if (mapRequestId.current !== requestId) {
         return;
       }
-      setMapSnapshot(response);
+      setEntryMap({ entryId, snapshot: response });
     } catch (snapshotError) {
       if (mapRequestId.current !== requestId) {
         return;
@@ -1418,7 +1420,7 @@ export function JournalWorkspace() {
   }, [selectedEntry?.id]);
 
   useEffect(() => {
-    setMapSnapshot(null);
+    setEntryMap(null);
     setMapError(null);
     setMapLoading(false);
     setReflections([]);
@@ -1691,7 +1693,7 @@ export function JournalWorkspace() {
       });
       draftDirtyRef.current = false;
       if (activeView === "map") {
-        await loadEntryMap(selectedEntry.id);
+        void loadEntryMap(selectedEntry.id);
       }
       setSaveStatus(
         response.ingested
@@ -1738,7 +1740,10 @@ export function JournalWorkspace() {
         ],
       );
       if (reflectionResponse.reflection.graphSnapshot) {
-        setMapSnapshot(reflectionResponse.reflection.graphSnapshot);
+        setEntryMap({
+          entryId: selectedEntry.id,
+          snapshot: reflectionResponse.reflection.graphSnapshot,
+        });
       }
       setActiveView("reflect");
       setSaveStatus("Reflection created.");
@@ -1976,6 +1981,10 @@ export function JournalWorkspace() {
 
   const latestReflection = reflections[0] ?? null;
   const isEditorView = activeView === "editor";
+  const hasCurrentMapSnapshot = Boolean(
+    selectedEntry && entryMap?.entryId === selectedEntry.id,
+  );
+  const currentMapSnapshot = hasCurrentMapSnapshot ? entryMap?.snapshot ?? null : null;
 
   return (
     <main className="min-h-dvh bg-bloom-bg md:min-h-[calc(100dvh-56px)]">
@@ -2200,23 +2209,32 @@ export function JournalWorkspace() {
                     {isMapLoading ? "Refreshing" : "Refresh map"}
                   </button>
                 </div>
-                {isMapLoading ? (
+                {!currentMapSnapshot && !mapError ? (
                   <section className="grid min-h-[560px] place-items-center rounded-bloom border border-bloom-border bg-bloom-surface">
                     <p className="font-serif text-[16px] text-bloom-text-secondary">
                       Loading this entry map...
                     </p>
                   </section>
                 ) : null}
-                {!isMapLoading && mapError ? (
+                {!currentMapSnapshot && !isMapLoading && mapError ? (
                   <section className="rounded-bloom border border-coral-border bg-coral-bg p-5 text-coral-text">
                     <p className="font-serif text-[19px]">The map would not open.</p>
                     <p className="mt-2 text-[13px] leading-5">{mapError}</p>
                   </section>
                 ) : null}
-                {!isMapLoading && !mapError && mapSnapshot ? (
+                {currentMapSnapshot && mapError ? (
+                  <p
+                    className="rounded-bloom-sm border border-amber-border bg-amber-bg px-3 py-2 text-[12px] text-amber-text"
+                    role="status"
+                    title={mapError}
+                  >
+                    The map could not refresh. Showing the previous version.
+                  </p>
+                ) : null}
+                {currentMapSnapshot ? (
                   <MapViews
-                    key={`${selectedEntry?.id ?? "none"}-${mapSnapshot.capturedAt}`}
-                    snapshot={mapSnapshot}
+                    key={selectedEntry?.id ?? "none"}
+                    snapshot={currentMapSnapshot}
                   />
                 ) : null}
               </div>
