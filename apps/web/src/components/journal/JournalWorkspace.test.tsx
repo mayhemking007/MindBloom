@@ -192,6 +192,143 @@ describe("JournalWorkspace", () => {
     ).toBeVisible();
   });
 
+  it("renders the document before Bloom history and ingestion finish", async () => {
+    const messageResponse = deferred<Response>();
+    const ingestResponse = deferred<Response>();
+    const fetchMock = vi.fn(
+      (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url.endsWith("/api/entries")) {
+          return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+        }
+        if (url.endsWith("/api/entries/entry-1/document")) {
+          return Promise.resolve(
+            jsonResponse({
+              document: {
+                id: "doc-1",
+                entryId: entry.id,
+                content: "Writing should appear before memory work finishes.",
+                version: 2,
+                lastIngestedVersion: 1,
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt,
+              },
+            }),
+          );
+        }
+        if (url.endsWith("/api/entries/entry-1/messages")) {
+          return messageResponse.promise;
+        }
+        if (url.endsWith("/api/entries/entry-1/ingest")) {
+          expect(JSON.parse(String(init?.body))).toEqual({});
+          return ingestResponse.promise;
+        }
+        return Promise.resolve(jsonResponse({}));
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<JournalWorkspace />);
+
+    expect(
+      await screen.findByDisplayValue(
+        "Writing should appear before memory work finishes.",
+      ),
+    ).toBeVisible();
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith("/api/entries/entry-1/ingest"),
+      ),
+    ).toBe(true);
+
+    messageResponse.resolve(jsonResponse({ messages: [] }));
+    ingestResponse.resolve(
+      jsonResponse({
+        document: {
+          id: "doc-1",
+          entryId: entry.id,
+          content: "Writing should appear before memory work finishes.",
+          version: 2,
+          lastIngestedVersion: 2,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+        },
+        ingested: true,
+        topicPills: [],
+      }),
+    );
+  });
+
+  it("ignores a slow document response after switching entries", async () => {
+    const secondEntry = {
+      ...entry,
+      id: "entry-2",
+      title: "Evening thoughts",
+      memoSessionId: "mindbloom-entry-entry-2",
+    } satisfies JournalEntry;
+    const firstDocumentResponse = deferred<Response>();
+
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({
+          entries: [entry, secondEntry],
+          groups: [{ date: "2026-06-04", entries: [entry, secondEntry] }],
+        });
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return firstDocumentResponse.promise;
+      }
+      if (url.endsWith("/api/entries/entry-2/document")) {
+        return jsonResponse({
+          document: {
+            id: "doc-2",
+            entryId: secondEntry.id,
+            content: "The current evening entry.",
+            version: 1,
+            lastIngestedVersion: 1,
+            createdAt: secondEntry.createdAt,
+            updatedAt: secondEntry.updatedAt,
+          },
+        });
+      }
+      if (url.includes("/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      return jsonResponse({});
+    });
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+    await user.click(
+      await screen.findByRole("button", { name: "Open entry Evening thoughts" }),
+    );
+
+    expect(
+      await screen.findByDisplayValue("The current evening entry."),
+    ).toBeVisible();
+
+    firstDocumentResponse.resolve(
+      jsonResponse({
+        document: {
+          id: "doc-1",
+          entryId: entry.id,
+          content: "A late morning response that must be ignored.",
+          version: 1,
+          lastIngestedVersion: 1,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByDisplayValue("A late morning response that must be ignored."),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue("The current evening entry.")).toBeVisible();
+  });
+
   it("streams Bloom messages with Enter and stores the assistant reply", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -1013,6 +1150,82 @@ describe("JournalWorkspace", () => {
       ),
     ).toBeVisible();
     expect(screen.getByText("Updated graph")).toBeVisible();
+  });
+
+  it("waits for background ingestion before loading the map snapshot", async () => {
+    const ingestionResponse = deferred<Response>();
+    let snapshotRequests = 0;
+    const fetchMock = vi.fn(
+      (input: RequestInfo | URL): Response | Promise<Response> => {
+        const url = String(input);
+        if (url.endsWith("/api/entries")) {
+          return jsonResponse({ entries: [entry], groups });
+        }
+        if (url.endsWith("/api/entries/entry-1/document")) {
+          return jsonResponse({
+            document: {
+              id: "doc-1",
+              entryId: entry.id,
+              content: "A newly saved entry that still needs its map.",
+              version: 2,
+              lastIngestedVersion: 1,
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+            },
+          });
+        }
+        if (url.endsWith("/api/entries/entry-1/messages")) {
+          return jsonResponse({ messages: [] });
+        }
+        if (url.endsWith("/api/entries/entry-1/ingest")) {
+          return ingestionResponse.promise;
+        }
+        if (url.includes("/api/entries/entry-1/snapshot")) {
+          snapshotRequests += 1;
+          return snapshotWithTheme("Mapped after ingestion", "2026-06-04T08:05:00.000Z");
+        }
+        return jsonResponse({});
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+    expect(
+      await screen.findByDisplayValue(
+        "A newly saved entry that still needs its map.",
+      ),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).endsWith("/api/entries/entry-1/ingest"),
+        ),
+      ).toBe(true);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Map" }));
+    expect(screen.getByText("Loading this entry map...")).toBeVisible();
+    expect(snapshotRequests).toBe(0);
+
+    ingestionResponse.resolve(
+      jsonResponse({
+        document: {
+          id: "doc-1",
+          entryId: entry.id,
+          content: "A newly saved entry that still needs its map.",
+          version: 2,
+          lastIngestedVersion: 2,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+        },
+        ingested: true,
+        topicPills: [],
+      }),
+    );
+
+    expect(await screen.findByText("Mapped after ingestion")).toBeVisible();
+    expect(snapshotRequests).toBe(1);
   });
 
   it("reloads persisted writing when switching back to an entry", async () => {
