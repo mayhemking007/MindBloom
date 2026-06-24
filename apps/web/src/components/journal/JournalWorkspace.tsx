@@ -25,6 +25,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   EntryDayGroup,
+  EntryDocument,
   EntryMessage,
   EntryReflection,
   GraphSnapshotResponse,
@@ -125,6 +126,7 @@ interface EntrySidebarProps {
   groups: EntryDayGroup[];
   selectedEntryId: string | null;
   onSelectEntry: (entry: JournalEntry) => void;
+  onPrefetchEntry: (entry: JournalEntry) => void;
   onCreateEntry: () => void;
   onDeleteEntry: (entry: JournalEntry) => void;
   onRenameEntry: (entry: JournalEntry, title: string) => Promise<void>;
@@ -136,6 +138,7 @@ function EntrySidebar({
   groups,
   selectedEntryId,
   onSelectEntry,
+  onPrefetchEntry,
   onCreateEntry,
   onDeleteEntry,
   onRenameEntry,
@@ -301,6 +304,8 @@ function EntrySidebar({
                           ) : (
                             <button
                               type="button"
+                              onPointerEnter={() => onPrefetchEntry(entry)}
+                              onFocus={() => onPrefetchEntry(entry)}
                               onClick={() => {
                                 setOpenActionEntryId(null);
                                 onSelectEntry(entry);
@@ -1133,6 +1138,7 @@ export function JournalWorkspace() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
   const [documentDraft, setDocumentDraft] = useState("");
+  const [isDocumentLoading, setDocumentLoading] = useState(false);
   const [messages, setMessages] = useState<EntryMessage[]>([]);
   const [entryMap, setEntryMap] = useState<{
     entryId: string;
@@ -1180,7 +1186,9 @@ export function JournalWorkspace() {
   const autosaveTimer = useRef<number | null>(null);
   const bloomAbortController = useRef<AbortController | null>(null);
   const mapRequestId = useRef(0);
+  const mapLoadingEntryIdRef = useRef<string | null>(null);
   const reflectionRequestId = useRef(0);
+  const entryDetailRequestId = useRef(0);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const editorSelectionRef = useRef<NoteSourceSelection>({
@@ -1192,11 +1200,129 @@ export function JournalWorkspace() {
   const draftDirtyRef = useRef(false);
   const latestDraftRef = useRef("");
   const draftEntryIdRef = useRef<string | null>(null);
+  const documentCacheRef = useRef(
+    new Map<
+      string,
+      {
+        content: string;
+        version: number | null;
+        lastIngestedVersion: number | null;
+        dirty: boolean;
+      }
+    >(),
+  );
+  const documentRequestsRef = useRef(
+    new Map<string, Promise<{ document: EntryDocument | null }>>(),
+  );
+  const ingestionRequestsRef = useRef(
+    new Map<string, ReturnType<typeof ingestEntryDocument>>(),
+  );
+  const activeViewRef = useRef<WorkspaceView>(activeView);
+  const selectedEntryIdRef = useRef<string | null>(selectedEntry?.id ?? null);
+
+  activeViewRef.current = activeView;
+  selectedEntryIdRef.current = selectedEntry?.id ?? null;
 
   const entries = useMemo(
     () => groups.flatMap((group) => group.entries),
     [groups],
   );
+
+  function requestEntryDocument(entryId: string) {
+    const existingRequest = documentRequestsRef.current.get(entryId);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const request = getEntryDocument(entryId).finally(() => {
+      documentRequestsRef.current.delete(entryId);
+    });
+    documentRequestsRef.current.set(entryId, request);
+    return request;
+  }
+
+  function cacheServerDocument(entryId: string, document: EntryDocument | null) {
+    const existing = documentCacheRef.current.get(entryId);
+    if (existing?.dirty) {
+      return existing;
+    }
+
+    const cached = {
+      content: document?.content ?? "",
+      version: document?.version ?? null,
+      lastIngestedVersion: document?.lastIngestedVersion ?? null,
+      dirty: false,
+    };
+    documentCacheRef.current.set(entryId, cached);
+    return cached;
+  }
+
+  function prefetchEntryDocument(entry: JournalEntry) {
+    if (documentCacheRef.current.has(entry.id)) {
+      return;
+    }
+
+    void requestEntryDocument(entry.id)
+      .then((response) => cacheServerDocument(entry.id, response.document))
+      .catch(() => {
+        // Opening the entry will retry and surface any document error.
+      });
+  }
+
+  function scheduleEntryIngestion(entryId: string, document: EntryDocument | null) {
+    if (
+      !document ||
+      document.content.trim().length < 12 ||
+      document.version === document.lastIngestedVersion ||
+      ingestionRequestsRef.current.has(entryId)
+    ) {
+      return;
+    }
+
+    const request = ingestEntryDocument(entryId);
+    ingestionRequestsRef.current.set(entryId, request);
+    void request
+      .then((response) => {
+        if (response.document) {
+          const existing = documentCacheRef.current.get(entryId);
+          if (existing && !existing.dirty) {
+            documentCacheRef.current.set(entryId, {
+              ...existing,
+              version: response.document.version,
+              lastIngestedVersion: response.document.lastIngestedVersion,
+            });
+          }
+        }
+        if (
+          activeViewRef.current === "map" &&
+          selectedEntryIdRef.current === entryId &&
+          mapLoadingEntryIdRef.current !== entryId
+        ) {
+          void loadEntryMap(entryId);
+        }
+      })
+      .catch(() => {
+        // Ingestion is background work and must not interrupt writing.
+      })
+      .finally(() => {
+        if (ingestionRequestsRef.current.get(entryId) === request) {
+          ingestionRequestsRef.current.delete(entryId);
+        }
+      });
+  }
+
+  function selectEntry(entry: JournalEntry) {
+    if (selectedEntry && selectedEntry.id !== entry.id) {
+      const existing = documentCacheRef.current.get(selectedEntry.id);
+      documentCacheRef.current.set(selectedEntry.id, {
+        content: latestDraftRef.current,
+        version: existing?.version ?? null,
+        lastIngestedVersion: existing?.lastIngestedVersion ?? null,
+        dirty: draftDirtyRef.current,
+      });
+    }
+    setSelectedEntry(entry);
+  }
 
   function getJournalLinkParams() {
     const params = new URLSearchParams(window.location.search);
@@ -1216,11 +1342,41 @@ export function JournalWorkspace() {
   async function loadEntryMap(entryId: string) {
     const requestId = mapRequestId.current + 1;
     mapRequestId.current = requestId;
+    mapLoadingEntryIdRef.current = entryId;
     setMapError(null);
     setMapLoading(true);
 
     try {
-      const response = await getEntrySnapshot(entryId, "overall");
+      const pendingIngestion = ingestionRequestsRef.current.get(entryId);
+      if (pendingIngestion) {
+        await pendingIngestion.catch(() => undefined);
+      }
+
+      let response = await getEntrySnapshot(entryId, "overall");
+      const lateIngestion = ingestionRequestsRef.current.get(entryId);
+      if (lateIngestion && lateIngestion !== pendingIngestion) {
+        await lateIngestion.catch(() => undefined);
+        response = await getEntrySnapshot(entryId, "overall");
+      }
+      const cachedDocument = documentCacheRef.current.get(entryId);
+      if (
+        response.nodes.length === 0 &&
+        response.memories.length === 0 &&
+        cachedDocument &&
+        !cachedDocument.dirty &&
+        cachedDocument.content.trim().length >= 12
+      ) {
+        const recoveryIngestion = ingestEntryDocument(entryId, { force: true });
+        ingestionRequestsRef.current.set(entryId, recoveryIngestion);
+        try {
+          await recoveryIngestion;
+        } finally {
+          if (ingestionRequestsRef.current.get(entryId) === recoveryIngestion) {
+            ingestionRequestsRef.current.delete(entryId);
+          }
+        }
+        response = await getEntrySnapshot(entryId, "overall");
+      }
       if (mapRequestId.current !== requestId) {
         return;
       }
@@ -1236,6 +1392,7 @@ export function JournalWorkspace() {
       );
     } finally {
       if (mapRequestId.current === requestId) {
+        mapLoadingEntryIdRef.current = null;
         setMapLoading(false);
       }
     }
@@ -1365,64 +1522,93 @@ export function JournalWorkspace() {
       return;
     }
 
-    let isMounted = true;
+    const entry = selectedEntry;
+    const requestId = entryDetailRequestId.current + 1;
+    entryDetailRequestId.current = requestId;
+    const cachedDocument = documentCacheRef.current.get(entry.id);
 
-    async function loadEntryDetails(entry: JournalEntry) {
+    setError(null);
+    setSaveStatus(null);
+    setTitleDraft(entry.title);
+    setMessages([]);
+
+    if (cachedDocument) {
+      latestDraftRef.current = cachedDocument.content;
+      draftEntryIdRef.current = entry.id;
+      draftDirtyRef.current = cachedDocument.dirty;
+      setDocumentDraft(cachedDocument.content);
+      setDocumentLoading(false);
+    } else {
+      latestDraftRef.current = "";
+      draftEntryIdRef.current = entry.id;
       draftDirtyRef.current = false;
-      draftEntryIdRef.current = null;
-      setError(null);
-      try {
-        const [documentResponse, messageResponse] = await Promise.all([
-          getEntryDocument(entry.id),
-          listEntryMessages(entry.id),
-        ]);
-        if (!isMounted) {
-          return;
-        }
-        draftDirtyRef.current = false;
-        const nextDocument = documentResponse.document?.content ?? "";
-        if (nextDocument.trim().length >= 12) {
-          try {
-            await ingestEntryDocument(entry.id, {
-              content: nextDocument,
-              force: true,
-            });
-            if (!isMounted) {
-              return;
-            }
-          } catch {
-            // Bloom can still chat if theme refresh fails.
-          }
-        }
-
-        latestDraftRef.current = nextDocument;
-        draftEntryIdRef.current = entry.id;
-        setDocumentDraft(nextDocument);
-        setMessages(messageResponse.messages);
-        setTitleDraft(entry.title);
-        setSaveStatus(null);
-      } catch (loadError) {
-        if (isMounted) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "MindBloom could not open this entry.",
-          );
-        }
-      }
+      setDocumentDraft("");
+      setDocumentLoading(true);
     }
 
-    loadEntryDetails(selectedEntry);
+    const startedAt = performance.now();
+    void requestEntryDocument(entry.id)
+      .then((response) => {
+        if (entryDetailRequestId.current !== requestId) {
+          return;
+        }
 
-    return () => {
-      isMounted = false;
-    };
+        const nextDocument = cacheServerDocument(entry.id, response.document);
+        latestDraftRef.current = nextDocument.content;
+        draftEntryIdRef.current = entry.id;
+        draftDirtyRef.current = nextDocument.dirty;
+        setDocumentDraft(nextDocument.content);
+        setDocumentLoading(false);
+        scheduleEntryIngestion(entry.id, response.document);
+
+        if (import.meta.env.DEV) {
+          console.debug(
+            `[entry-load] document ready in ${Math.round(performance.now() - startedAt)}ms`,
+            { entryId: entry.id, fromCache: Boolean(cachedDocument) },
+          );
+        }
+      })
+      .catch((loadError) => {
+        if (entryDetailRequestId.current !== requestId) {
+          return;
+        }
+        setDocumentLoading(false);
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "MindBloom could not open this entry.",
+        );
+      });
+
+    void listEntryMessages(entry.id)
+      .then((response) => {
+        if (entryDetailRequestId.current === requestId) {
+          setMessages(response.messages);
+        }
+      })
+      .catch(() => {
+        if (entryDetailRequestId.current === requestId) {
+          setError("Your entry is ready, but Bloom history could not be loaded.");
+        }
+      });
   }, [selectedEntry?.id]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      entries
+        .filter((entry) => entry.id !== selectedEntry?.id)
+        .slice(0, 8)
+        .forEach(prefetchEntryDocument);
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [entries, selectedEntry?.id]);
 
   useEffect(() => {
     setEntryMap(null);
     setMapError(null);
     setMapLoading(false);
+    mapLoadingEntryIdRef.current = null;
     setReflections([]);
     setShareLinks([]);
     setSelectedShareCardIds([]);
@@ -1492,8 +1678,26 @@ export function JournalWorkspace() {
     autosaveTimer.current = window.setTimeout(() => {
       setAutosaving(true);
       saveEntryDocument(entryId, { content: contentToSave })
-        .then(() => ingestEntryDocument(entryId, { content: contentToSave }))
-        .then(() => {
+        .then((saveResponse) => {
+          const isStillCurrentDraft = latestDraftRef.current === contentToSave;
+          documentCacheRef.current.set(entryId, {
+            content: isStillCurrentDraft ? contentToSave : latestDraftRef.current,
+            version: saveResponse.document?.version ?? null,
+            lastIngestedVersion:
+              saveResponse.document?.lastIngestedVersion ?? null,
+            dirty: !isStillCurrentDraft,
+          });
+          return ingestEntryDocument(entryId);
+        })
+        .then((ingestResponse) => {
+          const cached = documentCacheRef.current.get(entryId);
+          if (cached && ingestResponse.document) {
+            documentCacheRef.current.set(entryId, {
+              ...cached,
+              version: ingestResponse.document.version,
+              lastIngestedVersion: ingestResponse.document.lastIngestedVersion,
+            });
+          }
           if (draftEntryIdRef.current !== entryId) {
             return;
           }
@@ -1561,6 +1765,7 @@ export function JournalWorkspace() {
     try {
       const deletedEntryId = entryPendingDelete.id;
       await deleteEntry(deletedEntryId);
+      documentCacheRef.current.delete(deletedEntryId);
       const response = await listEntries();
       setGroups(response.groups);
       const nextEntry =
@@ -1687,10 +1892,26 @@ export function JournalWorkspace() {
     setSaveStatus(null);
     try {
       const contentToSave = latestDraftRef.current;
-      await saveEntryDocument(selectedEntry.id, { content: contentToSave });
+      const saveResponse = await saveEntryDocument(selectedEntry.id, {
+        content: contentToSave,
+      });
+      documentCacheRef.current.set(selectedEntry.id, {
+        content: contentToSave,
+        version: saveResponse.document?.version ?? null,
+        lastIngestedVersion: saveResponse.document?.lastIngestedVersion ?? null,
+        dirty: false,
+      });
       const response = await ingestEntryDocument(selectedEntry.id, {
         content: contentToSave,
       });
+      if (response.document) {
+        documentCacheRef.current.set(selectedEntry.id, {
+          content: contentToSave,
+          version: response.document.version,
+          lastIngestedVersion: response.document.lastIngestedVersion,
+          dirty: false,
+        });
+      }
       draftDirtyRef.current = false;
       if (activeView === "map") {
         void loadEntryMap(selectedEntry.id);
@@ -2008,7 +2229,8 @@ export function JournalWorkspace() {
         <EntrySidebar
           groups={groups}
           selectedEntryId={selectedEntry?.id ?? null}
-          onSelectEntry={setSelectedEntry}
+          onSelectEntry={selectEntry}
+          onPrefetchEntry={prefetchEntryDocument}
           onCreateEntry={() => {
             setCreateEntryError(null);
             setCreatePanelOpen(true);
@@ -2149,21 +2371,47 @@ export function JournalWorkspace() {
                 <label className="sr-only" htmlFor="entry-editor">
                   Journal entry
                 </label>
-                <textarea
-                  id="entry-editor"
-                  ref={editorRef}
-                  value={documentDraft}
-                  onChange={(event) => {
-                    latestDraftRef.current = event.target.value;
-                    draftEntryIdRef.current = selectedEntry?.id ?? null;
-                    draftDirtyRef.current = true;
-                    setSaveStatus(null);
-                    setDocumentDraft(event.target.value);
-                  }}
-                  onSelect={(event) => rememberEditorSelection(event.currentTarget)}
-                  placeholder="Start writing here. It can be a journal entry, an idea, or a messy thought you want to untangle."
-                  className="mx-auto mt-8 block min-h-[calc(100dvh-390px)] w-full max-w-[920px] resize-none border-0 bg-transparent px-0 py-0 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary md:min-h-[calc(100dvh-270px)] md:text-[20px] md:leading-9"
-                />
+                {isDocumentLoading ? (
+                  <div
+                    className="mx-auto mt-10 w-full max-w-[920px] space-y-4"
+                    role="status"
+                    aria-label="Loading entry"
+                  >
+                    <div className="h-5 w-11/12 animate-pulse rounded-bloom-sm bg-gray-bg" />
+                    <div className="h-5 w-4/5 animate-pulse rounded-bloom-sm bg-gray-bg" />
+                    <div className="h-5 w-2/3 animate-pulse rounded-bloom-sm bg-gray-bg" />
+                  </div>
+                ) : (
+                  <textarea
+                    id="entry-editor"
+                    ref={editorRef}
+                    value={documentDraft}
+                    onChange={(event) => {
+                      const entryId = selectedEntry?.id ?? null;
+                      const nextContent = event.target.value;
+                      latestDraftRef.current = nextContent;
+                      draftEntryIdRef.current = entryId;
+                      draftDirtyRef.current = true;
+                      if (entryId) {
+                        const cached = documentCacheRef.current.get(entryId);
+                        documentCacheRef.current.set(entryId, {
+                          content: nextContent,
+                          version: cached?.version ?? null,
+                          lastIngestedVersion:
+                            cached?.lastIngestedVersion ?? null,
+                          dirty: true,
+                        });
+                      }
+                      setSaveStatus(null);
+                      setDocumentDraft(nextContent);
+                    }}
+                    onSelect={(event) =>
+                      rememberEditorSelection(event.currentTarget)
+                    }
+                    placeholder="Start writing here. It can be a journal entry, an idea, or a messy thought you want to untangle."
+                    className="mx-auto mt-8 block min-h-[calc(100dvh-390px)] w-full max-w-[920px] resize-none border-0 bg-transparent px-0 py-0 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary md:min-h-[calc(100dvh-270px)] md:text-[20px] md:leading-9"
+                  />
+                )}
                 {saveStatus ? (
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-[13px] text-teal-text">
                     <span>{saveStatus}</span>
