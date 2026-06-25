@@ -1175,6 +1175,7 @@ export function JournalWorkspace() {
   const [isSavingNote, setSavingNote] = useState(false);
   const [isReflecting, setReflecting] = useState(false);
   const [isSending, setSending] = useState(false);
+  const [isReadOnly, setReadOnly] = useState(false);
   const [isEditingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
@@ -1798,7 +1799,7 @@ export function JournalWorkspace() {
   }
 
   function beginTitleEdit(entry = selectedEntry) {
-    if (!entry) {
+    if (!entry || isReadOnly) {
       return;
     }
 
@@ -1808,7 +1809,7 @@ export function JournalWorkspace() {
   }
 
   async function handleTitleSave() {
-    if (!selectedEntry) {
+    if (!selectedEntry || isReadOnly) {
       return;
     }
 
@@ -1844,6 +1845,10 @@ export function JournalWorkspace() {
   }
 
   async function handleEntryRename(entry: JournalEntry, title: string) {
+    if (isReadOnly && entry.id === selectedEntry?.id) {
+      return;
+    }
+
     const nextTitle = title.trim() || "Untitled entry";
     if (nextTitle === entry.title) {
       return;
@@ -1882,8 +1887,18 @@ export function JournalWorkspace() {
     void handleTitleSave();
   }
 
+  function toggleReadOnlyMode() {
+    setReadOnly((current) => {
+      if (!current) {
+        setEditingTitle(false);
+        skipNextTitleSaveRef.current = false;
+      }
+      return !current;
+    });
+  }
+
   async function handleManualSave() {
-    if (!selectedEntry) {
+    if (!selectedEntry || isReadOnly) {
       return;
     }
 
@@ -2316,14 +2331,22 @@ export function JournalWorkspace() {
                         <button
                           type="button"
                           onClick={() => beginTitleEdit()}
-                          disabled={!selectedEntry}
-                          className="absolute inset-0 cursor-text text-left disabled:cursor-default"
+                          disabled={!selectedEntry || isReadOnly}
+                          className={[
+                            "absolute inset-0 text-left disabled:cursor-default",
+                            isReadOnly ? "cursor-default" : "cursor-text",
+                          ].join(" ")}
                           aria-label="Rename entry title"
                         />
                       </h1>
                     )}
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {isAutosaving ? (
+                      {isReadOnly ? (
+                        <span className="entry-mode-pill">
+                          <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                          Reading
+                        </span>
+                      ) : isAutosaving ? (
                         <span className="text-[12px] text-bloom-text-tertiary">
                           saving...
                         </span>
@@ -2349,8 +2372,36 @@ export function JournalWorkspace() {
                   <div className="flex shrink-0 items-center gap-2 pt-1">
                     <button
                       type="button"
+                      onMouseDown={() => {
+                        if (!isReadOnly && isEditingTitle) {
+                          skipNextTitleSaveRef.current = true;
+                        }
+                      }}
+                      onClick={toggleReadOnlyMode}
+                      disabled={!selectedEntry}
+                      className={[
+                        "flex h-9 shrink-0 items-center gap-1.5 rounded-bloom-sm border px-3 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                        isReadOnly
+                          ? "border-purple-border bg-purple-bg text-purple-text"
+                          : "border-bloom-border bg-bloom-surface text-bloom-text-secondary hover:bg-gray-bg",
+                      ].join(" ")}
+                      aria-label={
+                        isReadOnly
+                          ? "Switch to edit mode"
+                          : "Switch to read-only mode"
+                      }
+                    >
+                      {isReadOnly ? (
+                        <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+                      ) : (
+                        <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      {isReadOnly ? "Edit" : "Read"}
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleManualSave}
-                      disabled={isSaving || !selectedEntry}
+                      disabled={isSaving || !selectedEntry || isReadOnly}
                       className="flex h-9 shrink-0 items-center gap-1.5 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] font-medium text-bloom-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
@@ -2387,6 +2438,9 @@ export function JournalWorkspace() {
                     ref={editorRef}
                     value={documentDraft}
                     onChange={(event) => {
+                      if (isReadOnly) {
+                        return;
+                      }
                       const entryId = selectedEntry?.id ?? null;
                       const nextContent = event.target.value;
                       latestDraftRef.current = nextContent;
@@ -2408,8 +2462,13 @@ export function JournalWorkspace() {
                     onSelect={(event) =>
                       rememberEditorSelection(event.currentTarget)
                     }
+                    readOnly={isReadOnly}
+                    aria-readonly={isReadOnly}
                     placeholder="Start writing here. It can be a journal entry, an idea, or a messy thought you want to untangle."
-                    className="mx-auto mt-8 block min-h-[calc(100dvh-390px)] w-full max-w-[920px] resize-none border-0 bg-transparent px-0 py-0 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary md:min-h-[calc(100dvh-270px)] md:text-[20px] md:leading-9"
+                    className={[
+                      "mx-auto mt-8 block min-h-[calc(100dvh-390px)] w-full max-w-[920px] resize-none border-0 bg-transparent px-0 py-0 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary md:min-h-[calc(100dvh-270px)] md:text-[20px] md:leading-9",
+                      isReadOnly ? "cursor-default" : "",
+                    ].join(" ")}
                   />
                 )}
                 {saveStatus ? (

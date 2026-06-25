@@ -192,6 +192,122 @@ describe("JournalWorkspace", () => {
     ).toBeVisible();
   });
 
+  it("switches entries into read-only mode without blocking reading tools", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries") && !init?.method) {
+        return Promise.resolve(jsonResponse({ entries: [entry], groups }));
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              id: "doc-1",
+              entryId: entry.id,
+              content: "This is worth remembering. Keep going.",
+              version: 1,
+              lastIngestedVersion: 1,
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+            },
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      if (url.endsWith("/api/notes") && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              note: {
+                id: "note-1",
+                ownerId: entry.ownerId,
+                ownerKind: entry.ownerKind,
+                title: "Read later",
+                body: "This is worth remembering.",
+                entryId: entry.id,
+                sourceType: "entry-selection",
+                sourceMessageId: null,
+                sourceReflectionId: null,
+                sourceReflectionCardId: null,
+                sourceSelectionStart: 0,
+                sourceSelectionEnd: 26,
+                sourceExcerpt: "This is worth remembering.",
+                sourcePath: "document",
+                color: "amber",
+                pinned: false,
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt,
+              },
+            },
+            { status: 201 },
+          ),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+
+    const editor = await screen.findByLabelText("Journal entry");
+    await waitFor(() => {
+      expect(editor).toHaveValue("This is worth remembering. Keep going.");
+    });
+    await user.click(screen.getByRole("button", { name: "Switch to read-only mode" }));
+
+    expect(screen.getByText("Reading")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Switch to edit mode" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Rename entry title" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
+    expect(screen.getByLabelText("Bloom assistant")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Map" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reflect" })).toBeEnabled();
+    expect(editor).toHaveAttribute("readonly");
+
+    await user.type(editor, " A new accidental sentence.");
+    expect(editor).toHaveValue("This is worth remembering. Keep going.");
+
+    (editor as HTMLTextAreaElement).setSelectionRange(0, 26);
+    editor.dispatchEvent(new Event("select", { bubbles: true }));
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+    const notePanel = screen.getByLabelText("Save note");
+    expect(
+      within(notePanel).getAllByText("This is worth remembering.").length,
+    ).toBeGreaterThanOrEqual(2);
+    await user.type(within(notePanel).getByLabelText("Title"), "Read later");
+    await user.click(within(notePanel).getByRole("button", { name: "Save note" }));
+
+    await waitFor(() => {
+      const noteCall = fetchMock.mock.calls.find(
+        ([url, init]) => String(url).endsWith("/api/notes") && init?.method === "POST",
+      );
+      expect(noteCall).toBeTruthy();
+      expect(JSON.parse(String(noteCall?.[1]?.body))).toMatchObject({
+        title: "Read later",
+        body: "This is worth remembering.",
+        entryId: entry.id,
+        sourceType: "entry-selection",
+        sourceSelectionStart: 0,
+        sourceSelectionEnd: 26,
+        sourceExcerpt: "This is worth remembering.",
+      });
+    });
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          String(url).endsWith("/api/entries/entry-1/document") &&
+          init?.method === "PUT",
+      ),
+    ).toBe(false);
+  });
+
   it("renders the document before Bloom history and ingestion finish", async () => {
     const messageResponse = deferred<Response>();
     const ingestResponse = deferred<Response>();
