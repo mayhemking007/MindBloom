@@ -257,3 +257,18 @@ a {
   font-weight: 500;
   line-height: 1;
 }
+
+.entry-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  border: 1px solid var(--blue-border);
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue-text);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
