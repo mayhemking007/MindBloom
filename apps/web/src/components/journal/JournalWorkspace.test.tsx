@@ -113,6 +113,7 @@ function mockFetch(
 describe("JournalWorkspace", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    window.history.pushState(null, "", "/");
   });
 
   it("creates a first demo entry when the workspace is empty", async () => {
@@ -443,6 +444,185 @@ describe("JournalWorkspace", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByDisplayValue("The current evening entry.")).toBeVisible();
+    expect(window.location.search).toBe("?entryId=entry-2");
+  });
+
+  it("restores the entry from the URL after loading the workspace", async () => {
+    const secondEntry = {
+      ...entry,
+      id: "entry-2",
+      title: "Evening thoughts",
+      memoSessionId: "mindbloom-entry-entry-2",
+    } satisfies JournalEntry;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/entries")) {
+        return Promise.resolve(
+          jsonResponse({
+            entries: [entry, secondEntry],
+            groups: [{ date: "2026-06-04", entries: [entry, secondEntry] }],
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              id: "doc-1",
+              entryId: entry.id,
+              content: "The latest entry should not replace the deep link.",
+              version: 1,
+              lastIngestedVersion: 1,
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+            },
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-2/document")) {
+        return Promise.resolve(
+          jsonResponse({
+            document: {
+              id: "doc-2",
+              entryId: secondEntry.id,
+              content: "The restored older entry.",
+              version: 1,
+              lastIngestedVersion: 1,
+              createdAt: secondEntry.createdAt,
+              updatedAt: secondEntry.updatedAt,
+            },
+          }),
+        );
+      }
+      if (url.endsWith("/api/entries/entry-2/messages")) {
+        return Promise.resolve(
+          jsonResponse({
+            messages: [
+              {
+                id: "message-2",
+                entryId: secondEntry.id,
+                role: "assistant",
+                content: "History for the restored entry.",
+                createdAt: secondEntry.createdAt,
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes("/messages")) {
+        return Promise.resolve(jsonResponse({ messages: [] }));
+      }
+      if (url.includes("/grafts")) {
+        return Promise.resolve(jsonResponse({ grafts: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    window.history.pushState(
+      null,
+      "",
+      "/?entryId=entry-2&sourceSelectionStart=4&sourceSelectionEnd=10",
+    );
+
+    render(<JournalWorkspace />);
+
+    expect(await screen.findByDisplayValue("The restored older entry.")).toBeVisible();
+    expect(await screen.findByText("History for the restored entry.")).toBeVisible();
+    expect(
+      screen.queryByDisplayValue("The latest entry should not replace the deep link."),
+    ).not.toBeInTheDocument();
+    expect(window.location.search).toBe(
+      "?entryId=entry-2&sourceSelectionStart=4&sourceSelectionEnd=10",
+    );
+  });
+
+  it("falls back gracefully when the URL entry no longer exists", async () => {
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({ entries: [entry], groups });
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return jsonResponse({
+          document: {
+            id: "doc-1",
+            entryId: entry.id,
+            content: "The available entry after a stale deep link.",
+            version: 1,
+            lastIngestedVersion: 1,
+            createdAt: entry.createdAt,
+            updatedAt: entry.updatedAt,
+          },
+        });
+      }
+      if (url.endsWith("/api/entries/entry-1/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      if (url.endsWith("/api/entries/entry-1/grafts")) {
+        return jsonResponse({ grafts: [] });
+      }
+      return jsonResponse({});
+    });
+    window.history.pushState(null, "", "/?entryId=missing-entry");
+
+    render(<JournalWorkspace />);
+
+    expect(
+      await screen.findByDisplayValue("The available entry after a stale deep link."),
+    ).toBeVisible();
+    expect(window.location.search).toBe("?entryId=entry-1");
+  });
+
+  it("restores the map view from the URL after loading the workspace", async () => {
+    const secondEntry = {
+      ...entry,
+      id: "entry-2",
+      title: "Evening thoughts",
+      memoSessionId: "mindbloom-entry-entry-2",
+    } satisfies JournalEntry;
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({
+          entries: [entry, secondEntry],
+          groups: [{ date: "2026-06-04", entries: [entry, secondEntry] }],
+        });
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return jsonResponse({ document: null });
+      }
+      if (url.endsWith("/api/entries/entry-2/document")) {
+        return jsonResponse({
+          document: {
+            id: "doc-2",
+            entryId: secondEntry.id,
+            content: "The document behind the map.",
+            version: 1,
+            lastIngestedVersion: 1,
+            createdAt: secondEntry.createdAt,
+            updatedAt: secondEntry.updatedAt,
+          },
+        });
+      }
+      if (url.includes("/api/entries/entry-2/snapshot")) {
+        return snapshotWithTheme("Restored map theme", "2026-06-04T08:05:00.000Z");
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        return snapshotResponse();
+      }
+      if (url.includes("/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      if (url.includes("/grafts")) {
+        return jsonResponse({ grafts: [] });
+      }
+      return jsonResponse({});
+    });
+    window.history.pushState(null, "", "/?entryId=entry-2&view=map");
+
+    render(<JournalWorkspace />);
+
+    expect(await screen.findByText("Restored map theme")).toBeVisible();
+    expect(screen.queryByLabelText("Bloom assistant")).not.toBeInTheDocument();
+    expect(window.location.search).toBe("?entryId=entry-2&view=map");
   });
 
   it("streams Bloom messages with Enter and stores the assistant reply", async () => {
@@ -1106,6 +1286,7 @@ describe("JournalWorkspace", () => {
       String(url).endsWith("/api/entries/entry-1") && init?.method === "DELETE",
     )).toBe(true);
     expect(await screen.findByText("Entry deleted.")).toBeVisible();
+    expect(window.location.search).toBe("");
   });
 
   it("loads the selected entry map from the journal view toggle", async () => {
@@ -1195,6 +1376,7 @@ describe("JournalWorkspace", () => {
 
     expect(await screen.findByText("Evening theme")).toBeVisible();
     expect(screen.queryByLabelText("Bloom assistant")).not.toBeInTheDocument();
+    expect(window.location.search).toBe("?entryId=entry-2&view=map");
     expect(
       fetchMock.mock.calls.some(([url]) =>
         String(url).includes("/api/entries/entry-2/snapshot?scope=overall"),
@@ -1203,9 +1385,11 @@ describe("JournalWorkspace", () => {
 
     await user.click(screen.getByRole("button", { name: "Reflect" }));
     expect(screen.queryByLabelText("Bloom assistant")).not.toBeInTheDocument();
+    expect(window.location.search).toBe("?entryId=entry-2&view=reflect");
 
     await user.click(screen.getByRole("button", { name: "Editor" }));
     expect(await screen.findByLabelText("Bloom assistant")).toBeInTheDocument();
+    expect(window.location.search).toBe("?entryId=entry-2");
   });
 
   it("keeps the last graph visible while refreshing in the background", async () => {
