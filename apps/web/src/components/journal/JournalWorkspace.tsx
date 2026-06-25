@@ -80,6 +80,10 @@ const workspaceViews: Array<{
   { value: "reflect", label: "Reflect", icon: Sparkles },
 ];
 
+function isWorkspaceView(value: string | null): value is WorkspaceView {
+  return value === "editor" || value === "map" || value === "reflect";
+}
+
 const tagDescriptions: Record<(typeof suggestedTags)[number], string> = {
   journal: "Capture what happened and how it felt.",
   idea: "Shape a thought into something clearer.",
@@ -1136,7 +1140,9 @@ function ShareReflectionModal({
 export function JournalWorkspace() {
   const [groups, setGroups] = useState<EntryDayGroup[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
-  const [activeView, setActiveView] = useState<WorkspaceView>("editor");
+  const [activeView, setActiveView] = useState<WorkspaceView>(
+    () => getJournalLinkParams().view ?? "editor",
+  );
   const [documentDraft, setDocumentDraft] = useState("");
   const [isDocumentLoading, setDocumentLoading] = useState(false);
   const [messages, setMessages] = useState<EntryMessage[]>([]);
@@ -1323,21 +1329,62 @@ export function JournalWorkspace() {
       });
     }
     setSelectedEntry(entry);
+    syncEntryUrl(entry.id);
   }
 
   function getJournalLinkParams() {
     const params = new URLSearchParams(window.location.search);
     const entryId = params.get("entryId");
+    const view = params.get("view");
     const sourceSelectionStart = params.get("sourceSelectionStart");
     const sourceSelectionEnd = params.get("sourceSelectionEnd");
 
     return {
       entryId,
+      view: isWorkspaceView(view) ? view : null,
       sourceSelectionStart:
         sourceSelectionStart == null ? null : Number(sourceSelectionStart),
       sourceSelectionEnd:
         sourceSelectionEnd == null ? null : Number(sourceSelectionEnd),
     };
+  }
+
+  function syncEntryUrl(
+    entryId: string | null,
+    options: {
+      preserveSourceSelection?: boolean;
+      view?: WorkspaceView;
+    } = {},
+  ) {
+    const params = new URLSearchParams(window.location.search);
+    if (!options.preserveSourceSelection) {
+      params.delete("sourceSelectionStart");
+      params.delete("sourceSelectionEnd");
+    }
+    if (entryId) {
+      params.set("entryId", entryId);
+    } else {
+      params.delete("entryId");
+    }
+
+    const view = options.view ?? activeViewRef.current;
+    if (view === "editor") {
+      params.delete("view");
+    } else {
+      params.set("view", view);
+    }
+
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
+    if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }
+
+  function selectWorkspaceView(view: WorkspaceView) {
+    setActiveView(view);
+    activeViewRef.current = view;
+    syncEntryUrl(selectedEntry?.id ?? null, { view });
   }
 
   async function loadEntryMap(entryId: string) {
@@ -1441,6 +1488,7 @@ export function JournalWorkspace() {
       nextGroups = refreshed.groups;
       nextEntries = refreshed.entries;
       setSelectedEntry(created.entry);
+      syncEntryUrl(created.entry.id);
     }
 
     setGroups(nextGroups);
@@ -1448,11 +1496,20 @@ export function JournalWorkspace() {
       nextEntries.find((entry) => entry.id === preferredEntryId) ??
       nextEntries[0] ??
       null;
-    setSelectedEntry((current) =>
-      current && nextEntries.some((entry) => entry.id === current.id)
-        ? current
-        : nextSelected,
-    );
+    setSelectedEntry((current) => {
+      const selected =
+        preferredEntryId && nextSelected?.id === preferredEntryId
+          ? nextSelected
+          : current && nextEntries.some((entry) => entry.id === current.id)
+            ? current
+            : nextSelected;
+      syncEntryUrl(selected?.id ?? null, {
+        preserveSourceSelection: Boolean(
+          preferredEntryId && selected?.id === preferredEntryId,
+        ),
+      });
+      return selected;
+    });
   }
 
   useEffect(() => {
@@ -1743,6 +1800,7 @@ export function JournalWorkspace() {
       }
       await refreshEntries(created.entry.id);
       setSelectedEntry(created.entry);
+      syncEntryUrl(created.entry.id);
       setEntryDrawerOpen(false);
       setCreatePanelOpen(false);
     } catch (createError) {
@@ -1774,6 +1832,7 @@ export function JournalWorkspace() {
         response.entries[0] ??
         null;
       setSelectedEntry(nextEntry);
+      syncEntryUrl(nextEntry?.id ?? null);
       if (!nextEntry) {
         setDocumentDraft("");
         latestDraftRef.current = "";
@@ -1981,7 +2040,7 @@ export function JournalWorkspace() {
           snapshot: reflectionResponse.reflection.graphSnapshot,
         });
       }
-      setActiveView("reflect");
+      selectWorkspaceView("reflect");
       setSaveStatus("Reflection created.");
     } catch (reflectError) {
       setError(
@@ -2661,7 +2720,7 @@ export function JournalWorkspace() {
                   <button
                     key={item.value}
                     type="button"
-                    onClick={() => setActiveView(item.value)}
+                    onClick={() => selectWorkspaceView(item.value)}
                     disabled={!selectedEntry}
                     className={[
                       "flex h-10 items-center justify-center gap-2 rounded-bloom-sm text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
