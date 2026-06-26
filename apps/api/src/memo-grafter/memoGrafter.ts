@@ -1,12 +1,12 @@
 import {
   MemoGrafterAgent,
   OpenAIEmbedAdapter,
-  OpenAILLMAdapter,
 } from "memo-grafter";
 import type { MemoGrafterAgent as MemoGrafterAgentType } from "memo-grafter";
 
 import { env } from "../config/env.js";
 import { journalingSystemPrompt } from "../memory/prompts.js";
+import { MindBloomOpenAILLMAdapter } from "./openAiAdapters.js";
 
 const memoGrafterCache = new Map<string, MemoGrafterAgentType>();
 
@@ -24,7 +24,7 @@ export async function getMemoGrafterForSession(
     db: {
       connectionString: env.DATABASE_URL,
     },
-    llm: new OpenAILLMAdapter("gpt-4o-mini"),
+    llm: new MindBloomOpenAILLMAdapter("gpt-4o-mini"),
     embedder: new OpenAIEmbedAdapter("text-embedding-3-small"),
     systemPrompt: journalingSystemPrompt,
     drift: {
@@ -76,7 +76,7 @@ export async function invokeMemoGrafterWithStreaming(
   }
 
   const originalLlm = mutableAgent.core.llm;
-  mutableAgent.core.llm = new OpenAILLMAdapter("gpt-4o-mini", {
+  mutableAgent.core.llm = new MindBloomOpenAILLMAdapter("gpt-4o-mini", {
     streaming: true,
     onChunk,
   });

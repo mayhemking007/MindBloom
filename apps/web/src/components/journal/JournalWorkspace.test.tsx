@@ -1452,6 +1452,66 @@ describe("JournalWorkspace", () => {
     expect(screen.getByText("Updated graph")).toBeVisible();
   });
 
+  it("shows a cached entry map when switching back while refreshing", async () => {
+    const secondEntry = {
+      ...entry,
+      id: "entry-2",
+      title: "Evening thoughts",
+      memoSessionId: "mindbloom-entry-entry-2",
+    } satisfies JournalEntry;
+    const firstRefresh = deferred<Response>();
+    let firstSnapshotRequests = 0;
+    mockFetch((url) => {
+      if (url.endsWith("/api/entries")) {
+        return jsonResponse({
+          entries: [entry, secondEntry],
+          groups: [{ date: "2026-06-04", entries: [entry, secondEntry] }],
+        });
+      }
+      if (url.endsWith("/api/entries/entry-1/document")) {
+        return jsonResponse({ document: null });
+      }
+      if (url.endsWith("/api/entries/entry-2/document")) {
+        return jsonResponse({ document: null });
+      }
+      if (url.includes("/api/entries/entry-1/snapshot")) {
+        firstSnapshotRequests += 1;
+        if (firstSnapshotRequests === 1) {
+          return snapshotWithTheme("Morning cached graph", "2026-06-04T08:00:00.000Z");
+        }
+        return firstRefresh.promise;
+      }
+      if (url.includes("/api/entries/entry-2/snapshot")) {
+        return snapshotWithTheme("Evening graph", "2026-06-04T09:00:00.000Z");
+      }
+      if (url.includes("/messages")) {
+        return jsonResponse({ messages: [] });
+      }
+      if (url.includes("/grafts")) {
+        return jsonResponse({ grafts: [] });
+      }
+      return jsonResponse({});
+    });
+    const user = userEvent.setup();
+
+    render(<JournalWorkspace />);
+    await user.click(await screen.findByRole("button", { name: "Map" }));
+    expect(await screen.findByText("Morning cached graph")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Open entry Evening thoughts" }));
+    expect(await screen.findByText("Evening graph")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Open entry Morning thoughts" }));
+    expect(screen.getByText("Morning cached graph")).toBeVisible();
+    expect(screen.queryByText("Loading this entry map...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refreshing" })).toBeDisabled();
+
+    firstRefresh.resolve(
+      snapshotWithTheme("Morning refreshed graph", "2026-06-04T10:00:00.000Z"),
+    );
+    expect(await screen.findByText("Morning refreshed graph")).toBeVisible();
+  });
+
   it("waits for background ingestion before loading the map snapshot", async () => {
     const ingestionResponse = deferred<Response>();
     let snapshotRequests = 0;

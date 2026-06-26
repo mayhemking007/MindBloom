@@ -1221,6 +1221,7 @@ export function JournalWorkspace() {
   const documentRequestsRef = useRef(
     new Map<string, Promise<{ document: EntryDocument | null }>>(),
   );
+  const mapSnapshotsRef = useRef(new Map<string, GraphSnapshotResponse>());
   const ingestionRequestsRef = useRef(
     new Map<string, ReturnType<typeof ingestEntryDocument>>(),
   );
@@ -1428,6 +1429,7 @@ export function JournalWorkspace() {
       if (mapRequestId.current !== requestId) {
         return;
       }
+      mapSnapshotsRef.current.set(entryId, response);
       setEntryMap({ entryId, snapshot: response });
     } catch (snapshotError) {
       if (mapRequestId.current !== requestId) {
@@ -1663,7 +1665,14 @@ export function JournalWorkspace() {
   }, [entries, selectedEntry?.id]);
 
   useEffect(() => {
-    setEntryMap(null);
+    const cachedSnapshot = selectedEntry
+      ? mapSnapshotsRef.current.get(selectedEntry.id) ?? null
+      : null;
+    setEntryMap(
+      selectedEntry && cachedSnapshot
+        ? { entryId: selectedEntry.id, snapshot: cachedSnapshot }
+        : null,
+    );
     setMapError(null);
     setMapLoading(false);
     mapLoadingEntryIdRef.current = null;
@@ -1825,6 +1834,7 @@ export function JournalWorkspace() {
       const deletedEntryId = entryPendingDelete.id;
       await deleteEntry(deletedEntryId);
       documentCacheRef.current.delete(deletedEntryId);
+      mapSnapshotsRef.current.delete(deletedEntryId);
       const response = await listEntries();
       setGroups(response.groups);
       const nextEntry =
