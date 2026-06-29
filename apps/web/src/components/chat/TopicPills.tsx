@@ -24,7 +24,7 @@ export function TopicPills({ topics }: TopicPillsProps) {
           },
         },
       }}
-      className="-mx-4 overflow-x-auto px-4 pb-1"
+      className="bloom-scrollbar -mx-4 overflow-x-auto px-4 pb-1"
     >
       <div className="flex gap-2">
         {topics.map((topic) => {

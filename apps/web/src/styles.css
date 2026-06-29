@@ -35,6 +35,10 @@
   --bloom-on-accent: #ffffff;
   --bloom-accent-bg: #eeedfe;
   --bloom-accent-text: #3c3489;
+  --bloom-scrollbar-track: transparent;
+  --bloom-scrollbar-thumb: rgba(83, 74, 183, 0.34);
+  --bloom-scrollbar-thumb-hover: #7c3aed;
+  --bloom-scrollbar-arrow: rgba(83, 74, 183, 0.42);
   --map-surface: #ffffff;
   --map-canvas: #fbfbf9;
   --map-card: #ffffff;
@@ -88,6 +92,10 @@
   --bloom-on-accent: #ffffff;
   --bloom-accent-bg: #262342;
   --bloom-accent-text: #e7e4ff;
+  --bloom-scrollbar-track: transparent;
+  --bloom-scrollbar-thumb: rgba(175, 169, 236, 0.4);
+  --bloom-scrollbar-thumb-hover: #8b5cf6;
+  --bloom-scrollbar-arrow: rgba(175, 169, 236, 0.48);
   --map-surface: #1d1d1b;
   --map-canvas: #232320;
   --map-card: #2b2b27;
@@ -167,6 +175,57 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: var(--bloom-scrollbar-thumb) var(--bloom-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bloom-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 5px solid transparent;
+  border-radius: 999px;
+  background-color: var(--bloom-scrollbar-thumb);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--bloom-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-button:vertical:start:single-button {
+  width: 16px;
+  height: 18px;
+  background:
+    linear-gradient(135deg, transparent 50%, var(--bloom-scrollbar-arrow) 50%) 4px 8px / 5px 5px no-repeat,
+    linear-gradient(225deg, transparent 50%, var(--bloom-scrollbar-arrow) 50%) 7px 8px / 5px 5px no-repeat;
+}
+
+*::-webkit-scrollbar-button:vertical:start:single-button:hover {
+  background:
+    linear-gradient(135deg, transparent 50%, var(--bloom-scrollbar-thumb-hover) 50%) 4px 8px / 5px 5px no-repeat,
+    linear-gradient(225deg, transparent 50%, var(--bloom-scrollbar-thumb-hover) 50%) 7px 8px / 5px 5px no-repeat;
+}
+
+*::-webkit-scrollbar-button:vertical:end:single-button,
+*::-webkit-scrollbar-button:horizontal {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--bloom-scrollbar-track);
+}
+
+.bloom-scrollbar {
+  scrollbar-gutter: stable;
 }
 
 html {

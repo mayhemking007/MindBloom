@@ -13,7 +13,7 @@ export function AppLayout() {
         <BottomNav />
         <div key={ownerKey} className="min-w-0 pb-[76px] md:min-h-0 md:flex-1 md:pb-0">
           {isLoading ? (
-            <main className="grid min-h-[calc(100dvh-60px)] place-items-center px-4 text-[14px] text-bloom-text-secondary md:min-h-[calc(100dvh-56px)]">
+            <main className="grid min-h-[calc(100dvh-60px)] place-items-center px-4 text-[14px] text-bloom-text-secondary md:min-h-[calc(100dvh-64px)]">
               Preparing MindBloom...
             </main>
           ) : (

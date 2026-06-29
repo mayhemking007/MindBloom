@@ -211,7 +211,7 @@ function EntrySidebar({
   return (
     <aside
       className={[
-        "fixed inset-y-0 left-0 z-40 w-[292px] border-r border-bloom-border bg-bloom-surface transition-transform md:static md:z-auto md:h-[calc(100dvh-56px)] md:w-[260px] md:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 w-[292px] border-r border-bloom-border bg-bloom-surface transition-transform md:static md:z-auto md:h-[calc(100dvh-64px)] md:w-[260px] md:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full",
       ].join(" ")}
       aria-label="Journal entries"
@@ -244,7 +244,7 @@ function EntrySidebar({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div className="bloom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4">
           {groups.length === 0 ? (
             <p className="px-2 text-[13px] leading-5 text-bloom-text-secondary">
               Your first journal entry will appear here.
@@ -466,7 +466,7 @@ function CreateEntryPanel({
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/20 p-3 md:items-center md:justify-center">
       <section
-        className="max-h-[92dvh] w-full overflow-y-auto rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[560px]"
+        className="bloom-scrollbar max-h-[92dvh] w-full overflow-y-auto rounded-bloom border border-bloom-border bg-bloom-surface shadow-xl md:max-w-[560px]"
         aria-label="Create journal entry"
       >
         <div className="flex items-start justify-between gap-4 border-b border-bloom-border px-5 py-4">
@@ -879,7 +879,7 @@ function BloomSidebar({
   return (
     <aside
       className={[
-        "border-l border-bloom-border bg-bloom-surface transition-all duration-200 md:h-[calc(100dvh-56px)]",
+        "border-l border-bloom-border bg-bloom-surface transition-all duration-200 md:h-[calc(100dvh-64px)]",
         isOpen ? "w-full md:w-[380px]" : "w-full md:w-[56px]",
       ].join(" ")}
       aria-label="Bloom assistant"
@@ -910,7 +910,7 @@ function BloomSidebar({
 
         {isOpen ? (
           <>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            <div className="bloom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {bloomMessages.length === 0 ? (
                 <div className="rounded-bloom-sm border border-dashed border-bloom-border-mid bg-bloom-bg p-4">
                   <p className="text-[13px] leading-5 text-bloom-text-secondary">
@@ -1569,6 +1569,16 @@ export function JournalWorkspace() {
       editor.scrollIntoView({ block: "center" });
     }, 0);
   }, [documentDraft, selectedEntry?.id]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || isDocumentLoading) {
+      return;
+    }
+
+    editor.style.height = "auto";
+    editor.style.height = `${editor.scrollHeight}px`;
+  }, [documentDraft, isDocumentLoading, isReadOnly, selectedEntry?.id]);
 
   useEffect(() => {
     return () => {
@@ -2292,10 +2302,10 @@ export function JournalWorkspace() {
   const currentMapSnapshot = hasCurrentMapSnapshot ? entryMap?.snapshot ?? null : null;
 
   return (
-    <main className="min-h-dvh bg-bloom-bg md:min-h-[calc(100dvh-56px)]">
+    <main className="min-h-dvh bg-bloom-bg md:min-h-[calc(100dvh-64px)]">
       <div
         className={[
-          "grid min-h-dvh grid-cols-1 md:min-h-[calc(100dvh-56px)]",
+          "grid min-h-dvh grid-cols-1 md:min-h-[calc(100dvh-64px)]",
           isEditorView
             ? "md:grid-cols-[260px_minmax(0,1fr)_380px]"
             : "md:grid-cols-[260px_minmax(0,1fr)]",
@@ -2328,7 +2338,7 @@ export function JournalWorkspace() {
           onClose={() => setEntryDrawerOpen(false)}
         />
 
-        <section className="flex min-w-0 flex-col md:h-[calc(100dvh-56px)] md:overflow-hidden">
+        <section className="flex min-w-0 flex-col md:h-[calc(100dvh-64px)] md:overflow-hidden">
           <header className="sticky top-0 z-20 flex min-h-16 items-center gap-3 border-b border-bloom-border bg-bloom-bg/95 px-4 py-2 backdrop-blur md:hidden md:px-7">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
@@ -2364,7 +2374,7 @@ export function JournalWorkspace() {
             ) : null}
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-7">
+          <div className="bloom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-7">
             {isLoading ? (
               <div className="rounded-bloom border border-bloom-border bg-bloom-surface p-6 text-[14px] text-bloom-text-secondary">
                 Preparing your journal...
@@ -2535,7 +2545,7 @@ export function JournalWorkspace() {
                     aria-readonly={isReadOnly}
                     placeholder="Start writing here. It can be a journal entry, an idea, or a messy thought you want to untangle."
                     className={[
-                      "mx-auto mt-8 block min-h-[calc(100dvh-390px)] w-full max-w-[920px] resize-none border-0 bg-transparent px-0 py-0 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary md:min-h-[calc(100dvh-270px)] md:text-[20px] md:leading-9",
+                      "mx-auto mt-8 block min-h-[calc(100dvh-390px)] w-full max-w-[920px] resize-none overflow-hidden border-0 bg-transparent px-0 py-0 font-serif text-[18px] leading-8 text-bloom-text-primary outline-none placeholder:font-sans placeholder:text-[15px] placeholder:leading-6 placeholder:text-bloom-text-tertiary md:min-h-[calc(100dvh-270px)] md:text-[20px] md:leading-9",
                       isReadOnly ? "cursor-default" : "",
                     ].join(" ")}
                   />
@@ -2749,7 +2759,7 @@ export function JournalWorkspace() {
         </section>
 
         {isEditorView ? (
-          <div className="fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:h-[calc(100dvh-56px)] md:max-h-none md:overflow-visible md:border-t-0">
+          <div className="fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:h-[calc(100dvh-64px)] md:max-h-none md:overflow-visible md:border-t-0">
             <div className={isBloomOpen ? "block" : "hidden md:block"}>
               <BloomSidebar
                 entry={selectedEntry}

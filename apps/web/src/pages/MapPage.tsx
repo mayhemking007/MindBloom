@@ -112,7 +112,7 @@ export function MapPage() {
   const isLoading = loadingEntries || loadingSnapshot;
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-6 pt-5 md:px-8 md:pt-8">
+    <main className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-6 pt-5 md:min-h-[calc(100dvh-64px)] md:px-8 md:pt-8">
       <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="label-text">Themes</p>
@@ -145,7 +145,7 @@ export function MapPage() {
             </select>
           ) : null}
           {entries.length > 0 ? (
-            <div className="flex max-w-full overflow-x-auto rounded-bloom-sm border border-bloom-border bg-bloom-surface p-1">
+            <div className="bloom-scrollbar flex max-w-full overflow-x-auto rounded-bloom-sm border border-bloom-border bg-bloom-surface p-1">
               {mapScopes.map((item) => (
                 <button
                   key={item.value}

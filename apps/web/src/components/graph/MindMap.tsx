@@ -529,7 +529,7 @@ export function MindMap({ nodes, edges }: MindMapProps) {
           </div>
 
           {selectedNode ? (
-            <aside className="absolute bottom-3 right-3 max-h-[250px] w-[260px] overflow-y-auto rounded-bloom border border-bloom-border bg-bloom-surface p-3 shadow-sm">
+            <aside className="bloom-scrollbar absolute bottom-3 right-3 max-h-[250px] w-[260px] overflow-y-auto rounded-bloom border border-bloom-border bg-bloom-surface p-3 shadow-sm">
               <p className="text-[11px] font-medium uppercase text-bloom-text-tertiary">
                 {themeKindLabel(selectedNode)}
               </p>

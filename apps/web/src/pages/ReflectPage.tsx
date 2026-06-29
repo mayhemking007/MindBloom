@@ -458,7 +458,7 @@ export function ReflectPage() {
   }
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-6 pt-5 md:px-8 md:pt-8">
+    <main className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-6 pt-5 md:min-h-[calc(100dvh-64px)] md:px-8 md:pt-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="label-text">Entry Reflection</p>
