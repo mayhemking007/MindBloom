@@ -17,7 +17,7 @@ export function ThemeToggle({ mobile = false }: ThemeToggleProps) {
       <button
         type="button"
         onClick={toggleTheme}
-        className="flex h-11 flex-col items-center justify-center gap-1 rounded-bloom-sm text-[11px] font-medium text-bloom-text-tertiary transition-colors hover:text-bloom-text-secondary"
+        className="flex h-9 w-full items-center justify-start gap-2 rounded-bloom-sm px-3 text-[12px] font-medium text-bloom-text-secondary transition-colors hover:bg-gray-bg hover:text-bloom-text-primary"
         aria-label={label}
         title={label}
       >
