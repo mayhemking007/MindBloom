@@ -23,6 +23,9 @@
     "test:web": "npm run test -w @mindbloom/web",
     "test:e2e": "playwright test",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "memo:init": "npm run memo:init -w @mindbloom/api",
+    "memo:migrate": "npm run memo:migrate -w @mindbloom/api",
+    "memo:studio": "npm run memo:studio -w @mindbloom/api",
     "start:api": "npm run start -w @mindbloom/api"
   },
   "keywords": [

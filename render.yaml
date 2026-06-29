@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: .
     buildCommand: npm ci && npm run build:api
-    startCommand: npm run start:api
+    startCommand: npm run memo:migrate && npm run start:api
     envVars:
       - key: NODE_ENV
         value: production
@@ -14,5 +14,7 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: MEMO_GRAFTER_EMBEDDING_MODEL
+        value: text-embedding-3-small
       - key: CORS_ORIGIN
         sync: false

@@ -10,6 +10,8 @@ import type {
 } from "@mindbloom/shared";
 import type {
   GraphSnapshot,
+  GraphSnapshotMemory,
+  GraphSnapshotNode,
   MemoryEdge as MemoGrafterMemoryEdge,
   MemoryNode,
   RetrievalResult,
@@ -19,6 +21,10 @@ import type {
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
+}
+
+function toNullableIsoString(value: Date | string | null | undefined): string | null {
+  return value ? toIsoString(value) : null;
 }
 
 function friendlyThemeKind(node: TopicNode, hasGraftOrigin = false): GraphThemeKind {
@@ -88,7 +94,10 @@ function sourceLabelFromSessionId(sessionId: string): string {
   return `an entry from ${match[1]}`;
 }
 
-export function normalizeTopicNode(node: TopicNode): GraphNode {
+export function normalizeTopicNode(
+  node: TopicNode,
+  snapshotNode?: GraphSnapshotNode,
+): GraphNode {
   const kind = friendlyThemeKind(node);
 
   return {
@@ -107,6 +116,10 @@ export function normalizeTopicNode(node: TopicNode): GraphNode {
     agentColor: node.agentColor,
     fleetId: node.fleetId,
     agentId: node.agentId,
+    suppressed: snapshotNode?.lifecycle.suppressed ?? node.suppressed ?? false,
+    suppressedAt: toNullableIsoString(
+      snapshotNode?.lifecycle.suppressedAt ?? node.suppressedAt,
+    ),
     createdAt: toIsoString(node.createdAt),
   };
 }
@@ -122,7 +135,10 @@ export function normalizeTopicEdge(edge: TopicEdge): GraphEdge {
   };
 }
 
-export function normalizeMemory(memory: MemoryNode): GraphMemory {
+export function normalizeMemory(
+  memory: MemoryNode,
+  snapshotMemory?: GraphSnapshotMemory,
+): GraphMemory {
   return {
     id: memory.id,
     segmentId: memory.segmentId,
@@ -138,9 +154,16 @@ export function normalizeMemory(memory: MemoryNode): GraphMemory {
     tags: memory.tags,
     sourceUrl: memory.sourceUrl,
     sourceTitle: memory.sourceTitle,
-    supersededBy: memory.supersededBy,
-    decayed: memory.decayed,
-    hasConflict: memory.hasConflict,
+    supersededBy:
+      snapshotMemory?.lifecycle.supersededBy ?? memory.supersededBy,
+    decayed: snapshotMemory?.lifecycle.decayed ?? memory.decayed,
+    forgotten:
+      snapshotMemory?.lifecycle.forgotten ?? memory.forgotten ?? false,
+    forgottenAt: toNullableIsoString(
+      snapshotMemory?.lifecycle.forgottenAt ?? memory.forgottenAt,
+    ),
+    hasConflict:
+      snapshotMemory?.lifecycle.hasConflict ?? memory.hasConflict,
     agentColor: memory.agentColor,
     fleetId: memory.fleetId,
     createdAt: toIsoString(memory.createdAt),
@@ -166,7 +189,7 @@ export function normalizeGraphSnapshot(
   );
 
   for (const snapshotNode of snapshot.snapshotNodes ?? []) {
-    const node = normalizeTopicNode(snapshotNode.node);
+    const node = normalizeTopicNode(snapshotNode.node, snapshotNode);
     if (snapshotNode.graftOrigin) {
       const kind = friendlyThemeKind(snapshotNode.node, true);
       node.kind = kind;
@@ -188,7 +211,11 @@ export function normalizeGraphSnapshot(
     sessionId: snapshot.sessionId,
     nodes: [...nodesById.values()],
     edges: snapshot.edges.map(normalizeTopicEdge),
-    memories: snapshot.memories.map(normalizeMemory),
+    memories: (snapshot.snapshotMemories ?? []).length
+      ? snapshot.snapshotMemories.map((snapshotMemory) =>
+          normalizeMemory(snapshotMemory.memory, snapshotMemory),
+        )
+      : snapshot.memories.map((memory) => normalizeMemory(memory)),
     memoryEdges: (snapshot.memoryEdges ?? []).map(normalizeMemoryEdge),
     capturedAt: snapshot.capturedAt,
   };
@@ -202,7 +229,7 @@ export function normalizeRecallResult(result: RetrievalResult): RecallResponse {
 
   return {
     facts,
-    nodes: result.nodes.map(normalizeTopicNode),
+    nodes: result.nodes.map((node) => normalizeTopicNode(node)),
     tokenCount: result.tokenCount,
   };
 }

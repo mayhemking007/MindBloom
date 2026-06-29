@@ -8,6 +8,9 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "memo:init": "memo-grafter init",
+    "memo:migrate": "memo-grafter migrate",
+    "memo:studio": "memo-grafter studio",
     "typecheck": "tsc -b",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
@@ -19,7 +22,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "memo-grafter": "^0.2.7",
+    "memo-grafter": "^0.4.0",
     "openai": "^4.104.0",
     "pg": "^8.21.0",
     "zod": "^4.1.12"

@@ -56,7 +56,9 @@ use parameter placeholders (`$1`, `$2`, etc.); table identifiers come from fixed
 constants rather than request input.
 
 Memo-grafter uses the same database connection string but owns its internal
-graph and memory tables.
+`mg_*` graph and memory tables. MindBloom keeps app schema initialization in the
+API, while MemoGrafter schema creation is explicit through `npm run memo:init`
+and `npm run memo:migrate`.
 
 ### Demo Data
 
@@ -103,6 +105,8 @@ apps/api/src/
       errorHandler.ts
   memo-grafter/
     memoGrafter.ts      Agent initialization, caching, streaming, shutdown
+    mg-schema.ts        Generated MemoGrafter schema reference
+    mg.config.ts        MemoGrafter CLI migration and Studio config
   memory/
     prompts.ts
     graphNormalizer.ts
@@ -188,6 +192,8 @@ they are intercepted by the frontend demo store.
 
 `apps/api/src/memo-grafter/memoGrafter.ts` imports from the installed
 `memo-grafter` package and creates one cached agent per entry/session ID.
+`agent.initialize()` verifies that MemoGrafter's `mg_*` schema has already been
+migrated; it does not create those tables at runtime.
 
 Configuration includes:
 
@@ -198,6 +204,17 @@ Configuration includes:
 - streaming adapter replacement during Bloom responses
 
 Agents and the PostgreSQL pool are closed during graceful API shutdown.
+
+MemoGrafter operational commands are exposed from the workspace root:
+
+```bash
+npm run memo:init
+npm run memo:migrate
+npm run memo:studio
+```
+
+`memo:studio` starts MemoGrafter's local graph inspection UI for the configured
+database.
 
 ## Testing
 
@@ -238,6 +255,7 @@ Environment variables:
 | --- | --- | --- |
 | `DATABASE_URL` | API | App and memo-grafter PostgreSQL connection |
 | `OPENAI_API_KEY` | API | LLM and embedding operations |
+| `MEMO_GRAFTER_EMBEDDING_MODEL` | API/CLI | Optional Studio embedding model override |
 | `API_PORT` | API | Local API port, default `4000` |
 | `PORT` | API | Hosting-provider port override |
 | `CORS_ORIGIN` | API | Allowed web origin |

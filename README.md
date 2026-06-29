@@ -59,6 +59,13 @@ Enable `pgvector`:
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
+Initialize and migrate MemoGrafter's managed memory schema:
+
+```bash
+npm run memo:init
+npm run memo:migrate
+```
+
 Start both applications:
 
 ```bash
@@ -78,6 +85,9 @@ npm test
 npm run build
 npm run test:e2e
 npm run check:boundaries
+npm run memo:init
+npm run memo:migrate
+npm run memo:studio
 ```
 
 API tests use the configured PostgreSQL database and clear shared test tables.
@@ -88,5 +98,8 @@ Use a disposable database when running them.
 - Render: Express API via `render.yaml`
 - Vercel: React/Vite app via `vercel.json`
 - Neon: PostgreSQL with `pgvector`
+- MemoGrafter: run `npm run memo:migrate` for the target database before the
+  API handles traffic. Runtime startup verifies the `mg_*` schema but does not
+  create it.
 
 See [docs/deployment.md](docs/deployment.md) for deployment configuration.

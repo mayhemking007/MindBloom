@@ -405,6 +405,8 @@ export interface GraphNode {
   agentColor: string | null;
   fleetId: string | null;
   agentId: string | null;
+  suppressed?: boolean;
+  suppressedAt?: string | null;
   createdAt: string;
   graftOrigin?: GraftOrigin;
 }
@@ -439,6 +441,8 @@ export interface GraphMemory {
   sourceTitle: string | null;
   supersededBy: string | null;
   decayed: boolean;
+  forgotten?: boolean;
+  forgottenAt?: string | null;
   hasConflict?: boolean;
   agentColor: string | null;
   fleetId: string | null;
