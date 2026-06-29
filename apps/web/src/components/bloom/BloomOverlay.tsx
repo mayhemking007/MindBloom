@@ -89,7 +89,7 @@ export function BloomOverlay({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.35 }}
-          className="fixed inset-0 z-30 overflow-y-auto bg-bloom-bg"
+          className="bloom-scrollbar fixed inset-0 z-30 overflow-y-auto bg-bloom-bg"
         >
           <motion.div
             initial={{ opacity: 0, y: 30 }}

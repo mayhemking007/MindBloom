@@ -62,7 +62,7 @@ export function ChatInterface() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[760px] flex-col bg-bloom-bg md:border-x md:border-bloom-border">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[760px] flex-col bg-bloom-bg md:min-h-[calc(100dvh-64px)] md:border-x md:border-bloom-border">
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-bloom-border bg-bloom-bg px-4 md:px-6">
         <div>
           <h1 className="font-serif text-[24px] font-normal leading-none">
@@ -81,7 +81,7 @@ export function ChatInterface() {
         </button>
       </header>
 
-      <section className="flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-6 md:pt-6">
+      <section className="bloom-scrollbar flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-6 md:pt-6">
         <div className="flex flex-col gap-2.5">
           {messages.map((message) => (
             <ChatBubble key={message.id} message={message} />
@@ -117,7 +117,7 @@ export function ChatInterface() {
               placeholder={
                 loadingSession ? "Opening today's session..." : "Write a thought..."
               }
-              className="max-h-28 min-h-11 flex-1 resize-none rounded-bloom border border-bloom-border bg-bloom-surface px-4 py-3 text-[15px] leading-5 text-bloom-text-primary outline-none transition-colors placeholder:text-bloom-text-tertiary focus:border-bloom-border-mid"
+              className="bloom-scrollbar max-h-28 min-h-11 flex-1 resize-none rounded-bloom border border-bloom-border bg-bloom-surface px-4 py-3 text-[15px] leading-5 text-bloom-text-primary outline-none transition-colors placeholder:text-bloom-text-tertiary focus:border-bloom-border-mid"
             />
             <button
               type="submit"
