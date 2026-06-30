@@ -8,7 +8,6 @@ import {
   MessageCircle,
   MoreHorizontal,
   Network,
-  PanelRightClose,
   PanelRightOpen,
   PenLine,
   Pin,
@@ -23,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type {
   EntryDayGroup,
   EntryDocument,
@@ -79,6 +79,23 @@ const workspaceViews: Array<{
   { value: "map", label: "Map", icon: Network },
   { value: "reflect", label: "Reflect", icon: Sparkles },
 ];
+const bloomPanelDefaultWidth = 380;
+const bloomPanelMinWidth = 320;
+const bloomPanelMaxWidth = 520;
+
+function getBloomPanelMaxWidth() {
+  if (typeof window === "undefined") {
+    return bloomPanelMaxWidth;
+  }
+  return Math.max(
+    bloomPanelMinWidth,
+    Math.min(bloomPanelMaxWidth, window.innerWidth - 580),
+  );
+}
+
+function clampBloomPanelWidth(width: number) {
+  return Math.min(getBloomPanelMaxWidth(), Math.max(bloomPanelMinWidth, width));
+}
 
 function isWorkspaceView(value: string | null): value is WorkspaceView {
   return value === "editor" || value === "map" || value === "reflect";
@@ -841,11 +858,15 @@ interface BloomSidebarProps {
   entry: JournalEntry | null;
   messages: EntryMessage[];
   isOpen: boolean;
+  panelWidth: number;
+  isResizing: boolean;
   isSending: boolean;
   streamingContent: string;
   failedMessage: string | null;
   error: string | null;
   onToggle: () => void;
+  onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onResizeBy: (delta: number) => void;
   onSend: (message: string) => void;
   onCancel: () => void;
   onRetry: () => void;
@@ -855,11 +876,15 @@ function BloomSidebar({
   entry,
   messages,
   isOpen,
+  panelWidth,
+  isResizing,
   isSending,
   streamingContent,
   failedMessage,
   error,
   onToggle,
+  onResizeStart,
+  onResizeBy,
   onSend,
   onCancel,
   onRetry,
@@ -879,11 +904,39 @@ function BloomSidebar({
   return (
     <aside
       className={[
-        "border-l border-bloom-border bg-bloom-surface transition-all duration-200 md:h-[calc(100dvh-64px)]",
-        isOpen ? "w-full md:w-[380px]" : "w-full md:w-[56px]",
+        "relative overflow-hidden bg-bloom-surface md:h-[calc(100dvh-64px)]",
+        isResizing ? "" : "transition-[width,border-color] duration-200",
+        isOpen
+          ? "w-full border-l border-bloom-border md:w-full"
+          : "w-full border-l border-bloom-border md:w-0 md:border-l-0",
       ].join(" ")}
       aria-label="Bloom assistant"
     >
+      {isOpen ? (
+        <div
+          role="separator"
+          tabIndex={0}
+          aria-orientation="vertical"
+          aria-label="Resize Bloom assistant"
+          aria-valuemin={bloomPanelMinWidth}
+          aria-valuemax={bloomPanelMaxWidth}
+          aria-valuenow={panelWidth}
+          onPointerDown={onResizeStart}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") {
+              event.preventDefault();
+              onResizeBy(16);
+            }
+            if (event.key === "ArrowRight") {
+              event.preventDefault();
+              onResizeBy(-16);
+            }
+          }}
+          className="absolute left-0 top-0 z-10 hidden h-full w-4 -translate-x-1/2 cursor-col-resize items-center justify-center outline-none focus-visible:[&_span]:bg-bloom-accent md:flex"
+        >
+          <span className="h-12 w-1 rounded-full bg-bloom-border-mid transition-colors hover:bg-bloom-accent" />
+        </div>
+      ) : null}
       <div className="flex h-full min-h-[320px] flex-col">
         <div className="flex items-center justify-between border-b border-bloom-border px-4 py-3">
           {isOpen ? (
@@ -897,11 +950,11 @@ function BloomSidebar({
           <button
             type="button"
             onClick={onToggle}
-            className="flex h-9 w-9 items-center justify-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg md:hidden"
-            aria-label={isOpen ? "Collapse Bloom" : "Open Bloom"}
+            className="flex h-9 w-9 items-center justify-center rounded-bloom-sm text-bloom-text-tertiary hover:bg-gray-bg"
+            aria-label={isOpen ? "Close Bloom assistant" : "Open Bloom assistant"}
           >
             {isOpen ? (
-              <PanelRightClose className="h-4 w-4" aria-hidden="true" />
+              <X className="h-4 w-4" aria-hidden="true" />
             ) : (
               <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
             )}
@@ -1172,7 +1225,12 @@ export function JournalWorkspace() {
   const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null);
   const [entryPendingDelete, setEntryPendingDelete] =
     useState<JournalEntry | null>(null);
-  const [isBloomOpen, setBloomOpen] = useState(true);
+  const [isBloomOpen, setBloomOpen] = useState(false);
+  const [hasOpenedBloom, setHasOpenedBloom] = useState(false);
+  const [bloomPanelWidth, setBloomPanelWidth] = useState(
+    bloomPanelDefaultWidth,
+  );
+  const [isBloomResizing, setBloomResizing] = useState(false);
   const [isLoading, setLoading] = useState(true);
   const [isCreating, setCreating] = useState(false);
   const [isDeletingEntry, setDeletingEntry] = useState(false);
@@ -1198,6 +1256,8 @@ export function JournalWorkspace() {
   const entryDetailRequestId = useRef(0);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const bloomResizeStartXRef = useRef(0);
+  const bloomResizeStartWidthRef = useRef(bloomPanelDefaultWidth);
   const editorSelectionRef = useRef<NoteSourceSelection>({
     start: null,
     end: null,
@@ -1579,6 +1639,34 @@ export function JournalWorkspace() {
     editor.style.height = "auto";
     editor.style.height = `${editor.scrollHeight}px`;
   }, [documentDraft, isDocumentLoading, isReadOnly, selectedEntry?.id]);
+
+  useEffect(() => {
+    if (!isBloomResizing) {
+      return;
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      const nextWidth =
+        bloomResizeStartWidthRef.current +
+        bloomResizeStartXRef.current -
+        event.clientX;
+      setBloomPanelWidth(clampBloomPanelWidth(nextWidth));
+    }
+
+    function stopResizing() {
+      setBloomResizing(false);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResizing);
+    window.addEventListener("pointercancel", stopResizing);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResizing);
+      window.removeEventListener("pointercancel", stopResizing);
+    };
+  }, [isBloomResizing]);
 
   useEffect(() => {
     return () => {
@@ -2294,20 +2382,55 @@ export function JournalWorkspace() {
     }
   }
 
+  function openBloomPanel() {
+    setHasOpenedBloom(true);
+    setBloomPanelWidth((current) => clampBloomPanelWidth(current));
+    setBloomOpen(true);
+  }
+
+  function toggleBloomPanel() {
+    setHasOpenedBloom(true);
+    setBloomOpen((current) => {
+      if (!current) {
+        setBloomPanelWidth((width) => clampBloomPanelWidth(width));
+      }
+      return !current;
+    });
+  }
+
+  function startBloomResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    bloomResizeStartXRef.current = event.clientX;
+    bloomResizeStartWidthRef.current = bloomPanelWidth;
+    setBloomResizing(true);
+  }
+
+  function resizeBloomPanelBy(delta: number) {
+    setBloomPanelWidth((current) => clampBloomPanelWidth(current + delta));
+  }
+
   const latestReflection = reflections[0] ?? null;
   const isEditorView = activeView === "editor";
   const hasCurrentMapSnapshot = Boolean(
     selectedEntry && entryMap?.entryId === selectedEntry.id,
   );
   const currentMapSnapshot = hasCurrentMapSnapshot ? entryMap?.snapshot ?? null : null;
+  const bloomPanelGridWidth = isEditorView && isBloomOpen
+    ? `${bloomPanelWidth}px`
+    : "0px";
+  const workspaceGridStyle = {
+    "--bloom-panel-width": bloomPanelGridWidth,
+  } as CSSProperties;
 
   return (
     <main className="min-h-dvh bg-bloom-bg md:min-h-[calc(100dvh-64px)]">
       <div
+        style={workspaceGridStyle}
         className={[
           "grid min-h-dvh grid-cols-1 md:min-h-[calc(100dvh-64px)]",
+          isBloomResizing ? "" : "md:transition-[grid-template-columns] md:duration-200",
           isEditorView
-            ? "md:grid-cols-[260px_minmax(0,1fr)_380px]"
+            ? "md:grid-cols-[260px_minmax(0,1fr)_var(--bloom-panel-width)]"
             : "md:grid-cols-[260px_minmax(0,1fr)]",
         ].join(" ")}
       >
@@ -2365,7 +2488,7 @@ export function JournalWorkspace() {
             {isEditorView ? (
               <button
                 type="button"
-                onClick={() => setBloomOpen((current) => !current)}
+                onClick={toggleBloomPanel}
                 className="flex h-9 items-center gap-2 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-3 text-[12px] text-bloom-text-secondary md:hidden"
               >
                 <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -2374,7 +2497,21 @@ export function JournalWorkspace() {
             ) : null}
           </header>
 
-          <div className="bloom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-7">
+          <div className="bloom-scrollbar relative min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-7">
+            {isEditorView && !isBloomOpen ? (
+              <button
+                type="button"
+                onClick={openBloomPanel}
+                className={[
+                  "absolute right-4 top-4 z-10 hidden h-10 items-center gap-2 rounded-full bg-bloom-accent px-4 text-[12px] font-semibold text-bloom-on-accent shadow-lg shadow-purple-border/20 transition-colors hover:bg-bloom-accent-hover md:flex md:right-8 md:top-7",
+                  hasOpenedBloom ? "" : "bloom-gradient-border",
+                ].join(" ")}
+                aria-label="Open Bloom assistant"
+              >
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                Bloom
+              </button>
+            ) : null}
             {isLoading ? (
               <div className="rounded-bloom border border-bloom-border bg-bloom-surface p-6 text-[14px] text-bloom-text-secondary">
                 Preparing your journal...
@@ -2759,22 +2896,29 @@ export function JournalWorkspace() {
         </section>
 
         {isEditorView ? (
-          <div className="fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:h-[calc(100dvh-64px)] md:max-h-none md:overflow-visible md:border-t-0">
-            <div className={isBloomOpen ? "block" : "hidden md:block"}>
-              <BloomSidebar
-                entry={selectedEntry}
-                messages={messages}
-                isOpen={isBloomOpen}
-                isSending={isSending}
-                streamingContent={streamingContent}
-                failedMessage={failedBloomMessage}
-                error={error}
-                onToggle={() => setBloomOpen((current) => !current)}
-                onSend={handleBloomMessage}
-                onCancel={handleCancelBloomMessage}
-                onRetry={handleRetryBloomMessage}
-              />
-            </div>
+          <div
+            className={[
+              "fixed inset-x-0 bottom-[60px] z-40 max-h-[72dvh] overflow-hidden border-t border-bloom-border bg-bloom-surface md:static md:bottom-auto md:z-auto md:h-[calc(100dvh-64px)] md:max-h-none md:overflow-visible md:border-t-0",
+              isBloomOpen ? "block" : "hidden md:block",
+            ].join(" ")}
+          >
+            <BloomSidebar
+              entry={selectedEntry}
+              messages={messages}
+              isOpen={isBloomOpen}
+              panelWidth={bloomPanelWidth}
+              isResizing={isBloomResizing}
+              isSending={isSending}
+              streamingContent={streamingContent}
+              failedMessage={failedBloomMessage}
+              error={error}
+              onToggle={toggleBloomPanel}
+              onResizeStart={startBloomResize}
+              onResizeBy={resizeBloomPanelBy}
+              onSend={handleBloomMessage}
+              onCancel={handleCancelBloomMessage}
+              onRetry={handleRetryBloomMessage}
+            />
           </div>
         ) : null}
       </div>
@@ -2782,7 +2926,7 @@ export function JournalWorkspace() {
       {isEditorView ? (
         <button
           type="button"
-          onClick={() => setBloomOpen((current) => !current)}
+          onClick={toggleBloomPanel}
           className="fixed bottom-[76px] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-bloom-accent text-bloom-on-accent shadow-lg transition-colors hover:bg-bloom-accent-hover md:hidden"
           aria-label={isBloomOpen ? "Hide Bloom" : "Open Bloom"}
         >
