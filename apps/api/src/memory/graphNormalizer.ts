@@ -116,9 +116,9 @@ export function normalizeTopicNode(
     agentColor: node.agentColor,
     fleetId: node.fleetId,
     agentId: node.agentId,
-    suppressed: snapshotNode?.lifecycle.suppressed ?? node.suppressed ?? false,
+    suppressed: snapshotNode?.lifecycle?.suppressed ?? node.suppressed ?? false,
     suppressedAt: toNullableIsoString(
-      snapshotNode?.lifecycle.suppressedAt ?? node.suppressedAt,
+      snapshotNode?.lifecycle?.suppressedAt ?? node.suppressedAt,
     ),
     createdAt: toIsoString(node.createdAt),
   };
@@ -155,15 +155,15 @@ export function normalizeMemory(
     sourceUrl: memory.sourceUrl,
     sourceTitle: memory.sourceTitle,
     supersededBy:
-      snapshotMemory?.lifecycle.supersededBy ?? memory.supersededBy,
-    decayed: snapshotMemory?.lifecycle.decayed ?? memory.decayed,
+      snapshotMemory?.lifecycle?.supersededBy ?? memory.supersededBy,
+    decayed: snapshotMemory?.lifecycle?.decayed ?? memory.decayed,
     forgotten:
-      snapshotMemory?.lifecycle.forgotten ?? memory.forgotten ?? false,
+      snapshotMemory?.lifecycle?.forgotten ?? memory.forgotten ?? false,
     forgottenAt: toNullableIsoString(
-      snapshotMemory?.lifecycle.forgottenAt ?? memory.forgottenAt,
+      snapshotMemory?.lifecycle?.forgottenAt ?? memory.forgottenAt,
     ),
     hasConflict:
-      snapshotMemory?.lifecycle.hasConflict ?? memory.hasConflict,
+      snapshotMemory?.lifecycle?.hasConflict ?? memory.hasConflict,
     agentColor: memory.agentColor,
     fleetId: memory.fleetId,
     createdAt: toIsoString(memory.createdAt),

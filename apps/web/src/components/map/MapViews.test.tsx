@@ -227,4 +227,46 @@ describe("MapViews", () => {
     expect(screen.getAllByText("Pressure around work showed up first.").length)
       .toBeGreaterThan(0);
   });
+
+  it("caps constellation edges and renders memories as circles", () => {
+    const denseNodes = Array.from({ length: 7 }, (_, index) => ({
+      ...snapshot.nodes[index % snapshot.nodes.length]!,
+      id: `dense-topic-${index + 1}`,
+      label: `Dense topic ${index + 1}`,
+      topicOrder: index + 1,
+    }));
+    const denseMemories = denseNodes.map((node, index) => ({
+      ...snapshot.memories[index % snapshot.memories.length]!,
+      id: `dense-memory-${index + 1}`,
+      topicNodeId: node.id,
+      value: `Memory ${index + 1}`,
+    }));
+    const denseEdges = denseNodes.flatMap((source, sourceIndex) =>
+      denseNodes.slice(sourceIndex + 1).map((target, targetIndex) => ({
+        sourceId: source.id,
+        targetId: target.id,
+        type: targetIndex % 2 === 0 ? "semantic" : "reentry",
+        weight: 0.5 + targetIndex / 10,
+      })),
+    );
+    const { container } = render(
+      <MapViews
+        snapshot={{
+          ...snapshot,
+          nodes: denseNodes,
+          edges: denseEdges,
+          memories: denseMemories,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Constellation/i }));
+
+    expect(container.querySelectorAll("[data-constellation-edge]")).toHaveLength(12);
+    expect(
+      [...container.querySelectorAll("[data-constellation-memory]")].every(
+        (item) => item.tagName.toLowerCase() === "circle",
+      ),
+    ).toBe(true);
+  });
 });

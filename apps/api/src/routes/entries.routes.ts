@@ -103,10 +103,11 @@ const reflectionIdParamSchema = z.object({
 export const entriesRouter = Router();
 
 const minIngestTextLength = 12;
+const defaultTopicCap = 8;
 const shortEntryTopicCaps = [
-  { maxCharacters: 300, maxTopics: 2 },
-  { maxCharacters: 900, maxTopics: 3 },
-  { maxCharacters: 1800, maxTopics: 5 },
+  { maxCharacters: 300, maxTopics: 1 },
+  { maxCharacters: 900, maxTopics: 2 },
+  { maxCharacters: 1800, maxTopics: 4 },
 ] as const;
 
 function toTopicPills(
@@ -127,7 +128,7 @@ function maxTopicsForText(text: string): number | null {
 
   return (
     shortEntryTopicCaps.find((cap) => characterCount <= cap.maxCharacters)
-      ?.maxTopics ?? null
+      ?.maxTopics ?? defaultTopicCap
   );
 }
 

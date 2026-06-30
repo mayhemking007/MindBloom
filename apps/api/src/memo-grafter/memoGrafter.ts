@@ -30,7 +30,7 @@ export async function getMemoGrafterForSession(
     drift: {
       mode: "intent",
       driftSensitivity: "low",
-      minSegmentMessages: 5,
+      minSegmentMessages: 8,
       reentryDetection: true,
       reentryThreshold: 0.82,
     },

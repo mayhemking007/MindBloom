@@ -911,6 +911,7 @@ function BloomSidebar({
           : "w-full border-l border-bloom-border md:w-0 md:border-l-0",
       ].join(" ")}
       aria-label="Bloom assistant"
+      aria-hidden={isOpen ? undefined : true}
     >
       {isOpen ? (
         <div
