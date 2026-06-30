@@ -291,6 +291,42 @@ a {
   animation: bloomPulse 1800ms ease-in-out infinite;
 }
 
+@keyframes bloom-border-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.bloom-gradient-border {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.bloom-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    var(--bloom-accent),
+    var(--purple-border),
+    var(--pink-border),
+    var(--bloom-accent)
+  );
+  animation: bloom-border-spin 2.2s linear infinite;
+}
+
+.bloom-gradient-border::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--bloom-accent);
+}
+
 .entry-title-input {
   background: transparent;
   border: 0;
