@@ -60,4 +60,28 @@ describe("buildRiverLayout", () => {
         .every((path) => path.fromId === "topic-1" || path.toId === "topic-1"),
     ).toBe(true);
   });
+
+  it("caps extra visual branches so dense maps stay readable", () => {
+    const nodes = [1, 2, 3, 4, 5, 6, 7, 8].map((order) =>
+      node(`topic-${order}`, order),
+    );
+    const edges: GraphEdge[] = [];
+
+    for (let source = 1; source <= nodes.length; source += 1) {
+      for (let target = source + 2; target <= nodes.length; target += 1) {
+        edges.push({
+          sourceId: `topic-${source}`,
+          targetId: `topic-${target}`,
+          type: target % 2 === 0 ? "semantic" : "reentry",
+          weight: 0.6 + target / 100,
+        });
+      }
+    }
+
+    const layout = buildRiverLayout(nodes, edges, 900);
+    const branchPaths = layout.paths.filter((path) => path.kind !== "flow");
+
+    expect(layout.paths.length).toBeLessThanOrEqual(15);
+    expect(branchPaths.length).toBeLessThanOrEqual(8);
+  });
 });

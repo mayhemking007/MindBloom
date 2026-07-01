@@ -7,6 +7,8 @@ export const RIVER_CARD_HEIGHT = 88;
 const DESKTOP_CARD_WIDTH = 150;
 const MIN_CARD_WIDTH = 128;
 const MAX_COLUMNS = 5;
+const MAX_BRANCH_PATHS = 8;
+const MAX_TOTAL_PATHS = 18;
 
 export interface RiverLayoutNode {
   node: EnrichedMapNode;
@@ -202,7 +204,17 @@ export function buildRiverLayout(
     seenRelations.add([source.node.id, target.node.id].sort().join(":"));
   });
 
-  edges.forEach((edge, branchIndex) => {
+  const rankedEdges = [...edges].sort((left, right) => {
+    const priority = relationPriority(right) - relationPriority(left);
+    return priority !== 0 ? priority : right.weight - left.weight;
+  });
+  let branchPathCount = 0;
+
+  rankedEdges.forEach((edge, branchIndex) => {
+    if (branchPathCount >= MAX_BRANCH_PATHS || paths.length >= MAX_TOTAL_PATHS) {
+      return;
+    }
+
     const source = layoutById.get(edge.sourceId);
     const target = layoutById.get(edge.targetId);
     if (!source || !target) {
@@ -233,6 +245,7 @@ export function buildRiverLayout(
       kind,
       parentRelation: parentByNodeId.get(later.node.id) === earlier.node.id,
     });
+    branchPathCount += 1;
   });
 
   const rows = Math.max(1, Math.ceil(nodes.length / columns));

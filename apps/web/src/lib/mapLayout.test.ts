@@ -71,4 +71,34 @@ describe("computeConstellationLayout", () => {
 
     expect(distance).toBeGreaterThan((group?.radius ?? 0) + (star?.r ?? 0));
   });
+
+  it("keeps memory circles separated around dense topics", () => {
+    const memories = Array.from({ length: 12 }, (_, index) => ({
+      ...baseMemory,
+      id: `memory-${index + 1}`,
+      value: `Memory ${index + 1}`,
+      confidence: 0.65 + (index % 3) * 0.1,
+    }));
+    const [group] = computeConstellationLayout(
+      [nodeWithMemories(memories)],
+      760,
+      430,
+    );
+
+    expect(group).toBeDefined();
+
+    for (let leftIndex = 0; leftIndex < group!.stars.length; leftIndex += 1) {
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < group!.stars.length;
+        rightIndex += 1
+      ) {
+        const left = group!.stars[leftIndex]!;
+        const right = group!.stars[rightIndex]!;
+        const distance = Math.hypot(right.x - left.x, right.y - left.y);
+
+        expect(distance).toBeGreaterThanOrEqual(left.r + right.r + 7);
+      }
+    }
+  });
 });

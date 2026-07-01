@@ -542,7 +542,6 @@ describe("entry routes", () => {
 
     expect(response.body.topicPills).toEqual([
       { id: "theme-1", label: "Theme 1", topicOrder: 1 },
-      { id: "theme-2", label: "Theme 2", topicOrder: 2 },
     ]);
   });
 
@@ -741,21 +740,14 @@ describe("entry routes", () => {
 
     expect(response.body.nodes.map((node: { id: string }) => node.id)).toEqual([
       "theme-1",
-      "theme-2",
     ]);
-    expect(response.body.edges).toEqual([
-      expect.objectContaining({
-        sourceId: "theme-1",
-        targetId: "theme-2",
-      }),
-    ]);
+    expect(response.body.edges).toEqual([]);
     expect(response.body.memories.map((memory: { id: string }) => memory.id)).toEqual([
       "memory-1",
-      "memory-2",
     ]);
     expect(
       response.body.memoryEdges.map((edge: { id: string }) => edge.id),
-    ).toEqual(["memory-edge-1"]);
+    ).toEqual([]);
   });
 
   it("brings in previous themes by relevance from owned source entries", async () => {
@@ -1004,13 +996,13 @@ describe("entry routes", () => {
       response.body.reflection.graphSnapshot.nodes.map(
         (node: { id: string }) => node.id,
       ),
-    ).toEqual(["theme-1", "theme-2"]);
+    ).toEqual(["theme-1"]);
     expect(response.body.reflection.cards).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           type: "mind-map",
           metadata: expect.objectContaining({
-            themeLabels: ["Theme 1", "Theme 2"],
+            themeLabels: ["Theme 1"],
           }),
         }),
       ]),

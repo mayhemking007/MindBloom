@@ -62,6 +62,11 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+async function openBloom(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "Open Bloom assistant" }));
+  return screen.findByLabelText("Ask Bloom");
+}
+
 function snapshotWithTheme(label: string, capturedAt: string) {
   return jsonResponse({
     sessionId: "mindbloom-entry-entry-1",
@@ -267,7 +272,7 @@ describe("JournalWorkspace", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Rename entry title" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
-    expect(screen.getByLabelText("Bloom assistant")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Bloom assistant" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Map" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Reflect" })).toBeEnabled();
     expect(editor).toHaveAttribute("readonly");
@@ -524,9 +529,11 @@ describe("JournalWorkspace", () => {
       "/?entryId=entry-2&sourceSelectionStart=4&sourceSelectionEnd=10",
     );
 
+    const user = userEvent.setup();
     render(<JournalWorkspace />);
 
     expect(await screen.findByDisplayValue("The restored older entry.")).toBeVisible();
+    await openBloom(user);
     expect(await screen.findByText("History for the restored entry.")).toBeVisible();
     expect(
       screen.queryByDisplayValue("The latest entry should not replace the deep link."),
@@ -690,7 +697,7 @@ describe("JournalWorkspace", () => {
 
     render(<JournalWorkspace />);
 
-    const bloomInput = await screen.findByLabelText("Ask Bloom");
+    const bloomInput = await openBloom(user);
     await user.type(bloomInput, "Help me continue{Enter}");
 
     await waitFor(() => {
@@ -781,7 +788,7 @@ describe("JournalWorkspace", () => {
 
     render(<JournalWorkspace />);
 
-    const bloomInput = await screen.findByLabelText("Ask Bloom");
+    const bloomInput = await openBloom(user);
     await user.type(bloomInput, "Help me continue{Enter}");
     await user.click(await screen.findByRole("button", { name: "Retry Bloom response" }));
 
@@ -875,7 +882,7 @@ describe("JournalWorkspace", () => {
 
     render(<JournalWorkspace />);
 
-    expect(await screen.findByLabelText("Ask Bloom")).toBeVisible();
+    expect(await openBloom(user)).toBeVisible();
     expect(screen.queryByText("Old writing theme")).not.toBeInTheDocument();
     const editor = await screen.findByLabelText("Journal entry");
     await user.clear(editor);
@@ -902,10 +909,11 @@ describe("JournalWorkspace", () => {
       return Promise.resolve(jsonResponse({}));
     });
     vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
 
     render(<JournalWorkspace />);
 
-    expect(await screen.findByLabelText("Ask Bloom")).toBeVisible();
+    expect(await openBloom(user)).toBeVisible();
     expect(screen.queryByText("Brought-in context")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Bring in a previous theme")).not.toBeInTheDocument();
     const graftCall = fetchMock.mock.calls.find(([url]) =>
@@ -1367,7 +1375,7 @@ describe("JournalWorkspace", () => {
     expect(screen.getByRole("button", { name: "Map" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Reflect" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Calendar" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Bloom assistant")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Bloom assistant" })).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", { name: "Open entry Evening thoughts" }),
@@ -1375,7 +1383,7 @@ describe("JournalWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "Map" }));
 
     expect(await screen.findByText("Evening theme")).toBeVisible();
-    expect(screen.queryByLabelText("Bloom assistant")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Bloom assistant" })).not.toBeInTheDocument();
     expect(window.location.search).toBe("?entryId=entry-2&view=map");
     expect(
       fetchMock.mock.calls.some(([url]) =>
@@ -1384,11 +1392,13 @@ describe("JournalWorkspace", () => {
     ).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Reflect" }));
-    expect(screen.queryByLabelText("Bloom assistant")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Bloom assistant" })).not.toBeInTheDocument();
     expect(window.location.search).toBe("?entryId=entry-2&view=reflect");
 
     await user.click(screen.getByRole("button", { name: "Editor" }));
-    expect(await screen.findByLabelText("Bloom assistant")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Open Bloom assistant" }),
+    ).toBeInTheDocument();
     expect(window.location.search).toBe("?entryId=entry-2");
   });
 
