@@ -33,7 +33,7 @@ describe("MindBloomOpenAILLMAdapter", () => {
       {
         role: "user",
         content:
-          "Analyze this conversation segment and extract structured memory.\nReturn a single valid JSON object and nothing else.",
+          "Analyze this conversation segment: summarize what happened in the interaction.\nReturn a single valid JSON object and nothing else.",
       },
     ]);
 
@@ -47,6 +47,27 @@ describe("MindBloomOpenAILLMAdapter", () => {
     expect(createMock).toHaveBeenCalledWith(
       expect.not.objectContaining({
         stream: true,
+      }),
+    );
+  });
+
+  it("uses JSON mode for MemoGrafter document extraction", async () => {
+    createMock.mockResolvedValue({
+      choices: [{ message: { content: '{"label":"Document"}' } }],
+    });
+    const adapter = new MindBloomOpenAILLMAdapter("gpt-4o-mini");
+
+    await adapter.complete([
+      {
+        role: "user",
+        content:
+          "Analyze this document segment: summarize what it contains.\nReturn a single valid JSON object and nothing else.",
+      },
+    ]);
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response_format: { type: "json_object" },
       }),
     );
   });

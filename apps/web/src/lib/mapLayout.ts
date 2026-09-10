@@ -30,8 +30,8 @@ const opacityByType: Record<string, number> = {
   reference: 0.52,
 };
 
-function confidenceToRadius(confidence: number): number {
-  const clamped = Math.max(0, Math.min(1, confidence));
+function importanceToRadius(visualImportance: number): number {
+  const clamped = Math.max(0, Math.min(1, visualImportance));
   return 3 + clamped * 5;
 }
 
@@ -195,14 +195,14 @@ export function computeConstellationLayout(
     const radius = topicRadius(node, degree);
     const importance = Math.min(1, (radius - 8) / 18);
     const starRadii = node.memories.map((memory) =>
-      confidenceToRadius(memory.confidence),
+      importanceToRadius(memory.visualImportance),
     );
     const offsets = constellationOffsets(node, node.memories.length, radius, starRadii);
 
     const stars = node.memories.map((memory, memoryIndex) => ({
       x: cx + (offsets[memoryIndex]?.x ?? 0),
       y: cy + (offsets[memoryIndex]?.y ?? 0),
-      r: starRadii[memoryIndex] ?? confidenceToRadius(memory.confidence),
+      r: starRadii[memoryIndex] ?? importanceToRadius(memory.visualImportance),
       opacity: opacityByType[memory.memoryType] ?? 0.62,
       rotation: offsets[memoryIndex]?.rotation ?? 0,
       points: offsets[memoryIndex]?.points ?? 5,

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { GraphSnapshotResponse } from "@mindbloom/shared";
+import type { GraphMemory, GraphSnapshotResponse } from "@mindbloom/shared";
 
 import { getColorForTopic, type ColorRamp } from "../../lib/topicColors";
 import { formatTopicSummary } from "../../lib/topicSummary";
@@ -10,13 +10,34 @@ import type { EnrichedMapNode, MapViewType, MapViewsProps } from "./types";
 
 const fallbackRamps: ColorRamp[] = ["coral", "purple", "teal", "amber", "blue", "pink"];
 
+function normalizeLegacyMemory(memory: GraphMemory): GraphMemory {
+  const legacyConfidence = (memory as GraphMemory & { confidence?: number }).confidence;
+  const visualImportance = Number.isFinite(memory.visualImportance)
+    ? memory.visualImportance
+    : Number.isFinite(legacyConfidence)
+      ? legacyConfidence!
+      : 0.5;
+
+  return {
+    ...memory,
+    quality: memory.quality ?? {
+      explicitness: 0.5,
+      sourceReliability: 0.5,
+      stability: 0.5,
+      salience: visualImportance,
+    },
+    visualImportance,
+  };
+}
+
 function enrichSnapshot(snapshot: GraphSnapshotResponse): EnrichedMapNode[] {
   return [...snapshot.nodes]
     .sort((a, b) => a.topicOrder - b.topicOrder)
     .map((node, index) => {
       const memories = snapshot.memories
         .filter((memory) => memory.topicNodeId === node.id && !memory.decayed)
-        .sort((a, b) => b.confidence - a.confidence);
+        .map(normalizeLegacyMemory)
+        .sort((a, b) => b.visualImportance - a.visualImportance);
       const topicColor = getColorForTopic(node.label);
 
       return {

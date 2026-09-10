@@ -15,7 +15,8 @@ const baseMemory: GraphMemory = {
   subject: "topic",
   predicate: "revealed",
   value: "A memory with confidence.",
-  confidence: 0.9,
+  quality: { explicitness: 0.9, sourceReliability: 0.8, stability: 0.8, salience: 0.9 },
+  visualImportance: 0.9,
   tags: [],
   sourceUrl: null,
   sourceTitle: null,
@@ -77,7 +78,7 @@ describe("computeConstellationLayout", () => {
       ...baseMemory,
       id: `memory-${index + 1}`,
       value: `Memory ${index + 1}`,
-      confidence: 0.65 + (index % 3) * 0.1,
+      visualImportance: 0.65 + (index % 3) * 0.1,
     }));
     const [group] = computeConstellationLayout(
       [nodeWithMemories(memories)],

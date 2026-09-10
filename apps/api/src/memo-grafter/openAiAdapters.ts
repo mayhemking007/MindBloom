@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import type { LLMAdapter, Message } from "memo-grafter";
+import type { LLMAdapter, MemoGrafterOperationOptions, Message } from "memo-grafter";
 
 interface MindBloomOpenAIOptions {
   streaming?: boolean;
@@ -11,9 +11,8 @@ function isSegmentExtractionPrompt(messages: Message[]) {
   return messages.some(
     (message) =>
       message.role === "user" &&
-      message.content.includes(
-        "Analyze this conversation segment and extract structured memory",
-      ) &&
+      (message.content.includes("Analyze this conversation segment:") ||
+        message.content.includes("Analyze this document segment:")) &&
       message.content.includes("Return a single valid JSON object"),
   );
 }
@@ -26,7 +25,17 @@ export class MindBloomOpenAILLMAdapter implements LLMAdapter {
     private readonly options: MindBloomOpenAIOptions = {},
   ) {}
 
-  async complete(messages: Message[], system?: string): Promise<string> {
+  async complete(
+    messages: Message[],
+    system?: string,
+    operationOptions?: MemoGrafterOperationOptions,
+  ): Promise<string> {
+    const timeoutSignal = operationOptions?.timeoutMs
+      ? AbortSignal.timeout(operationOptions.timeoutMs)
+      : undefined;
+    const operationSignal = operationOptions?.signal && timeoutSignal
+      ? AbortSignal.any([operationOptions.signal, timeoutSignal])
+      : operationOptions?.signal ?? timeoutSignal;
     const openAiMessages: ChatCompletionMessageParam[] = [
       ...(system ? [{ role: "system" as const, content: system }] : []),
       ...messages.map((message) => ({
@@ -38,11 +47,16 @@ export class MindBloomOpenAILLMAdapter implements LLMAdapter {
     const shouldUseJsonMode = isSegmentExtractionPrompt(messages);
 
     if (this.options.streaming && !shouldUseJsonMode) {
-      const stream = await this.client.chat.completions.create({
+      const request = {
         model: this.model,
         messages: openAiMessages,
-        stream: true,
-      });
+        stream: true as const,
+      };
+      const stream = operationSignal
+        ? await this.client.chat.completions.create(request, {
+            signal: operationSignal,
+          })
+        : await this.client.chat.completions.create(request);
       let response = "";
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta.content;
@@ -55,13 +69,18 @@ export class MindBloomOpenAILLMAdapter implements LLMAdapter {
       return response;
     }
 
-    const response = await this.client.chat.completions.create({
+    const request = {
       model: this.model,
       messages: openAiMessages,
       ...(shouldUseJsonMode
         ? { response_format: { type: "json_object" as const } }
         : {}),
-    });
+    };
+    const response = operationSignal
+      ? await this.client.chat.completions.create(request, {
+          signal: operationSignal,
+        })
+      : await this.client.chat.completions.create(request);
 
     return response.choices[0]?.message.content ?? "";
   }

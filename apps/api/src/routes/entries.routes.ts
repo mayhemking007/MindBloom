@@ -21,7 +21,10 @@ import {
   parseEntryId,
   readOwnerScope,
 } from "../http/middleware/requireOwner.js";
-import { getAgentForSession, invokeAgentWithStreaming } from "../memo-grafter/memoGrafter.js";
+import {
+  completeWithMemoGrafterContext,
+  getMemoGrafterForSession as getAgentForSession,
+} from "../services/memory.service.js";
 import { buildEntryReflectionCards } from "../memory/entryReflection.js";
 import { entryStore } from "../services/entries.service.js";
 import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
@@ -783,6 +786,10 @@ entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
       isConnected = false;
     });
 
+    const recentMessages = (await entryStore.listMessages(entry.id))
+      .filter((message) => message.role !== "system")
+      .slice(-8)
+      .map((message) => ({ role: message.role, content: message.content }));
     const userMessage = await entryStore.addMessage({
       entryId: entry.id,
       role: "user",
@@ -792,21 +799,25 @@ entriesRouter.post("/:entryId/messages/stream", async (req, res, next) => {
 
     try {
       const agent = await getAgentForSession(entry.memoSessionId);
-      const reply = await invokeAgentWithStreaming(
-        agent,
-        buildBloomWritingContext({
+      const reply = await completeWithMemoGrafterContext({
+        sessionId: entry.memoSessionId,
+        retrievalQuery: parsed.data.content,
+        userPrompt: buildBloomWritingContext({
           content: parsed.data.content,
           documentDraft: parsed.data.documentDraft,
           selectedText: parsed.data.selectedText,
           entryTags: parsed.data.entryTags ?? entry.tags,
           broughtInContext: parsed.data.broughtInContext,
         }),
-        (chunk) => {
+        recentMessages,
+        tags: entry.tags,
+        idempotencyKey: `entry-message:${userMessage.id}`,
+        onChunk: (chunk) => {
           if (isConnected) {
             writeStreamEvent(res, "token", { chunk });
           }
         },
-      );
+      });
       if (res.destroyed) {
         return;
       }

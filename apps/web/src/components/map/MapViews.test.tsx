@@ -65,7 +65,8 @@ const snapshot: GraphSnapshotResponse = {
       subject: "work",
       predicate: "revealed",
       value: "Work pressure is connected to wanting more breathing room.",
-      confidence: 0.91,
+      quality: { explicitness: 0.9, sourceReliability: 0.8, stability: 0.8, salience: 0.95 },
+      visualImportance: 0.91,
       tags: [],
       sourceUrl: null,
       sourceTitle: null,
@@ -87,7 +88,8 @@ const snapshot: GraphSnapshotResponse = {
       subject: "rest",
       predicate: "asks",
       value: "What would make rest easier to protect this week?",
-      confidence: 0.74,
+      quality: { explicitness: 0.8, sourceReliability: 0.8, stability: 0.6, salience: 0.75 },
+      visualImportance: 0.74,
       tags: [],
       sourceUrl: null,
       sourceTitle: null,
@@ -100,6 +102,8 @@ const snapshot: GraphSnapshotResponse = {
     },
   ],
   memoryEdges: [],
+  episodes: [],
+  clusters: [],
 };
 
 describe("MapViews", () => {

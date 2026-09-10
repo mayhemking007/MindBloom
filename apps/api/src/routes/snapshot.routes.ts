@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { ApiError } from "../http/errors.js";
-import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { getMemoGrafterForSession as getAgentForSession } from "../services/memory.service.js";
 import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
 
 const snapshotQuerySchema = z.object({

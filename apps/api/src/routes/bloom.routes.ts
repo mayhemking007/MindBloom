@@ -8,7 +8,7 @@ import {
   getFallbackBloomInsights,
   parseBloomInsights,
 } from "../memory/bloom.js";
-import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { getMemoGrafterForSession as getAgentForSession } from "../services/memory.service.js";
 import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
 import { openai } from "../memory/openai.js";
 import { bloomSystemPrompt, buildBloomUserPrompt } from "../memory/prompts.js";

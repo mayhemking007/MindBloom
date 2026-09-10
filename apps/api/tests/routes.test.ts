@@ -1,7 +1,7 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate } =
+const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate, retrieveMemoGrafterContext } =
   vi.hoisted(() => ({
   agent: {
     invoke: vi.fn(),
@@ -16,12 +16,14 @@ const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate } =
   },
   getAgentForSession: vi.fn(),
   invokeAgentWithStreaming: vi.fn(),
+  retrieveMemoGrafterContext: vi.fn(),
   openaiCreate: vi.fn(),
 }));
 
-vi.mock("../src/memo-grafter/memoGrafter.js", () => ({
-  getAgentForSession,
-  invokeAgentWithStreaming,
+vi.mock("../src/services/memory.service.js", () => ({
+  getMemoGrafterForSession: getAgentForSession,
+  invokeMemoGrafterWithStreaming: invokeAgentWithStreaming,
+  retrieveMemoGrafterContext,
 }));
 
 vi.mock("../src/memory/openai.js", () => ({
@@ -68,7 +70,12 @@ function memoryNode() {
     subject: "user",
     predicate: "feels",
     value: "pressure at work",
-    confidence: 0.9,
+    quality: {
+      explicitness: 0.9,
+      sourceReliability: 0.8,
+      stability: 0.7,
+      salience: 0.9,
+    },
     embedding: [],
     sourceUrl: null,
     sourceTitle: null,
@@ -120,12 +127,14 @@ describe("MindBloom API routes", () => {
     agent.getHistory.mockReturnValue([
       { role: "user", content: "Work pressure keeps following me home." },
     ]);
-    agent.recall.mockResolvedValue({
+    const recallResult = {
       facts: [{ ...memoryNode(), similarity: 0.82 }],
       nodes: [topicNode()],
       systemPrompt: "memory context",
       tokenCount: 42,
-    });
+    };
+    agent.recall.mockResolvedValue(recallResult);
+    retrieveMemoGrafterContext.mockResolvedValue(recallResult);
     agent.getGraftRegistry.mockResolvedValue([]);
     agent.absorbFromAgent.mockResolvedValue([topicNode()]);
     agent.removeGraft.mockResolvedValue(undefined);

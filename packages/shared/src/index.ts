@@ -407,6 +407,14 @@ export interface GraphNode {
   agentId: string | null;
   suppressed?: boolean;
   suppressedAt?: string | null;
+  pinned?: boolean;
+  pinnedAt?: string | null;
+  episodeCount?: number;
+  firstActiveAt?: string;
+  lastActiveAt?: string;
+  lastEpisodeId?: string | null;
+  revision?: number;
+  clusterId?: string | null;
   createdAt: string;
   graftOrigin?: GraftOrigin;
 }
@@ -424,6 +432,24 @@ export type MemoryType = "fact" | "insight" | "question" | "task" | "reference";
 
 export type MemorySourceType = "conversation" | "note" | "document" | "code";
 
+export interface GraphMemoryQuality {
+  explicitness: number;
+  sourceReliability: number;
+  stability: number;
+  salience: number;
+}
+
+export interface GraphMemoryProvenance {
+  speaker: "user" | "assistant" | "system" | "document";
+  messageIndexes: number[];
+  sessionId: string;
+  extractionMethod:
+    | "explicit"
+    | "inferred"
+    | "user-confirmed"
+    | "document-extraction";
+}
+
 export interface GraphMemory {
   id: string;
   segmentId: string;
@@ -435,7 +461,14 @@ export interface GraphMemory {
   subject: string;
   predicate: string;
   value: string;
-  confidence: number;
+  quality: GraphMemoryQuality;
+  /** MindBloom-owned display weight. This is not a probability or truth score. */
+  visualImportance: number;
+  qualityDefaulted?: Array<keyof GraphMemoryQuality>;
+  qualityOrigin?: "extracted" | "provided" | "legacy";
+  provenance?: GraphMemoryProvenance | null;
+  reinforcementCount?: number;
+  lastReinforcedAt?: string | null;
   tags?: string[];
   sourceUrl: string | null;
   sourceTitle: string | null;
@@ -447,6 +480,37 @@ export interface GraphMemory {
   agentColor: string | null;
   fleetId: string | null;
   createdAt: string;
+}
+
+export interface GraphEpisode {
+  id: string;
+  sessionId: string;
+  segmentId: string;
+  topicId: string;
+  summary: string;
+  intent: string;
+  outcome: string;
+  openQuestion: string | null;
+  messageRange: [number, number];
+  episodeOrder: number;
+  sourceType: MemorySourceType;
+  source?: string;
+  tags?: string[];
+  assignmentMethod: "created" | "embedding" | "llm" | "backfill";
+  assignmentSimilarity: number | null;
+  createdAt: string;
+}
+
+export interface GraphTopicCluster {
+  id: string;
+  sessionId: string;
+  label: string;
+  normalizedLabel: string;
+  aliases?: string[];
+  description: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MemoryEdge {
@@ -464,6 +528,8 @@ export interface GraphSnapshotResponse {
   edges: GraphEdge[];
   memories: GraphMemory[];
   memoryEdges: MemoryEdge[];
+  episodes: GraphEpisode[];
+  clusters: GraphTopicCluster[];
   capturedAt: string;
 }
 
@@ -474,7 +540,41 @@ export interface RecallFact extends GraphMemory {
 export interface RecallResponse {
   facts: RecallFact[];
   nodes: GraphNode[];
+  episodes: Array<GraphEpisode & { similarity: number }>;
   tokenCount: number;
+  tokenBudget?: number;
+  query?: {
+    original: string;
+    retrieval: string;
+    contextualized: boolean;
+    contextMessageCount: number;
+    status: "not-needed" | "applied" | "fallback" | "disabled";
+  };
+  selection?: {
+    candidateCount: number;
+    memoryCandidateCount: number;
+    topicCandidateCount: number;
+    episodeCandidateCount?: number;
+    rankedCount: number;
+    selectedFactCount: number;
+    selectedTopicCount: number;
+    selectedEpisodeCount?: number;
+    topicOnlyMatchCount: number;
+    reason:
+      | "exhausted"
+      | "fact-limit"
+      | "topic-limit"
+      | "relative-score"
+      | "score-gap"
+      | "token-budget";
+  };
+  topicMatches?: Array<{
+    topicId: string;
+    matchedBy: Array<"memory" | "topic">;
+    score: number;
+  }>;
+  degraded?: boolean;
+  warnings?: Array<{ code: string; operation: string; stage?: string }>;
 }
 
 export interface BloomRequest {

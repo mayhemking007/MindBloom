@@ -190,10 +190,16 @@ they are intercepted by the frontend demo store.
 
 ## Memo-Grafter Lifecycle
 
-`apps/api/src/memo-grafter/memoGrafter.ts` imports from the installed
-`memo-grafter` package and creates one cached agent per entry/session ID.
+`apps/api/src/memo-grafter/memoGrafter.ts` imports the pinned MemoGrafter 0.5.2
+package. It creates correctly session-bound cached agents for graph inspection
+and legacy conversational routes, plus a shared lower-level `MemoGrafter` core
+for application-owned retrieval and completion flows.
 `agent.initialize()` verifies that MemoGrafter's `mg_*` schema has already been
 migrated; it does not create those tables at runtime.
+
+Entry Bloom streaming uses `context()` to retrieve fresh prompt-ready memory,
+then MindBloom owns the OpenAI completion and submits the completed exchange
+through durable analysis. It does not replace MemoGrafter's private LLM adapter.
 
 Configuration includes:
 
@@ -201,7 +207,9 @@ Configuration includes:
 - intent-based drift detection
 - graph expansion limits
 - recent-message and recall budgets
-- streaming adapter replacement during Bloom responses
+- structured memory quality and MindBloom-owned visual importance
+- stable-topic episodes exposed through the normalized graph contract
+- typed degraded-retrieval warnings
 
 Agents and the PostgreSQL pool are closed during graceful API shutdown.
 
@@ -210,6 +218,7 @@ MemoGrafter operational commands are exposed from the workspace root:
 ```bash
 npm run memo:init
 npm run memo:migrate
+npm run memo:doctor
 npm run memo:studio
 ```
 

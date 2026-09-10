@@ -10,6 +10,7 @@
     "start": "node dist/server.js",
     "memo:init": "memo-grafter init",
     "memo:migrate": "memo-grafter migrate",
+    "memo:doctor": "memo-grafter doctor",
     "memo:studio": "memo-grafter studio",
     "typecheck": "tsc -b",
     "lint": "tsc -p tsconfig.json --noEmit",
@@ -22,7 +23,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "memo-grafter": "^0.4.0",
+    "memo-grafter": "0.5.2",
     "openai": "^4.104.0",
     "pg": "^8.21.0",
     "zod": "^4.1.12"
