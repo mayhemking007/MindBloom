@@ -17,9 +17,9 @@ const { agent, getAgentForSession, invokeAgentWithStreaming, openaiCreate } =
   openaiCreate: vi.fn(),
 }));
 
-vi.mock("../src/memo-grafter/memoGrafter.js", () => ({
-  getAgentForSession,
-  invokeAgentWithStreaming,
+vi.mock("../src/services/memory.service.js", () => ({
+  getMemoGrafterForSession: getAgentForSession,
+  completeWithMemoGrafterContext: invokeAgentWithStreaming,
 }));
 
 vi.mock("../src/memory/openai.js", () => ({
@@ -126,7 +126,12 @@ function multiThemeGraphSnapshot(sessionId = "mindbloom-entry-entry-1") {
       subject: node.label,
       predicate: "noticed",
       value: `Memory ${node.topicOrder}`,
-      confidence: 0.8,
+      quality: {
+        explicitness: 0.8,
+        sourceReliability: 0.8,
+        stability: 0.7,
+        salience: 0.8,
+      },
       tags: [],
       sourceUrl: null,
       sourceTitle: null,
@@ -186,13 +191,9 @@ describe("entry routes", () => {
       },
     ]);
     invokeAgentWithStreaming.mockImplementation(
-      async (
-        _agent: unknown,
-        _message: string,
-        onChunk: (chunk: string) => void | Promise<void>,
-      ) => {
-        await onChunk("A streamed ");
-        await onChunk("reply.");
+      async (input: { onChunk: (chunk: string) => void | Promise<void> }) => {
+        await input.onChunk("A streamed ");
+        await input.onChunk("reply.");
         return "A streamed reply.";
       },
     );
@@ -401,14 +402,15 @@ describe("entry routes", () => {
     expect(response.text).toContain("A streamed ");
     expect(response.text).toContain("event: done");
     expect(invokeAgentWithStreaming).toHaveBeenCalledWith(
-      agent,
-      expect.stringContaining("Writer request:\nHelp me continue."),
-      expect.any(Function),
+      expect.objectContaining({
+        retrievalQuery: "Help me continue.",
+        userPrompt: expect.stringContaining("Writer request:\nHelp me continue."),
+        tags: ["journal"],
+        onChunk: expect.any(Function),
+      }),
     );
-    expect(invokeAgentWithStreaming).toHaveBeenCalledWith(
-      agent,
-      expect.stringContaining("Entry tags: journal"),
-      expect.any(Function),
+    expect(invokeAgentWithStreaming.mock.calls[0]?.[0].userPrompt).toContain(
+      "Entry tags: journal",
     );
 
     const messages = await request(app)
@@ -425,12 +427,8 @@ describe("entry routes", () => {
 
   it("does not persist a partial assistant reply when streaming fails", async () => {
     invokeAgentWithStreaming.mockImplementationOnce(
-      async (
-        _agent: unknown,
-        _message: string,
-        onChunk: (chunk: string) => void | Promise<void>,
-      ) => {
-        await onChunk("partial secret-looking OPENAI_API_KEY=secret");
+      async (input: { onChunk: (chunk: string) => void | Promise<void> }) => {
+        await input.onChunk("partial secret-looking OPENAI_API_KEY=secret");
         throw new Error("DATABASE_URL=postgres://secret");
       },
     );

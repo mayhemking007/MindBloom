@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { apiPort } from "./config/env.js";
 import { closeDb, initializeDb } from "./config/db.js";
-import { shutdownMemoGrafters } from "./memo-grafter/memoGrafter.js";
+import { shutdownMemoGrafters } from "./services/memory.service.js";
 import { authStore } from "./services/auth.service.js";
 
 const app = createApp();

@@ -25,6 +25,8 @@ export function bloomFixture(
       edges: [],
       memories: [],
       memoryEdges: [],
+      episodes: [],
+      clusters: [],
       capturedAt: "2026-06-01T10:00:00.000Z",
     },
   };

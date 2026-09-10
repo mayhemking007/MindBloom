@@ -7,7 +7,7 @@ import {
 } from "@mindbloom/shared";
 
 import { ApiError } from "../http/errors.js";
-import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { getMemoGrafterForSession as getAgentForSession } from "../services/memory.service.js";
 import { normalizeGraphSnapshot } from "../memory/graphNormalizer.js";
 import { openai } from "../memory/openai.js";
 import {

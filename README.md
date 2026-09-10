@@ -64,7 +64,14 @@ Initialize and migrate MemoGrafter's managed memory schema:
 ```bash
 npm run memo:init
 npm run memo:migrate
+npm run memo:doctor
 ```
+
+MindBloom is pinned to MemoGrafter `0.5.2`. After pulling a dependency update,
+run the migration before starting the API. Version 0.5.2 adds durable ingestion,
+canonical memory evidence, structured memory quality, stable-topic episodes, and
+optional topic clusters. Runtime startup verifies this schema but never applies
+database DDL automatically.
 
 Start both applications:
 
@@ -87,6 +94,7 @@ npm run test:e2e
 npm run check:boundaries
 npm run memo:init
 npm run memo:migrate
+npm run memo:doctor
 npm run memo:studio
 ```
 

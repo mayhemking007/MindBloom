@@ -13,6 +13,59 @@ export const memoGrafterExtensions = [
 ] as const;
 
 export const memoGrafterTables = {
+  mg_topic_clusters: {
+    name: "mg_topic_clusters",
+    description: "Optional session-scoped topic domains; no retrieval graph edges.",
+    columns: {
+      id: {
+        name: "id",
+        type: "uuid",
+        primaryKey: true,
+        default: "gen_random_uuid()",
+      },
+      session_id: {
+        name: "session_id",
+        type: "text",
+      },
+      label: {
+        name: "label",
+        type: "text",
+      },
+      normalized_label: {
+        name: "normalized_label",
+        type: "text",
+      },
+      aliases: {
+        name: "aliases",
+        type: "text[]",
+        default: "'{}'",
+      },
+      description: {
+        name: "description",
+        type: "text",
+      },
+      embedding: {
+        name: "embedding",
+        type: "vector",
+      },
+      revision: {
+        name: "revision",
+        type: "int",
+        default: "1",
+      },
+      created_at: {
+        name: "created_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+      updated_at: {
+        name: "updated_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    },
+    constraints: ["UNIQUE (session_id, normalized_label)","UNIQUE (session_id, id)"]
+  },
   mg_message_buffer: {
     name: "mg_message_buffer",
     description: "Ordered raw messages for each MemoGrafter session.",
@@ -157,13 +210,158 @@ export const memoGrafterTables = {
         type: "timestamptz",
         nullable: true,
       },
+      pinned: {
+        name: "pinned",
+        type: "boolean",
+        default: "false",
+      },
+      pinned_at: {
+        name: "pinned_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      cluster_id: {
+        name: "cluster_id",
+        type: "uuid",
+        nullable: true,
+      },
+      cluster_assignment: {
+        name: "cluster_assignment",
+        type: "jsonb",
+        nullable: true,
+      },
+      episode_count: {
+        name: "episode_count",
+        type: "int",
+        default: "1",
+      },
+      embedding_count: {
+        name: "embedding_count",
+        type: "int",
+        default: "1",
+      },
+      first_active_at: {
+        name: "first_active_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      last_active_at: {
+        name: "last_active_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      last_episode_id: {
+        name: "last_episode_id",
+        type: "uuid",
+        nullable: true,
+      },
+      revision: {
+        name: "revision",
+        type: "int",
+        default: "1",
+      },
       created_at: {
         name: "created_at",
         type: "timestamptz",
         default: "now()",
       },
     },
-    constraints: ["UNIQUE (segment_id)"]
+    constraints: ["UNIQUE (segment_id)","FOREIGN KEY (session_id, cluster_id) REFERENCES mg_topic_clusters(session_id, id) ON DELETE SET NULL (cluster_id)"]
+  },
+  mg_episodes: {
+    name: "mg_episodes",
+    description: "Interaction-level history assigned to stable topic nodes.",
+    columns: {
+      id: {
+        name: "id",
+        type: "uuid",
+        primaryKey: true,
+        default: "gen_random_uuid()",
+      },
+      session_id: {
+        name: "session_id",
+        type: "text",
+      },
+      segment_id: {
+        name: "segment_id",
+        type: "text",
+        references: "mg_segments(id)",
+        unique: true,
+      },
+      topic_id: {
+        name: "topic_id",
+        type: "text",
+        references: "mg_topic_nodes(id)",
+      },
+      summary: {
+        name: "summary",
+        type: "text",
+      },
+      intent: {
+        name: "intent",
+        type: "text",
+      },
+      outcome: {
+        name: "outcome",
+        type: "text",
+      },
+      open_question: {
+        name: "open_question",
+        type: "text",
+        nullable: true,
+      },
+      embedding: {
+        name: "embedding",
+        type: "vector",
+        nullable: true,
+      },
+      message_range: {
+        name: "message_range",
+        type: "int[]",
+      },
+      episode_order: {
+        name: "episode_order",
+        type: "int",
+      },
+      source_type: {
+        name: "source_type",
+        type: "text",
+        default: "conversation",
+        check: "conversation|note|document|code",
+      },
+      source: {
+        name: "source",
+        type: "text",
+        nullable: true,
+      },
+      tags: {
+        name: "tags",
+        type: "text[]",
+        default: "'{}'",
+      },
+      assignment_method: {
+        name: "assignment_method",
+        type: "text",
+        default: "created",
+        check: "created|embedding|llm|backfill",
+      },
+      assignment_similarity: {
+        name: "assignment_similarity",
+        type: "float",
+        nullable: true,
+      },
+      assignment_version: {
+        name: "assignment_version",
+        type: "int",
+        default: "1",
+      },
+      created_at: {
+        name: "created_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    },
+    constraints: ["UNIQUE (session_id, episode_order)"]
   },
   mg_topic_edges: {
     name: "mg_topic_edges",
@@ -241,10 +439,80 @@ export const memoGrafterTables = {
         name: "value",
         type: "text",
       },
-      confidence: {
-        name: "confidence",
+      canonical_subject: {
+        name: "canonical_subject",
+        type: "text",
+        nullable: true,
+      },
+      canonical_predicate: {
+        name: "canonical_predicate",
+        type: "text",
+        nullable: true,
+      },
+      canonical_value: {
+        name: "canonical_value",
+        type: "text",
+        nullable: true,
+      },
+      canonical_fact_key: {
+        name: "canonical_fact_key",
+        type: "text",
+        nullable: true,
+      },
+      canonical_value_key: {
+        name: "canonical_value_key",
+        type: "text",
+        nullable: true,
+      },
+      canonicalization_version: {
+        name: "canonicalization_version",
+        type: "int",
+        default: "1",
+      },
+      reinforcement_count: {
+        name: "reinforcement_count",
+        type: "int",
+        default: "1",
+      },
+      last_reinforced_at: {
+        name: "last_reinforced_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      quality_explicitness: {
+        name: "quality_explicitness",
         type: "float",
-        default: "1.0",
+        default: "0.5",
+      },
+      quality_source_reliability: {
+        name: "quality_source_reliability",
+        type: "float",
+        default: "0.5",
+      },
+      quality_stability: {
+        name: "quality_stability",
+        type: "float",
+        default: "0.5",
+      },
+      quality_salience: {
+        name: "quality_salience",
+        type: "float",
+        default: "0.5",
+      },
+      quality_defaulted: {
+        name: "quality_defaulted",
+        type: "text[]",
+        default: "'{explicitness,sourceReliability,stability,salience}'",
+      },
+      quality_origin: {
+        name: "quality_origin",
+        type: "text",
+        default: "legacy",
+      },
+      quality_updated_at: {
+        name: "quality_updated_at",
+        type: "timestamptz",
+        default: "now()",
       },
       embedding: {
         name: "embedding",
@@ -270,6 +538,28 @@ export const memoGrafterTables = {
         name: "source_title",
         type: "text",
         nullable: true,
+      },
+      provenance_speaker: {
+        name: "provenance_speaker",
+        type: "text",
+        nullable: true,
+        check: "user|assistant|system|document",
+      },
+      provenance_message_indexes: {
+        name: "provenance_message_indexes",
+        type: "int[]",
+        nullable: true,
+      },
+      provenance_session_id: {
+        name: "provenance_session_id",
+        type: "text",
+        nullable: true,
+      },
+      extraction_method: {
+        name: "extraction_method",
+        type: "text",
+        nullable: true,
+        check: "explicit|inferred|user-confirmed|document-extraction",
       },
       superseded_by: {
         name: "superseded_by",
@@ -312,7 +602,118 @@ export const memoGrafterTables = {
         type: "timestamptz",
         default: "now()",
       },
-    }
+    },
+    constraints: ["CHECK (quality_explicitness >= 0 AND quality_explicitness <= 1)","CHECK (quality_source_reliability >= 0 AND quality_source_reliability <= 1)","CHECK (quality_stability >= 0 AND quality_stability <= 1)","CHECK (quality_salience >= 0 AND quality_salience <= 1)"]
+  },
+  mg_memory_evidence: {
+    name: "mg_memory_evidence",
+    description: "Immutable observations supporting canonical memory nodes.",
+    columns: {
+      id: {
+        name: "id",
+        type: "uuid",
+        primaryKey: true,
+        default: "gen_random_uuid()",
+      },
+      memory_node_id: {
+        name: "memory_node_id",
+        type: "uuid",
+        references: "mg_memory_nodes(id)",
+      },
+      segment_id: {
+        name: "segment_id",
+        type: "text",
+        references: "mg_segments(id)",
+      },
+      topic_node_id: {
+        name: "topic_node_id",
+        type: "text",
+        references: "mg_topic_nodes(id)",
+      },
+      session_id: {
+        name: "session_id",
+        type: "text",
+      },
+      episode_id: {
+        name: "episode_id",
+        type: "uuid",
+        nullable: true,
+        references: "mg_episodes(id)",
+      },
+      original_subject: {
+        name: "original_subject",
+        type: "text",
+      },
+      original_predicate: {
+        name: "original_predicate",
+        type: "text",
+      },
+      original_value: {
+        name: "original_value",
+        type: "text",
+      },
+      quality_explicitness: {
+        name: "quality_explicitness",
+        type: "float",
+        default: "0.5",
+      },
+      quality_source_reliability: {
+        name: "quality_source_reliability",
+        type: "float",
+        default: "0.5",
+      },
+      quality_stability: {
+        name: "quality_stability",
+        type: "float",
+        default: "0.5",
+      },
+      quality_salience: {
+        name: "quality_salience",
+        type: "float",
+        default: "0.5",
+      },
+      quality_defaulted: {
+        name: "quality_defaulted",
+        type: "text[]",
+        default: "'{explicitness,sourceReliability,stability,salience}'",
+      },
+      quality_origin: {
+        name: "quality_origin",
+        type: "text",
+        default: "legacy",
+      },
+      quality_updated_at: {
+        name: "quality_updated_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+      provenance_speaker: {
+        name: "provenance_speaker",
+        type: "text",
+        nullable: true,
+      },
+      provenance_message_indexes: {
+        name: "provenance_message_indexes",
+        type: "int[]",
+        nullable: true,
+      },
+      provenance_session_id: {
+        name: "provenance_session_id",
+        type: "text",
+        nullable: true,
+      },
+      extraction_method: {
+        name: "extraction_method",
+        type: "text",
+        nullable: true,
+      },
+      created_at: {
+        name: "created_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    },
+    constraints: ["UNIQUE (memory_node_id, segment_id, provenance_message_indexes)","CHECK (quality_explicitness >= 0 AND quality_explicitness <= 1)","CHECK (quality_source_reliability >= 0 AND quality_source_reliability <= 1)","CHECK (quality_stability >= 0 AND quality_stability <= 1)","CHECK (quality_salience >= 0 AND quality_salience <= 1)"]
   },
   mg_memory_edges: {
     name: "mg_memory_edges",
@@ -402,6 +803,42 @@ export const memoGrafterTables = {
     },
     constraints: ["UNIQUE (fleet_id, agent_color)"]
   },
+  mg_sessions: {
+    name: "mg_sessions",
+    description: "Human-friendly metadata for MemoGrafter sessions.",
+    columns: {
+      session_id: {
+        name: "session_id",
+        type: "text",
+        primaryKey: true,
+      },
+      label: {
+        name: "label",
+        type: "text",
+        nullable: true,
+      },
+      description: {
+        name: "description",
+        type: "text",
+        nullable: true,
+      },
+      tags: {
+        name: "tags",
+        type: "text[]",
+        default: "'{}'",
+      },
+      created_at: {
+        name: "created_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+      updated_at: {
+        name: "updated_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    }
+  },
   mg_session_ingest_state: {
     name: "mg_session_ingest_state",
     description: "Incremental ingestion checkpoints by session.",
@@ -422,6 +859,114 @@ export const memoGrafterTables = {
         default: "now()",
       },
     }
+  },
+  mg_ingestion_runs: {
+    name: "mg_ingestion_runs",
+    description: "Durable lifecycle and retry state for accepted ingestion ranges.",
+    columns: {
+      id: {
+        name: "id",
+        type: "uuid",
+        primaryKey: true,
+        default: "gen_random_uuid()",
+      },
+      session_id: {
+        name: "session_id",
+        type: "text",
+      },
+      kind: {
+        name: "kind",
+        type: "text",
+      },
+      start_index: {
+        name: "start_index",
+        type: "int",
+      },
+      end_index: {
+        name: "end_index",
+        type: "int",
+      },
+      idempotency_key: {
+        name: "idempotency_key",
+        type: "text",
+        nullable: true,
+      },
+      status: {
+        name: "status",
+        type: "text",
+      },
+      attempt_count: {
+        name: "attempt_count",
+        type: "int",
+        default: "0",
+      },
+      queued_at: {
+        name: "queued_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      started_at: {
+        name: "started_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      completed_at: {
+        name: "completed_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      failed_at: {
+        name: "failed_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      lease_expires_at: {
+        name: "lease_expires_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      heartbeat_at: {
+        name: "heartbeat_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      last_error_code: {
+        name: "last_error_code",
+        type: "text",
+        nullable: true,
+      },
+      last_error_stage: {
+        name: "last_error_stage",
+        type: "text",
+        nullable: true,
+      },
+      last_error_safe_message: {
+        name: "last_error_safe_message",
+        type: "text",
+        nullable: true,
+      },
+      retryable: {
+        name: "retryable",
+        type: "boolean",
+        nullable: true,
+      },
+      worker_id: {
+        name: "worker_id",
+        type: "text",
+        nullable: true,
+      },
+      created_at: {
+        name: "created_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+      updated_at: {
+        name: "updated_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    },
+    constraints: ["CHECK (start_index >= 0)","CHECK (end_index >= start_index)","UNIQUE (session_id, start_index, end_index, kind)"]
   },
   mg_graft_registry: {
     name: "mg_graft_registry",
@@ -461,6 +1006,11 @@ export const memoGrafterTables = {
 
 export const memoGrafterIndexes = [
   {
+    "name": "idx_topic_nodes_cluster",
+    "table": "mg_topic_nodes",
+    "description": "Session-scoped cluster membership lookup."
+  },
+  {
     "name": "mg_message_buffer_session_idx",
     "table": "mg_message_buffer",
     "description": "Message lookup by session and index."
@@ -481,6 +1031,11 @@ export const memoGrafterIndexes = [
     "description": "Active topic lifecycle lookup."
   },
   {
+    "name": "mg_topic_nodes_pinned_idx",
+    "table": "mg_topic_nodes",
+    "description": "Ordered pinned-topic lookup by session."
+  },
+  {
     "name": "mg_topic_nodes_tags_idx",
     "table": "mg_topic_nodes",
     "description": "Topic tag lookup."
@@ -496,9 +1051,34 @@ export const memoGrafterIndexes = [
     "description": "Fleet agent lookup by color."
   },
   {
+    "name": "mg_sessions_label_lower_idx",
+    "table": "mg_sessions",
+    "description": "Case-insensitive session label lookup."
+  },
+  {
     "name": "mg_session_ingest_state_updated_idx",
     "table": "mg_session_ingest_state",
     "description": "Ingest state freshness lookup."
+  },
+  {
+    "name": "mg_ingestion_runs_session_status_idx",
+    "table": "mg_ingestion_runs",
+    "description": "Ingestion status lookup by session."
+  },
+  {
+    "name": "mg_ingestion_runs_idempotency_idx",
+    "table": "mg_ingestion_runs",
+    "description": "Caller idempotency key uniqueness by session."
+  },
+  {
+    "name": "mg_ingestion_runs_pending_idx",
+    "table": "mg_ingestion_runs",
+    "description": "Pending and retryable ingestion lookup."
+  },
+  {
+    "name": "mg_ingestion_runs_lease_idx",
+    "table": "mg_ingestion_runs",
+    "description": "Expired worker lease lookup."
   },
   {
     "name": "idx_graft_registry_session",
@@ -511,9 +1091,39 @@ export const memoGrafterIndexes = [
     "description": "Unique graft registry node ownership."
   },
   {
+    "name": "idx_graft_registry_source_target_unique",
+    "table": "mg_graft_registry",
+    "description": "Prevents duplicate source-topic grafts into a target session."
+  },
+  {
+    "name": "idx_graft_registry_source",
+    "table": "mg_graft_registry",
+    "description": "Source topic provenance lookup."
+  },
+  {
     "name": "mg_nodes_embedding_idx",
     "table": "mg_topic_nodes",
     "description": "Topic vector similarity search."
+  },
+  {
+    "name": "idx_topic_nodes_activity",
+    "table": "mg_topic_nodes",
+    "description": "Stable-topic activity lookup."
+  },
+  {
+    "name": "idx_episodes_session_order",
+    "table": "mg_episodes",
+    "description": "Episode chronology within a session."
+  },
+  {
+    "name": "idx_episodes_topic_activity",
+    "table": "mg_episodes",
+    "description": "Recent episodes for a topic."
+  },
+  {
+    "name": "idx_episodes_embedding_hnsw",
+    "table": "mg_episodes",
+    "description": "Episode vector similarity search."
   },
   {
     "name": "idx_memory_nodes_topic",
@@ -529,6 +1139,21 @@ export const memoGrafterIndexes = [
     "name": "idx_memory_nodes_session",
     "table": "mg_memory_nodes",
     "description": "Memory lookup by session."
+  },
+  {
+    "name": "idx_memory_nodes_canonical_fact",
+    "table": "mg_memory_nodes",
+    "description": "Canonical fact lookup during ingestion."
+  },
+  {
+    "name": "idx_memory_nodes_canonical_value",
+    "table": "mg_memory_nodes",
+    "description": "Canonical value deduplication during ingestion."
+  },
+  {
+    "name": "idx_memory_evidence_memory",
+    "table": "mg_memory_evidence",
+    "description": "Evidence lookup by memory."
   },
   {
     "name": "idx_memory_nodes_active_lifecycle",

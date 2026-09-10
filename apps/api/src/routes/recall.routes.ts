@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { ApiError } from "../http/errors.js";
-import { getAgentForSession } from "../memo-grafter/memoGrafter.js";
+import { retrieveMemoGrafterContext } from "../services/memory.service.js";
 import { normalizeRecallResult } from "../memory/graphNormalizer.js";
 
 const recallQuerySchema = z.object({
@@ -26,11 +26,15 @@ recallRouter.get("/", async (req, res, next) => {
     }
 
     const { sessionId, q, limit, minSimilarity, tokenBudget } = result.data;
-    const agent = await getAgentForSession(sessionId);
-    const recallResult = await agent.recall(q, {
+    const recallResult = await retrieveMemoGrafterContext(sessionId, q, {
       limit,
       minSimilarity,
       tokenBudget,
+      selection: {
+        maxTopics: limit,
+        relativeScoreFloor: 0.75,
+        scoreGapThreshold: 0.15,
+      },
     });
 
     res.json(normalizeRecallResult(recallResult));

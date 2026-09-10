@@ -13,8 +13,8 @@ interface RiverMemoryDotsProps {
 
 const DOTS_PER_RING = 10;
 
-function dotDiameter(confidence: number): number {
-  return 7 + Math.max(0, Math.min(1, confidence)) * 4;
+function dotDiameter(visualImportance: number): number {
+  return 7 + Math.max(0, Math.min(1, visualImportance)) * 4;
 }
 
 export function RiverMemoryDots({
@@ -34,7 +34,7 @@ export function RiverMemoryDots({
         const indexInRing = index % DOTS_PER_RING;
         const dotsInRing = Math.min(DOTS_PER_RING, memories.length - ring * DOTS_PER_RING);
         const angle = -Math.PI / 2 + 0.32 + (indexInRing / dotsInRing) * Math.PI * 2;
-        const diameter = dotDiameter(memory.confidence);
+        const diameter = dotDiameter(memory.visualImportance);
         const cosine = Math.cos(angle);
         const sine = Math.sin(angle);
         const boundaryDistance = Math.min(
@@ -57,7 +57,7 @@ export function RiverMemoryDots({
             title={memory.value}
             data-memory-dot="true"
             data-memory-id={memory.id}
-            data-memory-confidence={memory.confidence}
+            data-memory-importance={memory.visualImportance}
             className="pointer-events-auto absolute rounded-full transition-[box-shadow,opacity,transform] hover:scale-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-border focus-visible:ring-offset-2"
             style={{
               width: diameter,
@@ -67,7 +67,7 @@ export function RiverMemoryDots({
               background: fill,
               opacity: isSelected
                 ? 1
-                : 0.58 + Math.max(0, Math.min(1, memory.confidence)) * 0.36,
+                : 0.58 + Math.max(0, Math.min(1, memory.visualImportance)) * 0.36,
               boxShadow: isSelected
                 ? `0 0 0 3px color-mix(in srgb, ${fill} 26%, transparent)`
                 : `0 0 0 1px color-mix(in srgb, ${fill} 20%, transparent)`,

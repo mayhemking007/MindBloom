@@ -1,9 +1,11 @@
 import type {
   GraphEdge,
+  GraphEpisode,
   GraphThemeKind,
   GraphMemory,
   GraphNode,
   GraphSnapshotResponse,
+  GraphTopicCluster,
   MemoryEdge,
   RecallFact,
   RecallResponse,
@@ -12,6 +14,7 @@ import type {
   GraphSnapshot,
   GraphSnapshotMemory,
   GraphSnapshotNode,
+  Episode,
   MemoryEdge as MemoGrafterMemoryEdge,
   MemoryNode,
   RetrievalResult,
@@ -25,6 +28,17 @@ function toIsoString(value: Date | string): string {
 
 function toNullableIsoString(value: Date | string | null | undefined): string | null {
   return value ? toIsoString(value) : null;
+}
+
+function visualImportance(memory: MemoryNode): number {
+  const quality = memory.quality;
+  const base =
+    quality.salience * 0.5 +
+    quality.stability * 0.2 +
+    quality.explicitness * 0.15 +
+    quality.sourceReliability * 0.15;
+  const reinforcementBoost = Math.min(0.1, Math.log2(memory.reinforcementCount ?? 1) * 0.025);
+  return Math.max(0, Math.min(1, base + reinforcementBoost));
 }
 
 function friendlyThemeKind(node: TopicNode, hasGraftOrigin = false): GraphThemeKind {
@@ -120,6 +134,14 @@ export function normalizeTopicNode(
     suppressedAt: toNullableIsoString(
       snapshotNode?.lifecycle?.suppressedAt ?? node.suppressedAt,
     ),
+    pinned: node.pinned ?? false,
+    pinnedAt: toNullableIsoString(node.pinnedAt),
+    episodeCount: node.episodeCount,
+    firstActiveAt: node.firstActiveAt ? toIsoString(node.firstActiveAt) : undefined,
+    lastActiveAt: node.lastActiveAt ? toIsoString(node.lastActiveAt) : undefined,
+    lastEpisodeId: node.lastEpisodeId,
+    revision: node.revision,
+    clusterId: node.clusterId,
     createdAt: toIsoString(node.createdAt),
   };
 }
@@ -150,7 +172,13 @@ export function normalizeMemory(
     subject: memory.subject,
     predicate: memory.predicate,
     value: memory.value,
-    confidence: memory.confidence,
+    quality: memory.quality,
+    visualImportance: visualImportance(memory),
+    qualityDefaulted: memory.qualityDefaulted,
+    qualityOrigin: memory.qualityOrigin,
+    provenance: memory.provenance,
+    reinforcementCount: memory.reinforcementCount,
+    lastReinforcedAt: toNullableIsoString(memory.lastReinforcedAt),
     tags: memory.tags,
     sourceUrl: memory.sourceUrl,
     sourceTitle: memory.sourceTitle,
@@ -167,6 +195,37 @@ export function normalizeMemory(
     agentColor: memory.agentColor,
     fleetId: memory.fleetId,
     createdAt: toIsoString(memory.createdAt),
+  };
+}
+
+export function normalizeEpisode(episode: Episode): GraphEpisode {
+  return {
+    id: episode.id,
+    sessionId: episode.sessionId,
+    segmentId: episode.segmentId,
+    topicId: episode.topicId,
+    summary: episode.summary,
+    intent: episode.intent,
+    outcome: episode.outcome,
+    openQuestion: episode.openQuestion,
+    messageRange: episode.messageRange,
+    episodeOrder: episode.episodeOrder,
+    sourceType: episode.sourceType,
+    source: episode.source,
+    tags: episode.tags,
+    assignmentMethod: episode.assignmentMethod,
+    assignmentSimilarity: episode.assignmentSimilarity,
+    createdAt: toIsoString(episode.createdAt),
+  };
+}
+
+function normalizeCluster(
+  cluster: NonNullable<GraphSnapshot["clusters"]>[number],
+): GraphTopicCluster {
+  return {
+    ...cluster,
+    createdAt: toIsoString(cluster.createdAt),
+    updatedAt: toIsoString(cluster.updatedAt),
   };
 }
 
@@ -217,6 +276,8 @@ export function normalizeGraphSnapshot(
         )
       : snapshot.memories.map((memory) => normalizeMemory(memory)),
     memoryEdges: (snapshot.memoryEdges ?? []).map(normalizeMemoryEdge),
+    episodes: (snapshot.episodes ?? []).map(normalizeEpisode),
+    clusters: (snapshot.clusters ?? []).map(normalizeCluster),
     capturedAt: snapshot.capturedAt,
   };
 }
@@ -230,6 +291,20 @@ export function normalizeRecallResult(result: RetrievalResult): RecallResponse {
   return {
     facts,
     nodes: result.nodes.map((node) => normalizeTopicNode(node)),
+    episodes: (result.episodes ?? []).map((episode) => ({
+      ...normalizeEpisode(episode),
+      similarity: episode.similarity,
+    })),
     tokenCount: result.tokenCount,
+    tokenBudget: result.tokenBudget,
+    query: result.query,
+    selection: result.selection,
+    topicMatches: result.topicMatches,
+    degraded: result.degraded,
+    warnings: result.warnings?.map(({ code, operation, stage }) => ({
+      code,
+      operation,
+      stage,
+    })),
   };
 }

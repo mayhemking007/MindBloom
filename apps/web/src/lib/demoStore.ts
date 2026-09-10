@@ -330,7 +330,13 @@ export const demoStore = {
         subject: node.label,
         predicate: memoryType,
         value: demoMemoryValue(node.label, memoryType),
-        confidence: Math.max(0.52, 0.92 - nodeIndex * 0.08 - memoryIndex * 0.12),
+        quality: {
+          explicitness: 0.82,
+          sourceReliability: 0.78,
+          stability: 0.72,
+          salience: Math.max(0.52, 0.92 - nodeIndex * 0.08 - memoryIndex * 0.12),
+        },
+        visualImportance: Math.max(0.52, 0.92 - nodeIndex * 0.08 - memoryIndex * 0.12),
         tags: [],
         sourceUrl: null,
         sourceTitle: entry.title,
@@ -356,6 +362,8 @@ export const demoStore = {
       edges,
       memories,
       memoryEdges: [],
+      episodes: [],
+      clusters: [],
       capturedAt: nowIso(),
     };
   },
