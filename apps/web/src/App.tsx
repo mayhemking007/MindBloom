@@ -9,6 +9,8 @@ import { PublicSharePage } from "./pages/PublicSharePage";
 import { ReflectPage } from "./pages/ReflectPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TodayPage } from "./pages/TodayPage";
+import { NotionPage } from "./pages/NotionPage";
+import { NotionDocumentPage } from "./pages/NotionDocumentPage";
 
 export function App() {
   return (
@@ -24,6 +26,8 @@ export function App() {
         <Route path="timeline" element={<Navigate replace to="/notes" />} />
         <Route path="reflect" element={<ReflectPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="notion" element={<NotionPage />} />
+        <Route path="notion/:documentId" element={<NotionDocumentPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Route>
     </Routes>

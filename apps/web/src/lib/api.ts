@@ -38,6 +38,12 @@ import type {
   UpdateNoteRequest,
   UpdateSettingsRequest,
   UpsertEntryDocumentRequest,
+  ImportNotionPagesResponse,
+  MindBloomDocumentResponse,
+  MindBloomDocumentsResponse,
+  NotionBloomResponse,
+  NotionPagesResponse,
+  RelatedThoughtsResponse,
 } from "@mindbloom/shared";
 import { demoStore } from "./demoStore";
 
@@ -652,4 +658,40 @@ export async function deleteNote(noteId: string): Promise<void> {
   if (!response.ok) {
     await parseJsonResponse<unknown>(response);
   }
+}
+
+function requireAccount() {
+  if (isDemoMode()) throw new Error("Sign in to connect your private Notion workspace.");
+}
+export async function listNotionPages(): Promise<NotionPagesResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/pages`, credentialOptions));
+}
+export async function listNotionDocuments(): Promise<MindBloomDocumentsResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents`, credentialOptions));
+}
+export async function importNotionPages(pageIds: string[]): Promise<ImportNotionPagesResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/import`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ pageIds }) }));
+}
+export async function getNotionDocument(documentId: string): Promise<MindBloomDocumentResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}`, credentialOptions));
+}
+export async function syncNotionDocument(documentId: string): Promise<MindBloomDocumentResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/sync`, { method: "POST", credentials: "include" }));
+}
+export async function getNotionRelated(documentId: string): Promise<RelatedThoughtsResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/related`, credentialOptions));
+}
+export async function askNotionBloom(documentId: string, question: string): Promise<NotionBloomResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/bloom`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ question }) }));
+}
+export async function getNotionGraph(documentId: string): Promise<GraphSnapshotResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/graph`, credentialOptions));
 }

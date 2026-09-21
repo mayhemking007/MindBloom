@@ -9,9 +9,39 @@ export const appTables = {
   notes: "mindbloom_notes",
   entryReflections: "mindbloom_entry_reflections",
   reflectionShareLinks: "mindbloom_reflection_share_links",
+  sourceDocuments: "mindbloom_source_documents",
+  sourceDocumentMessages: "mindbloom_source_document_messages",
 } as const;
 
 export type AppTableName = (typeof appTables)[keyof typeof appTables];
+
+export interface SourceDocumentRow {
+  id: string;
+  owner_id: string;
+  owner_kind: "authenticated" | "demo";
+  source: "notion";
+  external_id: string;
+  title: string;
+  content: string;
+  content_hash: string;
+  source_url: string;
+  source_created_at: Date;
+  source_updated_at: Date;
+  memo_session_id: string;
+  status: "pending" | "ready" | "failed";
+  last_synced_at: Date | null;
+  last_error: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SourceDocumentMessageRow {
+  id: string;
+  document_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: Date;
+}
 
 export interface UserRow {
   id: string;
@@ -267,4 +297,39 @@ CREATE TABLE IF NOT EXISTS ${appTables.reflectionShareLinks} (
 
 CREATE INDEX IF NOT EXISTS mindbloom_reflection_share_links_reflection_created_idx
   ON ${appTables.reflectionShareLinks} (reflection_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ${appTables.sourceDocuments} (
+  id text PRIMARY KEY,
+  owner_id text NOT NULL,
+  owner_kind text NOT NULL CHECK (owner_kind IN ('authenticated', 'demo')),
+  source text NOT NULL CHECK (source IN ('notion')),
+  external_id text NOT NULL,
+  title text NOT NULL,
+  content text NOT NULL DEFAULT '',
+  content_hash text NOT NULL DEFAULT '',
+  source_url text NOT NULL DEFAULT '',
+  source_created_at timestamptz NOT NULL,
+  source_updated_at timestamptz NOT NULL,
+  memo_session_id text NOT NULL UNIQUE,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'ready', 'failed')),
+  last_synced_at timestamptz,
+  last_error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (owner_kind, owner_id, source, external_id)
+);
+
+CREATE INDEX IF NOT EXISTS mindbloom_source_documents_owner_updated_idx
+  ON ${appTables.sourceDocuments} (owner_kind, owner_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS ${appTables.sourceDocumentMessages} (
+  id text PRIMARY KEY,
+  document_id text NOT NULL REFERENCES ${appTables.sourceDocuments}(id) ON DELETE CASCADE,
+  role text NOT NULL CHECK (role IN ('user', 'assistant')),
+  content text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS mindbloom_source_document_messages_document_created_idx
+  ON ${appTables.sourceDocumentMessages} (document_id, created_at);
 `;

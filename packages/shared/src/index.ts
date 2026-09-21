@@ -9,6 +9,70 @@ export interface TodaySessionResponse {
   date: string;
 }
 
+export type MindBloomDocumentSource = "notion";
+export type MindBloomDocumentStatus = "pending" | "ready" | "failed";
+
+export interface MindBloomDocument {
+  id: string;
+  source: MindBloomDocumentSource;
+  externalId: string;
+  title: string;
+  content: string;
+  sourceUrl: string;
+  sourceCreatedAt: string;
+  sourceUpdatedAt: string;
+  memoSessionId: string;
+  status: MindBloomDocumentStatus;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotionPageSummary {
+  id: string;
+  title: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  importedDocumentId: string | null;
+}
+
+export interface NotionPagesResponse { pages: NotionPageSummary[]; }
+export interface MindBloomDocumentsResponse { documents: MindBloomDocument[]; }
+export interface MindBloomDocumentResponse { document: MindBloomDocument; }
+export interface ImportNotionPagesRequest { pageIds: string[]; }
+export interface ImportNotionPageResult {
+  pageId: string;
+  document: MindBloomDocument | null;
+  status: "imported" | "unchanged" | "failed";
+  error?: string;
+}
+export interface ImportNotionPagesResponse { results: ImportNotionPageResult[]; }
+
+export interface RelatedThought {
+  documentId: string;
+  title: string;
+  sourceUrl: string;
+  excerpt: string;
+  themes: string[];
+  relevance: number | null;
+}
+export interface RelatedThoughtsResponse { thoughts: RelatedThought[]; }
+
+export interface NotionBloomMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+export interface NotionBloomRequest { question: string; }
+export interface NotionBloomResponse {
+  answer: string;
+  messages: NotionBloomMessage[];
+  sources: RelatedThought[];
+}
+
 export interface ChatRequest {
   sessionId: string;
   message: string;
