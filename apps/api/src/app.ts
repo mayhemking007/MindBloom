@@ -18,6 +18,7 @@ import { reflectRouter } from "./routes/reflect.routes.js";
 import { shareRouter } from "./routes/share.routes.js";
 import { snapshotRouter } from "./routes/snapshot.routes.js";
 import { settingsRouter } from "./routes/settings.routes.js";
+import { notionRouter } from "./routes/notion.routes.js";
 
 export function createApp() {
   const app = express();
@@ -60,6 +61,7 @@ export function createApp() {
   app.use("/api/reflect", reflectRouter);
   app.use("/api", shareRouter);
   app.use("/api", settingsRouter);
+  app.use("/api/notion", notionRouter);
 
   app.use(notFoundHandler());
   app.use(errorHandler());

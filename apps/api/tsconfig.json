@@ -14,10 +14,12 @@
     "skipLibCheck": true,
     "paths": {
       "@mindbloom/shared": ["../../packages/shared/src/index.ts"]
+      ,"@mindbloom/integrations": ["../../packages/integrations/index.ts"]
     }
   },
   "include": ["src"],
   "references": [
     { "path": "../../packages/shared" }
+    ,{ "path": "../../packages/integrations" }
   ]
 }

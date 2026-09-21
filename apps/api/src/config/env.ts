@@ -10,6 +10,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
   MEMO_GRAFTER_EMBEDDING_MODEL: z.string().min(1).optional(),
   MEMO_GRAFTER_LLM_MODEL: z.string().min(1).optional(),
+  NOTION_TOKEN: z.string().min(1).optional(),
   API_PORT: z.coerce.number().int().positive().default(4000),
   PORT: z.coerce.number().int().positive().optional(),
   CORS_ORIGIN: z.string().min(1).default("http://localhost:5173"),

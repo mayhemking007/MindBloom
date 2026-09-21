@@ -43,6 +43,7 @@ Configure `apps/api/.env`:
 ```env
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/mindbloom
 OPENAI_API_KEY=sk-...
+NOTION_TOKEN=ntn_...
 API_PORT=4000
 CORS_ORIGIN=http://localhost:5173
 ```
@@ -81,6 +82,17 @@ npm run dev
 
 Web: `http://localhost:5173`  
 API: `http://localhost:4000`
+
+## Notion integration (local MVP)
+
+Create an internal integration in Notion, copy its token to `NOTION_TOKEN`, and
+share only the pages you want MindBloom to read with that integration. Sign in
+to MindBloom and open `/notion` to select pages. Imported pages are copied into
+MindBloom's PostgreSQL database and indexed into one MemoGrafter session per
+page; use **Sync now** when a source page changes.
+
+This MVP intentionally uses one server-side internal token. It does not yet
+include public OAuth, per-user Notion credentials, webhooks, or background sync.
 
 ## Commands
 
