@@ -8,11 +8,26 @@ export interface NotionPageSummary {
 
 export interface NotionDocument extends NotionPageSummary {
   content: string;
+  sections: NotionDocumentSection[];
+}
+
+export interface NotionDocumentSection {
+  id: string;
+  title?: string;
+  content: string;
+  blockIds: string[];
+  order: number;
 }
 
 export interface NotionRichText {
   plain_text?: string;
   href?: string | null;
+  annotations?: {
+    bold?: boolean;
+    italic?: boolean;
+    strikethrough?: boolean;
+    code?: boolean;
+  };
 }
 
 export interface NotionBlockLike {

@@ -679,17 +679,37 @@ export async function getNotionDocument(documentId: string): Promise<MindBloomDo
   requireAccount();
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}`, credentialOptions));
 }
-export async function syncNotionDocument(documentId: string): Promise<MindBloomDocumentResponse> {
+export async function updateNotionDocument(documentId: string, content: string): Promise<MindBloomDocumentResponse> {
   requireAccount();
-  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/sync`, { method: "POST", credentials: "include" }));
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}`, { method: "PATCH", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ content }) }));
+}
+export async function saveNotionDocument(documentId: string, content: string, expectedSourceUpdatedAt: string): Promise<MindBloomDocumentResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/notion`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ content, expectedSourceUpdatedAt }) }));
+}
+export async function syncNotionDocument(documentId: string, discardLocalChanges = false): Promise<MindBloomDocumentResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/sync`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ discardLocalChanges }) }));
+}
+export async function getNotionIngestion(documentId: string): Promise<MindBloomDocumentResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/ingestion`, credentialOptions));
+}
+export async function retryNotionIngestion(documentId: string): Promise<MindBloomDocumentResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/ingestion/retry`, { method: "POST", credentials: "include" }));
+}
+export async function cancelNotionIngestion(documentId: string): Promise<MindBloomDocumentResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/ingestion/cancel`, { method: "POST", credentials: "include" }));
 }
 export async function getNotionRelated(documentId: string): Promise<RelatedThoughtsResponse> {
   requireAccount();
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/related`, credentialOptions));
 }
-export async function askNotionBloom(documentId: string, question: string): Promise<NotionBloomResponse> {
+export async function askNotionBloom(documentId: string, question?: string, thoughtId?: string): Promise<NotionBloomResponse> {
   requireAccount();
-  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/bloom`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ question }) }));
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/bloom`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ ...(question ? { question } : {}), ...(thoughtId ? { thoughtId } : {}) }) }));
 }
 export async function getNotionGraph(documentId: string): Promise<GraphSnapshotResponse> {
   requireAccount();

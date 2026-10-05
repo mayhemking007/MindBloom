@@ -19,4 +19,5 @@ export interface EnrichedMapNode extends GraphNode {
 export interface MapViewsProps {
   snapshot: GraphSnapshotResponse;
   compact?: boolean;
+  focusMemoryId?: string | null;
 }

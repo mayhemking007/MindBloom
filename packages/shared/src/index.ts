@@ -11,6 +11,17 @@ export interface TodaySessionResponse {
 
 export type MindBloomDocumentSource = "notion";
 export type MindBloomDocumentStatus = "pending" | "ready" | "failed";
+export type MindBloomIngestionStatus = "idle" | "accepted" | "queued" | "running" | "retry_pending" | "completed" | "completed_with_warnings" | "failed" | "cancelled" | "abandoned";
+export type MindBloomIngestionPhase = "accepted" | "segmenting" | "extracted" | "selected" | "embedded" | "prepared" | "committed" | "finished";
+
+export interface MindBloomIngestionSummary {
+  runId: string | null;
+  status: MindBloomIngestionStatus;
+  phase: MindBloomIngestionPhase | null;
+  counts: Record<string, unknown>;
+  warnings: Array<{ code: string; operation: string; stage?: string }>;
+  durationMs: number | null;
+}
 
 export interface MindBloomDocument {
   id: string;
@@ -23,7 +34,10 @@ export interface MindBloomDocument {
   sourceUpdatedAt: string;
   memoSessionId: string;
   status: MindBloomDocumentStatus;
+  ingestion: MindBloomIngestionSummary;
   lastSyncedAt: string | null;
+  syncState: "in_sync" | "local_changes";
+  localSavedAt: string | null;
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
@@ -41,21 +55,31 @@ export interface NotionPageSummary {
 export interface NotionPagesResponse { pages: NotionPageSummary[]; }
 export interface MindBloomDocumentsResponse { documents: MindBloomDocument[]; }
 export interface MindBloomDocumentResponse { document: MindBloomDocument; }
+export interface UpdateNotionDocumentRequest {
+  content: string;
+  expectedSourceUpdatedAt: string;
+}
+export interface SaveMindBloomDocumentRequest { content: string; }
 export interface ImportNotionPagesRequest { pageIds: string[]; }
 export interface ImportNotionPageResult {
   pageId: string;
   document: MindBloomDocument | null;
-  status: "imported" | "unchanged" | "failed";
+  status: "imported" | "processing" | "unchanged" | "failed";
   error?: string;
 }
 export interface ImportNotionPagesResponse { results: ImportNotionPageResult[]; }
 
 export interface RelatedThought {
+  id: string;
+  memoryId: string;
   documentId: string;
-  title: string;
+  documentTitle: string;
   sourceUrl: string;
-  excerpt: string;
-  themes: string[];
+  text: string;
+  theme: string;
+  memoryType: MemoryType;
+  sectionId: string | null;
+  sectionTitle: string | null;
   relevance: number | null;
 }
 export interface RelatedThoughtsResponse { thoughts: RelatedThought[]; }
@@ -66,7 +90,7 @@ export interface NotionBloomMessage {
   content: string;
   createdAt: string;
 }
-export interface NotionBloomRequest { question: string; }
+export interface NotionBloomRequest { question?: string; thoughtId?: string; }
 export interface NotionBloomResponse {
   answer: string;
   messages: NotionBloomMessage[];

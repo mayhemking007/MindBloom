@@ -44,9 +44,31 @@ describe("MindBloom MemoGrafter boundary", () => {
     expect(second).toBe(agent);
     expect(agentCreate).toHaveBeenCalledTimes(1);
     expect(agentCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: "entry-session-1" }),
+      expect.objectContaining({
+        sessionId: "entry-session-1",
+        ingestion: {
+          concurrency: {
+            extraction: 2,
+            embedding: 4,
+          },
+        },
+      }),
     );
 
     await shutdownMemoGrafters();
+  });
+
+  it("drains the shared core during graceful shutdown", async () => {
+    const { getMemoGrafterCore, shutdownMemoGrafters } = await import(
+      "../src/memo-grafter/memoGrafter.js"
+    );
+
+    await getMemoGrafterCore();
+    await shutdownMemoGrafters();
+
+    expect(core.close).toHaveBeenCalledWith({
+      drain: true,
+      timeoutMs: 10_000,
+    });
   });
 });

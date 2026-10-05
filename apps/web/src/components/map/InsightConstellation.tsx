@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type MouseEvent } from "react";
 import type { GraphEdge, GraphMemory, MemoryType } from "@mindbloom/shared";
-import { CheckSquare, HelpCircle, Lightbulb, Link, Pin } from "lucide-react";
+import { CheckSquare, HelpCircle, Lightbulb, Link, Pin, X } from "lucide-react";
 
 import { computeConstellationLayout, type StarPoint } from "../../lib/mapLayout";
 import { constellationRamps } from "../../lib/topicColors";
@@ -22,8 +22,8 @@ interface TooltipState {
   nodeLabel: string;
 }
 
-const svgWidth = 760;
-const svgHeight = 430;
+const svgWidth = 840;
+const svgHeight = 500;
 const tooltipWidth = 220;
 const maxConstellationEdges = 12;
 const backgroundStars = Array.from({ length: 42 }, (_, index) => ({
@@ -129,7 +129,7 @@ function edgePriority(edge: GraphEdge): number {
 
 export function InsightConstellation({ nodes, edges }: InsightConstellationProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ nodeId: string; memoryId?: string } | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
@@ -154,7 +154,10 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
     [groups],
   );
   const selectedGroup =
-    groups.find((group) => group.node.id === selectedNodeId) ?? null;
+    groups.find((group) => group.node.id === selection?.nodeId) ?? null;
+  const selectedMemory = selection?.memoryId
+    ? selectedGroup?.node.memories.find((memory) => memory.id === selection.memoryId) ?? null
+    : null;
   const hasStars = groups.some((group) => group.stars.length > 0);
   const visibleEdges = useMemo(
     () =>
@@ -196,7 +199,7 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+    <div className={selection ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]" : "grid gap-4"}>
       <div>
         <div
           ref={wrapRef}
@@ -210,7 +213,7 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
             role="img"
             aria-label="Insight constellation map"
-            className="block h-auto min-h-[300px] w-full"
+            className="block h-auto min-h-[360px] w-full"
           >
             <defs>
               <filter id="constellation-star-glow" x="-80%" y="-80%" width="260%" height="260%">
@@ -295,11 +298,11 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                   tabIndex={0}
                   style={{ outline: "none" }}
                   aria-label={`Select ${group.node.label}`}
-                  onClick={() => setSelectedNodeId(group.node.id)}
+                  onClick={() => setSelection({ nodeId: group.node.id })}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      setSelectedNodeId(group.node.id);
+                      setSelection({ nodeId: group.node.id });
                     }
                   }}
                   onFocus={() => setHoveredNodeId(group.node.id)}
@@ -313,17 +316,17 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                   opacity={0.42}
                   style={{ pointerEvents: "none" }}
                 />
-                {selectedNodeId === group.node.id ||
+                {selection?.nodeId === group.node.id ||
                 hoveredNodeId === group.node.id ||
                 group.importance > 0.36 ? (
                   <text
                     x={group.cx}
                     y={group.cy - group.radius - 14}
                     textAnchor="middle"
-                    fontSize={10}
+                    fontSize={11}
                     fontWeight={600}
                     fill={ramp.bright}
-                    opacity={selectedNodeId === group.node.id ? 0.95 : 0.72}
+                    opacity={selection?.nodeId === group.node.id ? 0.95 : 0.72}
                     style={{ pointerEvents: "none" }}
                   >
                     {truncateLabel(group.node.label)}
@@ -345,7 +348,7 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                 filter="url(#constellation-star-glow)"
                 className="cursor-pointer transition-opacity hover:opacity-100"
                 data-constellation-memory="true"
-                onClick={() => setSelectedNodeId(star.node.id)}
+                onClick={() => setSelection({ nodeId: star.node.id, memoryId: star.memory.id })}
                 onMouseEnter={(event) => placeStarTooltip(event, star)}
                 onMouseMove={(event) => placeStarTooltip(event, star)}
                 onMouseLeave={() => setTooltip((current) => ({ ...current, visible: false }))}
@@ -396,7 +399,8 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
           <MapLegend view="constellation" />
         </div>
       </div>
-      <aside
+      {selection ? <aside
+        aria-label={`${selectedGroup?.node.label ?? "Selected"} ${selectedMemory ? "memory" : "topic"} details`}
         className="rounded-bloom border p-4"
         style={{
           background: "var(--map-card)",
@@ -406,21 +410,22 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
       >
         {selectedGroup ? (
           <div>
-            <p
+            <div className="flex items-start justify-between gap-3"><p
               className="text-[10px] font-semibold uppercase tracking-[0.09em]"
               style={{ color: "var(--map-faint)" }}
             >
-              Topic detail
-            </p>
+              {selectedMemory ? "Memory detail" : "Topic detail"}
+            </p><button type="button" aria-label="Close detail" onClick={() => setSelection(null)} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border" style={{ borderColor: "var(--map-border)" }}><X className="h-3.5 w-3" /></button></div>
             <h3 className="mt-2 text-[15px] font-semibold leading-5">
-              {selectedGroup.node.label}
+              {selectedMemory ? memoryTypeLabels[selectedMemory.memoryType] : selectedGroup.node.label}
             </h3>
             <p
               className="mt-2 text-[12px] leading-5"
               style={{ color: "var(--map-muted)" }}
             >
-              {selectedGroup.node.summary}
+              {selectedMemory?.value ?? selectedGroup.node.summary}
             </p>
+            {selectedMemory ? <p className="mt-3 text-[11px]" style={{ color: "var(--map-faint)" }}>From topic · {selectedGroup.node.label}</p> : <>
             <div
               className="mt-4 grid grid-cols-2 gap-2 border-y py-3 text-[11px]"
               style={{ borderColor: "var(--map-border)", color: "var(--map-muted)" }}
@@ -478,13 +483,10 @@ export function InsightConstellation({ nodes, edges }: InsightConstellationProps
                 })
               )}
             </div>
+            </>}
           </div>
-        ) : (
-          <p className="text-[12px]" style={{ color: "var(--map-faint)" }}>
-            Select a topic to inspect its summary and extracted memories.
-          </p>
-        )}
-      </aside>
+        ) : null}
+      </aside> : null}
     </div>
   );
 }

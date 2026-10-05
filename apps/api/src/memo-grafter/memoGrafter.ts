@@ -44,6 +44,12 @@ function memoGrafterConfig(sessionId?: string) {
       topK: 5,
       hopDepth: 2,
     },
+    ingestion: {
+      concurrency: {
+        extraction: 2,
+        embedding: 4,
+      },
+    },
     inject: {
       bufferSize: 4,
       tokenBudget: 1800,
