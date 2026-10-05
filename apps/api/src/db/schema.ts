@@ -10,6 +10,7 @@ export const appTables = {
   entryReflections: "mindbloom_entry_reflections",
   reflectionShareLinks: "mindbloom_reflection_share_links",
   sourceDocuments: "mindbloom_source_documents",
+  sourceDocumentSections: "mindbloom_source_document_sections",
   sourceDocumentMessages: "mindbloom_source_document_messages",
 } as const;
 
@@ -24,13 +25,34 @@ export interface SourceDocumentRow {
   title: string;
   content: string;
   content_hash: string;
+  source_content_hash: string;
+  has_local_changes: boolean;
+  local_saved_at: Date | null;
   source_url: string;
   source_created_at: Date;
   source_updated_at: Date;
   memo_session_id: string;
   status: "pending" | "ready" | "failed";
+  memo_ingestion_run_id: string | null;
+  ingestion_status: "idle" | "accepted" | "queued" | "running" | "retry_pending" | "completed" | "completed_with_warnings" | "failed" | "cancelled" | "abandoned";
+  ingestion_phase: "accepted" | "segmenting" | "extracted" | "selected" | "embedded" | "prepared" | "committed" | "finished" | null;
+  ingestion_counts: Record<string, unknown>;
+  ingestion_warnings: Array<{ code: string; operation: string; stage?: string }>;
+  ingestion_duration_ms: number | null;
   last_synced_at: Date | null;
   last_error: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SourceDocumentSectionRow {
+  id: string;
+  document_id: string;
+  external_section_id: string;
+  title: string | null;
+  content: string;
+  block_ids: string[];
+  section_order: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -307,6 +329,9 @@ CREATE TABLE IF NOT EXISTS ${appTables.sourceDocuments} (
   title text NOT NULL,
   content text NOT NULL DEFAULT '',
   content_hash text NOT NULL DEFAULT '',
+  source_content_hash text NOT NULL DEFAULT '',
+  has_local_changes boolean NOT NULL DEFAULT false,
+  local_saved_at timestamptz,
   source_url text NOT NULL DEFAULT '',
   source_created_at timestamptz NOT NULL,
   source_updated_at timestamptz NOT NULL,
@@ -321,6 +346,37 @@ CREATE TABLE IF NOT EXISTS ${appTables.sourceDocuments} (
 
 CREATE INDEX IF NOT EXISTS mindbloom_source_documents_owner_updated_idx
   ON ${appTables.sourceDocuments} (owner_kind, owner_id, updated_at DESC);
+
+ALTER TABLE ${appTables.sourceDocuments}
+  ADD COLUMN IF NOT EXISTS memo_ingestion_run_id text,
+  ADD COLUMN IF NOT EXISTS ingestion_status text NOT NULL DEFAULT 'idle',
+  ADD COLUMN IF NOT EXISTS ingestion_phase text,
+  ADD COLUMN IF NOT EXISTS ingestion_counts jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS ingestion_warnings jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS ingestion_duration_ms integer,
+  ADD COLUMN IF NOT EXISTS source_content_hash text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS has_local_changes boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS local_saved_at timestamptz;
+
+UPDATE ${appTables.sourceDocuments}
+SET source_content_hash = content_hash
+WHERE source_content_hash = '';
+
+CREATE TABLE IF NOT EXISTS ${appTables.sourceDocumentSections} (
+  id text PRIMARY KEY,
+  document_id text NOT NULL REFERENCES ${appTables.sourceDocuments}(id) ON DELETE CASCADE,
+  external_section_id text NOT NULL,
+  title text,
+  content text NOT NULL,
+  block_ids text[] NOT NULL DEFAULT '{}',
+  section_order integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (document_id, external_section_id)
+);
+
+CREATE INDEX IF NOT EXISTS mindbloom_source_document_sections_document_order_idx
+  ON ${appTables.sourceDocumentSections} (document_id, section_order);
 
 CREATE TABLE IF NOT EXISTS ${appTables.sourceDocumentMessages} (
   id text PRIMARY KEY,

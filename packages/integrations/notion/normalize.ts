@@ -1,8 +1,22 @@
 import type { NotionBlockLike, NotionRichText } from "./types.js";
 
-function richText(value: unknown): string {
+export function notionRichText(value: unknown): string {
   if (!Array.isArray(value)) return "";
   return value.map((item) => (item as NotionRichText).plain_text ?? "").join("");
+}
+
+export function notionRichTextToMarkdown(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  return value.map((raw) => {
+    const item = raw as NotionRichText;
+    let text = item.plain_text ?? "";
+    if (item.annotations?.code) text = `\`${text}\``;
+    if (item.annotations?.bold) text = `**${text}**`;
+    if (item.annotations?.italic) text = `*${text}*`;
+    if (item.annotations?.strikethrough) text = `~~${text}~~`;
+    if (item.href) text = `[${text}](${item.href})`;
+    return text;
+  }).join("");
 }
 
 function blockPayload(block: NotionBlockLike): Record<string, unknown> {
@@ -12,7 +26,7 @@ function blockPayload(block: NotionBlockLike): Record<string, unknown> {
 
 export function notionBlockToMarkdown(block: NotionBlockLike, children = ""): string {
   const payload = blockPayload(block);
-  const text = richText(payload.rich_text);
+  const text = notionRichTextToMarkdown(payload.rich_text);
   let line = "";
   switch (block.type) {
     case "paragraph": line = text; break;
@@ -37,11 +51,23 @@ export function notionBlockToMarkdown(block: NotionBlockLike, children = ""): st
   return [line, children].filter((part) => part.trim()).join("\n");
 }
 
+export function notionBlockText(block: NotionBlockLike): string {
+  const payload = blockPayload(block);
+  if (block.type === "child_page" || block.type === "child_database") {
+    return String(payload.title ?? "").trim();
+  }
+  return notionRichText(payload.rich_text).trim();
+}
+
+export function isNotionHeading(block: NotionBlockLike): boolean {
+  return block.type === "heading_1" || block.type === "heading_2" || block.type === "heading_3";
+}
+
 export function notionPageTitle(page: Record<string, unknown>): string {
   const properties = page.properties as Record<string, Record<string, unknown>> | undefined;
   for (const property of Object.values(properties ?? {})) {
     if (property.type === "title") {
-      return richText(property.title).trim() || "Untitled";
+      return notionRichText(property.title).trim() || "Untitled";
     }
   }
   return "Untitled";

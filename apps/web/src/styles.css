@@ -367,3 +367,11 @@ a {
   font-weight: 500;
   line-height: 1;
 }
+@keyframes notion-import-sweep {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(510%); }
+}
+
+.notion-import-sweep {
+  animation: notion-import-sweep 1.25s ease-in-out infinite;
+}

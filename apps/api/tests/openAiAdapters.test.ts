@@ -100,4 +100,41 @@ describe("MindBloomOpenAILLMAdapter", () => {
       }),
     );
   });
+
+  it("forwards cancellation to OpenAI", async () => {
+    createMock.mockResolvedValue({
+      choices: [{ message: { content: "cancel-aware response" } }],
+    });
+    const adapter = new MindBloomOpenAILLMAdapter("gpt-4o-mini");
+    const controller = new AbortController();
+
+    await adapter.complete(
+      [{ role: "user", content: "Use a cancellable request" }],
+      undefined,
+      { signal: controller.signal },
+    );
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
+  it("creates a deadline signal for timed operations", async () => {
+    createMock.mockResolvedValue({
+      choices: [{ message: { content: "deadline-aware response" } }],
+    });
+    const adapter = new MindBloomOpenAILLMAdapter("gpt-4o-mini");
+
+    await adapter.complete(
+      [{ role: "user", content: "Use a deadline" }],
+      undefined,
+      { timeoutMs: 5_000 },
+    );
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
 });

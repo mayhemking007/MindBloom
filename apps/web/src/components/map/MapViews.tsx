@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { GraphMemory, GraphSnapshotResponse } from "@mindbloom/shared";
 
 import { getColorForTopic, type ColorRamp } from "../../lib/topicColors";
@@ -54,10 +54,14 @@ function enrichSnapshot(snapshot: GraphSnapshotResponse): EnrichedMapNode[] {
     });
 }
 
-export function MapViews({ snapshot, compact = false }: MapViewsProps) {
+export function MapViews({ snapshot, compact = false, focusMemoryId = null }: MapViewsProps) {
   const [activeView, setActiveView] = useState<MapViewType>("river");
   const nodes = useMemo(() => enrichSnapshot(snapshot), [snapshot]);
   const memoryLabel = snapshot.memories.length === 1 ? "memory" : "memories";
+
+  useEffect(() => {
+    if (focusMemoryId) setActiveView("river");
+  }, [focusMemoryId]);
 
   if (nodes.length === 0) {
     return (
@@ -126,7 +130,7 @@ export function MapViews({ snapshot, compact = false }: MapViewsProps) {
 
       <div className={compact ? "p-3" : "p-4 md:p-6"}>
         <div style={{ display: activeView === "river" ? "block" : "none" }}>
-          <ThoughtRiver nodes={nodes} edges={snapshot.edges} />
+          <ThoughtRiver nodes={nodes} edges={snapshot.edges} focusMemoryId={focusMemoryId} />
         </div>
         <div style={{ display: activeView === "constellation" ? "block" : "none" }}>
           <InsightConstellation nodes={nodes} edges={snapshot.edges} />

@@ -13,6 +13,119 @@ export const memoGrafterExtensions = [
 ] as const;
 
 export const memoGrafterTables = {
+  mg_agent_identities: {
+    name: "mg_agent_identities",
+    description: "Persistent agent identities within a tenant, independent of fleet workers.",
+    columns: {
+      tenant_id: {
+        name: "tenant_id",
+        type: "text",
+        primaryKey: true,
+      },
+      agent_id: {
+        name: "agent_id",
+        type: "text",
+        primaryKey: true,
+      },
+      created_at: {
+        name: "created_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    }
+  },
+  mg_agent_runs: {
+    name: "mg_agent_runs",
+    description: "Agent task execution records, distinct from memory ingestion jobs.",
+    columns: {
+      tenant_id: {
+        name: "tenant_id",
+        type: "text",
+        primaryKey: true,
+      },
+      run_id: {
+        name: "run_id",
+        type: "text",
+        primaryKey: true,
+      },
+      agent_id: {
+        name: "agent_id",
+        type: "text",
+      },
+      task_id: {
+        name: "task_id",
+        type: "text",
+      },
+      objective: {
+        name: "objective",
+        type: "text",
+      },
+      session_id: {
+        name: "session_id",
+        type: "text",
+        nullable: true,
+      },
+      project_id: {
+        name: "project_id",
+        type: "text",
+        nullable: true,
+      },
+      status: {
+        name: "status",
+        type: "text",
+        default: "'running'",
+        check: "status IN ('running','interrupted','succeeded','failed','cancelled')",
+      },
+      created_at: {
+        name: "created_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+      updated_at: {
+        name: "updated_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    },
+    constraints: ["FOREIGN KEY (tenant_id, agent_id) REFERENCES mg_agent_identities(tenant_id, agent_id)"]
+  },
+  mg_agent_events: {
+    name: "mg_agent_events",
+    description: "Immutable ordered agent events with retry-safe IDs and original evidence.",
+    columns: {
+      tenant_id: {
+        name: "tenant_id",
+        type: "text",
+        primaryKey: true,
+      },
+      run_id: {
+        name: "run_id",
+        type: "text",
+        primaryKey: true,
+      },
+      event_id: {
+        name: "event_id",
+        type: "text",
+        primaryKey: true,
+      },
+      sequence: {
+        name: "sequence",
+        type: "int",
+        check: "sequence >= 0",
+      },
+      event: {
+        name: "event",
+        type: "jsonb",
+        check: "jsonb_typeof(event) = 'object'",
+      },
+      received_at: {
+        name: "received_at",
+        type: "timestamptz",
+        default: "now()",
+      },
+    },
+    constraints: ["UNIQUE (tenant_id, run_id, sequence)","FOREIGN KEY (tenant_id, run_id) REFERENCES mg_agent_runs(tenant_id, run_id)"]
+  },
   mg_topic_clusters: {
     name: "mg_topic_clusters",
     description: "Optional session-scoped topic domains; no retrieval graph edges.",
@@ -539,6 +652,11 @@ export const memoGrafterTables = {
         type: "text",
         nullable: true,
       },
+      source_spans: {
+        name: "source_spans",
+        type: "jsonb",
+        default: "'[]'::jsonb",
+      },
       provenance_speaker: {
         name: "provenance_speaker",
         type: "text",
@@ -686,6 +804,11 @@ export const memoGrafterTables = {
         name: "quality_updated_at",
         type: "timestamptz",
         default: "now()",
+      },
+      source_spans: {
+        name: "source_spans",
+        type: "jsonb",
+        default: "'[]'::jsonb",
       },
       provenance_speaker: {
         name: "provenance_speaker",
@@ -864,6 +987,31 @@ export const memoGrafterTables = {
     name: "mg_ingestion_runs",
     description: "Durable lifecycle and retry state for accepted ingestion ranges.",
     columns: {
+      document_payload: {
+        name: "document_payload",
+        type: "jsonb",
+        nullable: true,
+      },
+      prepared_payload: {
+        name: "prepared_payload",
+        type: "jsonb",
+        nullable: true,
+      },
+      result_payload: {
+        name: "result_payload",
+        type: "jsonb",
+        nullable: true,
+      },
+      cancel_requested_at: {
+        name: "cancel_requested_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      superseded_at: {
+        name: "superseded_at",
+        type: "timestamptz",
+        nullable: true,
+      },
       id: {
         name: "id",
         type: "uuid",
@@ -966,7 +1114,7 @@ export const memoGrafterTables = {
         default: "now()",
       },
     },
-    constraints: ["CHECK (start_index >= 0)","CHECK (end_index >= start_index)","UNIQUE (session_id, start_index, end_index, kind)"]
+    constraints: ["CHECK (start_index >= 0)","CHECK (end_index >= start_index)"]
   },
   mg_graft_registry: {
     name: "mg_graft_registry",
@@ -1005,6 +1153,26 @@ export const memoGrafterTables = {
 } as const;
 
 export const memoGrafterIndexes = [
+  {
+    "name": "mg_ingestion_runs_current_message_range_idx",
+    "table": "mg_ingestion_runs",
+    "description": "Unique current message ranges; documents stage independently."
+  },
+  {
+    "name": "mg_agent_events_tool_idx",
+    "table": "mg_agent_events",
+    "description": "Unique tool-call/result correlation within a run."
+  },
+  {
+    "name": "mg_agent_runs_owner_idx",
+    "table": "mg_agent_runs",
+    "description": "Runs by tenant and owning agent."
+  },
+  {
+    "name": "mg_agent_runs_project_idx",
+    "table": "mg_agent_runs",
+    "description": "Project-shared runs within a tenant."
+  },
   {
     "name": "idx_topic_nodes_cluster",
     "table": "mg_topic_nodes",

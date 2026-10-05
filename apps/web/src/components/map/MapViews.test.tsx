@@ -170,6 +170,13 @@ describe("MapViews", () => {
     expect(screen.queryByText(/topicNodeId|sourceId|targetId/i)).not.toBeInTheDocument();
   });
 
+  it("opens a requested memory from an external related-thought link", () => {
+    render(<MapViews snapshot={snapshot} focusMemoryId="memory-1" />);
+
+    const details = screen.getByLabelText("Work pressure memory details");
+    expect(within(details).getByText("Work pressure is connected to wanting more breathing room.")).toBeVisible();
+  });
+
   it("draws the thought river with curved paths", () => {
     const { container } = render(<MapViews snapshot={snapshot} />);
 
@@ -203,12 +210,18 @@ describe("MapViews", () => {
   });
 
   it("switches to the constellation without refetching", () => {
-    render(<MapViews snapshot={snapshot} />);
+    const { container } = render(<MapViews snapshot={snapshot} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Constellation/i }));
 
     expect(screen.getByRole("img", { name: "Insight constellation map" })).toBeVisible();
     expect(screen.getByText("Related themes")).toBeVisible();
+    expect(screen.queryByText("Topic detail")).not.toBeInTheDocument();
+    fireEvent.click(container.querySelector('[data-constellation-memory="true"]')!);
+    expect(screen.getByText("Memory detail")).toBeVisible();
+    expect(within(screen.getByLabelText("Work pressure memory details")).getByText("Work pressure is connected to wanting more breathing room.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Close detail" }));
+    expect(screen.queryByText("Memory detail")).not.toBeInTheDocument();
   });
 
   it("uses summaries and seed stars when there are no memories yet", () => {

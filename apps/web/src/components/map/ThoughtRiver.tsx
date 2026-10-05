@@ -16,6 +16,7 @@ type RiverSelection =
 interface ThoughtRiverProps {
   nodes: EnrichedMapNode[];
   edges: GraphEdge[];
+  focusMemoryId?: string | null;
 }
 
 function specialPathColor(kind: "flow" | "branch" | "return" | "grafted"): string | null {
@@ -32,7 +33,7 @@ function gradientId(pathId: string): string {
   return `river-gradient-${pathId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
-export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
+export function ThoughtRiver({ nodes, edges, focusMemoryId = null }: ThoughtRiverProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasWidth, setCanvasWidth] = useState(760);
   const [selection, setSelection] = useState<RiverSelection>(null);
@@ -51,6 +52,12 @@ export function ThoughtRiver({ nodes, edges }: ThoughtRiverProps) {
     selection?.kind === "memory"
       ? selectedNode?.memories.find((memory) => memory.id === selection.memoryId) ?? null
       : null;
+
+  useEffect(() => {
+    if (!focusMemoryId) return;
+    const node = nodes.find((candidate) => candidate.memories.some((memory) => memory.id === focusMemoryId));
+    if (node) setSelection({ kind: "memory", topicId: node.id, memoryId: focusMemoryId });
+  }, [focusMemoryId, nodes]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

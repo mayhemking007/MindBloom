@@ -68,11 +68,11 @@ npm run memo:migrate
 npm run memo:doctor
 ```
 
-MindBloom is pinned to MemoGrafter `0.5.2`. After pulling a dependency update,
-run the migration before starting the API. Version 0.5.2 adds durable ingestion,
-canonical memory evidence, structured memory quality, stable-topic episodes, and
-optional topic clusters. Runtime startup verifies this schema but never applies
-database DDL automatically.
+MindBloom is pinned to MemoGrafter `0.5.3`. After pulling a dependency update,
+run the migration before starting the API. Version 0.5.3 adds durable and
+structured document ingestion, bounded provider concurrency, document memory
+budgets, atomic replacement, and source spans. Runtime startup verifies this
+schema but never applies database DDL automatically.
 
 Start both applications:
 
@@ -89,7 +89,17 @@ Create an internal integration in Notion, copy its token to `NOTION_TOKEN`, and
 share only the pages you want MindBloom to read with that integration. Sign in
 to MindBloom and open `/notion` to select pages. Imported pages are copied into
 MindBloom's PostgreSQL database and indexed into one MemoGrafter session per
-page; use **Sync now** when a source page changes.
+page; use **Sync now** when a source page changes. Imported content is rendered
+as Markdown. **Edit page** provides a Markdown editor and writes supported
+blocks back to Notion before rebuilding the page's thought graph. A save is
+rejected if the source changed after the last sync. Pages containing child
+pages, databases, media, tables, synced blocks, or column layouts are also
+protected from lossy Markdown replacement and should be edited in Notion.
+
+Related results are ranked as individual memories rather than grouped by page.
+Selecting one offers **Go to page**, which opens that memory in the destination
+Thought River, and **Chat with Bloom**, which grounds Bloom in the source page
+and section before explaining the earlier context and how it may apply now.
 
 This MVP intentionally uses one server-side internal token. It does not yet
 include public OAuth, per-user Notion credentials, webhooks, or background sync.
