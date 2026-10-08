@@ -50,13 +50,13 @@ function notionApiError(error: unknown, stage?: "insert" | "update" | "partial")
   const cause = error instanceof NotionPageWriteError ? error.cause : error;
   if (!isNotionClientError(cause)) return null;
   if (cause.code === APIErrorCode.RestrictedResource) {
-    if (stage === "insert") return new ApiError(403, "MindBloom cannot insert content into this Notion page. Enable the connection's Insert content capability and make sure the page is shared with the connection.");
-    if (stage === "update") return new ApiError(403, "MindBloom cannot replace the existing Notion blocks. Enable the connection's Update content capability and make sure the page is shared with the connection.");
+    if (stage === "insert") return new ApiError(403, "Notion Bloom cannot insert content into this Notion page. Enable the connection's Insert content capability and make sure the page is shared with the connection.");
+    if (stage === "update") return new ApiError(403, "Notion Bloom cannot replace the existing Notion blocks. Enable the connection's Update content capability and make sure the page is shared with the connection.");
     if (stage === "partial") return new ApiError(403, "Notion accepted the new content but would not remove the old blocks. Enable Update content, then review the page in Notion before trying again.");
-    return new ApiError(403, "MindBloom does not have access to this Notion resource. Check the connection capabilities and share the page with the connection.");
+    return new ApiError(403, "Notion Bloom does not have access to this Notion resource. Check the connection capabilities and share the page with the connection.");
   }
   if (cause.code === APIErrorCode.Unauthorized) return new ApiError(401, "The Notion connection token is invalid or expired. Reconnect Notion and try again.");
-  if (cause.code === APIErrorCode.ObjectNotFound) return new ApiError(404, "This Notion page was deleted or is no longer shared with the MindBloom connection.");
+  if (cause.code === APIErrorCode.ObjectNotFound) return new ApiError(404, "This Notion page was deleted or is no longer shared with the Notion Bloom connection.");
   if (cause.code === APIErrorCode.ConflictError) return new ApiError(409, "Notion reported a conflicting edit. Sync the page and try again.");
   if (cause.code === APIErrorCode.RateLimited) return new ApiError(429, "Notion is rate limiting this connection. Wait a moment and try again.");
   return null;
@@ -93,7 +93,7 @@ export async function updateNotionDocumentContent(id: string, content: string, e
     await notion.updatePageContent(row.external_id, content);
   } catch (error) {
     if (error instanceof NotionMarkdownWriteUnsupportedError) {
-      throw new ApiError(409, `${error.message}. Edit this page in Notion, then sync it back to MindBloom.`);
+      throw new ApiError(409, `${error.message}. Edit this page in Notion, then sync it back to Notion Bloom.`);
     }
     const mapped = notionApiError(error, error instanceof NotionPageWriteError ? error.stage : undefined);
     if (mapped) throw mapped;
@@ -103,7 +103,7 @@ export async function updateNotionDocumentContent(id: string, content: string, e
   try {
     return (await persistPage(updatedPage, owner, true)).document;
   } catch {
-    throw new ApiError(502, "The edit was saved to Notion, but MindBloom could not refresh its thought graph. Retry the ingestion from the Notion garden.");
+    throw new ApiError(502, "The edit was saved to Notion, but Notion Bloom could not refresh its thought graph. Retry the ingestion from the Notion garden.");
   }
 }
 
@@ -219,7 +219,7 @@ export async function importNotionPages(pageIds: string[], owner: OwnerScope) {
 export async function syncNotionDocument(id: string, owner: OwnerScope, discardLocalChanges = false) {
   const row = await getOwned(id, owner);
   if (row.has_local_changes && !discardLocalChanges) {
-    throw new ApiError(409, "This page has changes saved only in MindBloom. Confirm that you want to discard them before syncing from Notion.");
+    throw new ApiError(409, "This page has changes saved only in Notion Bloom. Confirm that you want to discard them before syncing from Notion.");
   }
   try {
     return (await persistPage(await requireNotion().retrievePage(row.external_id), owner, discardLocalChanges)).document;
@@ -316,7 +316,7 @@ export async function notionBloom(id: string, question: string | undefined, thou
   }
   const llm = new MindBloomOpenAILLMAdapter(env.MEMO_GRAFTER_LLM_MODEL ?? "gpt-4o-mini");
   const answer = await llm.complete([...history, { role: "user", content: userQuestion }],
-    `You are MindBloom inside a Notion writing workspace. Help the user think with their current page and their prior writing. Be concise, reflective, and concrete. Mention source titles when using historical context.\n\nCURRENT PAGE: ${document.title}\n${document.content.slice(0, 12000)}\n\nRELATED PRIOR THOUGHTS:\n${context || "No related thoughts were found."}${selectedContext}`,
+    `You are Notion Bloom, a reflective thinking agent inside a Notion writing workspace. Help the user think with their current page and their prior writing. Be concise, reflective, and concrete. Mention source titles when using historical context.\n\nCURRENT PAGE: ${document.title}\n${document.content.slice(0, 12000)}\n\nRELATED PRIOR THOUGHTS:\n${context || "No related thoughts were found."}${selectedContext}`,
     { timeoutMs: 60_000 });
   await createSourceDocumentMessage(id, "assistant", answer);
   return { answer, messages: (await listSourceDocumentMessages(id)).map(toMessage), sources };

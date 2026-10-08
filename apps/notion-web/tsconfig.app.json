@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "paths": { "@mindbloom/shared": ["../../packages/shared/src/index.ts"] }
+  },
+  "include": [
+    "src",
+    "../web/src/auth/**/*.tsx",
+    "../web/src/theme/**/*.tsx",
+    "../web/src/pages/NotionPage.tsx",
+    "../web/src/pages/NotionDocumentPage.tsx",
+    "../web/src/components/MarkdownContent.tsx",
+    "../web/src/components/map/**/*.tsx",
+    "../web/src/components/map/**/*.ts",
+    "../web/src/lib/api.ts",
+    "../web/src/lib/demoStore.ts",
+    "../web/src/lib/mapLayout.ts",
+    "../web/src/lib/riverLayout.ts",
+    "../web/src/lib/topicColors.ts",
+    "../web/src/lib/topicSummary.ts"
+  ],
+  "exclude": ["../web/src/**/*.test.ts", "../web/src/**/*.test.tsx"],
+  "references": [{ "path": "../../packages/shared" }]
+}

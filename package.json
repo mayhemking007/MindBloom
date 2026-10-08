@@ -7,16 +7,19 @@
   "workspaces": [
     "apps/api",
     "apps/web",
+    "apps/notion-web",
     "packages/shared",
     "packages/integrations"
   ],
   "scripts": {
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @mindbloom/api\" \"npm run dev -w @mindbloom/web\"",
+    "dev:notion": "concurrently -n notion-api,notion-web -c green,magenta \"npm run dev:notion -w @mindbloom/api\" \"npm run dev -w @mindbloom/notion-web\"",
     "dev:api": "npm run dev -w @mindbloom/api",
     "dev:web": "npm run dev -w @mindbloom/web",
     "build": "npm run build --workspaces --if-present",
     "build:api": "npm run build -w @mindbloom/api",
     "build:web": "npm run build -w @mindbloom/web",
+    "build:notion": "npm run build -w @mindbloom/api && npm run build -w @mindbloom/notion-web",
     "typecheck": "tsc -b",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
@@ -28,7 +31,8 @@
     "memo:migrate": "npm run memo:migrate -w @mindbloom/api",
     "memo:doctor": "npm run memo:doctor -w @mindbloom/api",
     "memo:studio": "npm run memo:studio -w @mindbloom/api",
-    "start:api": "npm run start -w @mindbloom/api"
+    "start:api": "npm run start -w @mindbloom/api",
+    "start:notion-api": "npm run start:notion -w @mindbloom/api"
   },
   "keywords": [
     "memo-grafter",

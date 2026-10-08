@@ -58,7 +58,9 @@ export interface BloomStreamHandlers {
 }
 
 export const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.VITE_PRODUCT === "notion-bloom" ? "http://localhost:4100" : "http://localhost:4000");
+const apiProductName = import.meta.env.VITE_PRODUCT === "notion-bloom" ? "Notion Bloom" : "MindBloom";
 
 let apiOwnerKind: "authenticated" | "demo" = "demo";
 
@@ -78,7 +80,7 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
       data && typeof data === "object" && "error" in data
         ? (data as { error?: { message?: string } }).error?.message
         : undefined;
-    throw new Error(message ?? "MindBloom could not reach the API.");
+    throw new Error(message ?? `${apiProductName} could not reach the API.`);
   }
 
   return data as T;

@@ -24,7 +24,7 @@ export function notFoundHandler(): RequestHandler {
   };
 }
 
-export function errorHandler(): ErrorRequestHandler {
+export function errorHandler(serviceName = "MindBloom API"): ErrorRequestHandler {
   return (error, _req, res, _next) => {
     const statusCode =
       error instanceof ApiError && error.statusCode >= 400
@@ -39,7 +39,7 @@ export function errorHandler(): ErrorRequestHandler {
       error: {
         message:
           statusCode >= 500
-            ? "Something went wrong inside MindBloom API."
+            ? `Something went wrong inside ${serviceName}.`
             : sanitizePublicErrorMessage(error.message),
       },
     });

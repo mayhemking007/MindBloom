@@ -12,10 +12,13 @@ const envSchema = z.object({
   MEMO_GRAFTER_LLM_MODEL: z.string().min(1).optional(),
   NOTION_TOKEN: z.string().min(1).optional(),
   API_PORT: z.coerce.number().int().positive().default(4000),
+  NOTION_API_PORT: z.coerce.number().int().positive().default(4100),
   PORT: z.coerce.number().int().positive().optional(),
   CORS_ORIGIN: z.string().min(1).default("http://localhost:5173"),
+  NOTION_CORS_ORIGIN: z.string().min(1).default("http://localhost:5174"),
 });
 
 export const env = envSchema.parse(process.env);
 
 export const apiPort = env.PORT ?? env.API_PORT;
+export const notionApiPort = env.PORT ?? env.NOTION_API_PORT;

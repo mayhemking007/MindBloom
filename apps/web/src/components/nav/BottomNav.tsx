@@ -8,7 +8,6 @@ import {
   Settings,
   Sparkles,
   StickyNote,
-  Blocks,
   UserRound,
 } from "lucide-react";
 import { useState } from "react";
@@ -21,7 +20,6 @@ const navItems = [
   { to: "/", label: "Today", icon: PencilLine },
   { to: "/notes", label: "Notes", icon: StickyNote },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
-  { to: "/notion", label: "Notion", icon: Blocks },
 ];
 
 function getDisplayName(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
@@ -77,7 +75,7 @@ export function BottomNav() {
         </NavLink>
       </div>
 
-      <div className="grid h-full grid-cols-5 items-center gap-1 md:flex md:h-auto md:flex-1 md:items-center md:justify-center md:gap-2">
+      <div className="grid h-full grid-cols-4 items-center gap-1 md:flex md:h-auto md:flex-1 md:items-center md:justify-center md:gap-2">
         {navItems.map((item) => {
           const Icon = item.icon;
 

@@ -1,0 +1,15 @@
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { fileURLToPath, URL } from "node:url";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  define: { "import.meta.env.VITE_PRODUCT": JSON.stringify("notion-bloom") },
+  resolve: {
+    alias: {
+      "@mindbloom/shared": fileURLToPath(new URL("../../packages/shared/src/index.ts", import.meta.url)),
+    },
+  },
+  server: { port: 5174 },
+});

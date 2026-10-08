@@ -18,7 +18,7 @@ function ingestionLabel(document: MindBloomDocument): string {
   return document.ingestion.phase ? `Processing: ${document.ingestion.phase}` : "Waiting to process";
 }
 
-export function NotionPage() {
+export function NotionPage({ brandName = "MindBloom" }: { brandName?: string }) {
   const [pages, setPages] = useState<NotionPageSummary[]>([]);
   const [documents, setDocuments] = useState<MindBloomDocument[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -100,7 +100,7 @@ export function NotionPage() {
 
   return <main className="mx-auto min-h-dvh w-full max-w-[1120px] px-4 pb-24 pt-6 md:px-8 md:pb-8">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="label-text">Integration</p><h1 className="mt-1 font-serif text-[32px]">Notion garden</h1><p className="mt-2 max-w-2xl text-[13px] leading-5 text-bloom-text-secondary">Choose pages MindBloom may remember. Each page keeps its Notion sections and produces at most 6 topics and 12 useful memories.</p></div>
+      <div><p className="label-text">Integration</p><h1 className="mt-1 font-serif text-[32px]">Notion garden</h1><p className="mt-2 max-w-2xl text-[13px] leading-5 text-bloom-text-secondary">Choose pages {brandName} may remember. Each page keeps its Notion sections and produces at most 6 topics and 12 useful memories.</p></div>
       <button onClick={() => void load()} disabled={loading || importing} aria-label="Refresh Notion" className="grid h-10 w-10 place-items-center rounded-full border border-bloom-border bg-bloom-surface"><RefreshCw className="h-4 w-4" /></button>
     </header>
     {error ? <div className="mt-5 rounded-bloom border border-coral-border bg-coral-bg p-4 text-[13px] text-coral-text">{error}</div> : null}
@@ -117,7 +117,7 @@ export function NotionPage() {
     </section>
 
     <section className="mt-8">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-[21px]">Pages shared with MindBloom</h2><p className="text-[12px] text-bloom-text-tertiary">Only pages shared with your internal Notion integration appear here.</p></div><button onClick={() => void runImport()} disabled={!selected.length || importing} className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent disabled:opacity-40"><Download className="h-4 w-4" />{importing ? `Processing ${selected.length} page${selected.length === 1 ? "" : "s"}…` : `Import ${selected.length || "selected"}`}</button></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-[21px]">Pages shared with {brandName}</h2><p className="text-[12px] text-bloom-text-tertiary">Only pages shared with your internal Notion integration appear here.</p></div><button onClick={() => void runImport()} disabled={!selected.length || importing} className="flex h-10 items-center gap-2 rounded-bloom-sm bg-bloom-accent px-4 text-[13px] font-medium text-bloom-on-accent disabled:opacity-40"><Download className="h-4 w-4" />{importing ? `Processing ${selected.length} page${selected.length === 1 ? "" : "s"}…` : `Import ${selected.length || "selected"}`}</button></div>
       <div className="divide-y divide-bloom-border rounded-bloom border border-bloom-border bg-bloom-surface">{pages.map((page) => <label key={page.id} className="flex cursor-pointer items-center gap-3 p-4"><input type="checkbox" disabled={Boolean(page.importedDocumentId) || importing} checked={selected.includes(page.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, page.id] : current.filter((id) => id !== page.id))} /><span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{page.title}</span><span className="text-[11px] text-bloom-text-tertiary">Edited {new Date(page.updatedAt).toLocaleDateString()}</span></span>{page.importedDocumentId ? <span className="text-[11px] text-bloom-accent">Imported</span> : null}</label>)}</div>
       {loading ? <p className="py-8 text-center text-[13px] text-bloom-text-secondary">Reading your Notion workspace…</p> : null}
     </section>
