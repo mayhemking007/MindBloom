@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { RetrievalResult } from "memo-grafter";
-import { selectTopRelatedThoughts } from "../src/services/notionThoughts.js";
+import { relatedThoughtSessionIds, selectTopRelatedThoughts } from "../src/services/notionThoughts.js";
 
 describe("Notion related thought selection", () => {
+  it("builds retrieval scope from other document sessions only", () => {
+    expect(relatedThoughtSessionIds([
+      { id: "current", memoSessionId: "current-session", title: "Current", sourceUrl: "" },
+      { id: "other-a", memoSessionId: "other-session-a", title: "Other A", sourceUrl: "" },
+      { id: "other-b", memoSessionId: "other-session-b", title: "Other B", sourceUrl: "" },
+      { id: "duplicate", memoSessionId: "other-session-a", title: "Duplicate", sourceUrl: "" },
+    ], "current")).toEqual(["other-session-a", "other-session-b"]);
+  });
+
   it("returns individual memories instead of grouping them by source page", () => {
     const result = {
       facts: [

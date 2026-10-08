@@ -20,7 +20,7 @@ import {
   isSuccessfulIngestion, markdownToDocumentSections, NOTION_INGESTION_TIMEOUT_MS, notionIngestionOptionsFor,
   receiptCounts, receiptWarnings, toMemoGrafterDocument,
 } from "./notionIngestion.js";
-import { selectTopRelatedThoughts } from "./notionThoughts.js";
+import { relatedThoughtSessionIds, selectTopRelatedThoughts } from "./notionThoughts.js";
 
 function ownerOf(owner: OwnerScope): SourceOwner { return owner; }
 function requireNotion(): NotionIntegration {
@@ -274,17 +274,23 @@ export async function removeNotionDocument(id: string, owner: OwnerScope) {
 export async function relatedThoughts(id: string, owner: OwnerScope): Promise<RelatedThought[]> {
   const current = await getOwned(id, owner);
   const documents = await listSourceDocuments(ownerOf(owner));
-  if (documents.length < 2) return [];
+  const sourceDocuments = documents
+    .filter((document) => document.status === "ready")
+    .map((document) => ({
+      id: document.id,
+      memoSessionId: document.memo_session_id,
+      title: document.title,
+      sourceUrl: document.source_url,
+    }));
+  const sourceSessionIds = relatedThoughtSessionIds(sourceDocuments, id);
+  if (!sourceSessionIds.length) return [];
   const result = await retrieveMemoGrafterContext(current.memo_session_id, `${current.title}\n${current.content.slice(0, 4000)}`, {
-    scope: "tagged", tags: [`owner:${owner.ownerId}`, "source:notion"], tagMode: "all", limit: 24,
-    episodeLimit: 4, tokenBudget: 1800, selection: { maxTopics: 12 },
+    scope: "tagged", sessionIds: sourceSessionIds,
+    tags: [`owner:${owner.ownerId}`, "source:notion"], tagMode: "all",
+    candidateLimit: 60, limit: 24, episodeLimit: 4, tokenBudget: 1800,
+    selection: { maxTopics: 12, relativeScoreFloor: 0.55, scoreGapThreshold: 0.3 },
   });
-  return selectTopRelatedThoughts(result, documents.map((document) => ({
-    id: document.id,
-    memoSessionId: document.memo_session_id,
-    title: document.title,
-    sourceUrl: document.source_url,
-  })), id);
+  return selectTopRelatedThoughts(result, sourceDocuments, id);
 }
 
 export async function notionBloom(id: string, question: string | undefined, thoughtId: string | undefined, owner: OwnerScope) {

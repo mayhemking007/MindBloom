@@ -8,6 +8,18 @@ export interface ThoughtSourceDocument {
   sourceUrl: string;
 }
 
+export function relatedThoughtSessionIds(
+  documents: ThoughtSourceDocument[],
+  currentDocumentId: string,
+): string[] {
+  return [...new Set(
+    documents
+      .filter((document) => document.id !== currentDocumentId)
+      .map((document) => document.memoSessionId)
+      .filter(Boolean),
+  )];
+}
+
 export function selectTopRelatedThoughts(
   result: RetrievalResult,
   documents: ThoughtSourceDocument[],
