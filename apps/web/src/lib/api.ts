@@ -38,7 +38,8 @@ import type {
   UpdateNoteRequest,
   UpdateSettingsRequest,
   UpsertEntryDocumentRequest,
-  ImportNotionPagesResponse,
+  NotionImportJobResponse,
+  NotionImportJobsResponse,
   MindBloomDocumentResponse,
   MindBloomDocumentsResponse,
   NotionBloomResponse,
@@ -673,9 +674,21 @@ export async function listNotionDocuments(): Promise<MindBloomDocumentsResponse>
   requireAccount();
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents`, credentialOptions));
 }
-export async function importNotionPages(pageIds: string[]): Promise<ImportNotionPagesResponse> {
+export async function importNotionPages(pageIds: string[]): Promise<NotionImportJobResponse> {
   requireAccount();
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/import`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ pageIds }) }));
+}
+export async function listActiveNotionImports(): Promise<NotionImportJobsResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/imports`, credentialOptions));
+}
+export async function getNotionImport(jobId: string): Promise<NotionImportJobResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/imports/${jobId}`, credentialOptions));
+}
+export async function cancelNotionImport(jobId: string): Promise<NotionImportJobResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/imports/${jobId}/cancel`, { method: "POST", credentials: "include" }));
 }
 export async function getNotionDocument(documentId: string): Promise<MindBloomDocumentResponse> {
   requireAccount();
@@ -716,4 +729,20 @@ export async function askNotionBloom(documentId: string, question?: string, thou
 export async function getNotionGraph(documentId: string): Promise<GraphSnapshotResponse> {
   requireAccount();
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/graph`, credentialOptions));
+}
+export async function deleteNotionDocument(documentId: string): Promise<void> {
+  requireAccount();
+  const response = await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}`, { method: "DELETE", credentials: "include" });
+  if (!response.ok) await parseJsonResponse<unknown>(response);
+}
+export async function exportNotionData(): Promise<Blob> {
+  requireAccount();
+  const response = await fetch(`${apiBaseUrl}/api/notion/export`, credentialOptions);
+  if (!response.ok) await parseJsonResponse<unknown>(response);
+  return response.blob();
+}
+export async function deleteNotionBloomAccount(): Promise<void> {
+  requireAccount();
+  const response = await fetch(`${apiBaseUrl}/api/notion/account`, { method: "DELETE", credentials: "include" });
+  if (!response.ok) await parseJsonResponse<unknown>(response);
 }

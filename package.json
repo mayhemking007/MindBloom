@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @mindbloom/api\" \"npm run dev -w @mindbloom/web\"",
-    "dev:notion": "concurrently -n notion-api,notion-web -c green,magenta \"npm run dev:notion -w @mindbloom/api\" \"npm run dev -w @mindbloom/notion-web\"",
+    "dev:notion": "concurrently -n notion-api,notion-worker,notion-web -c green,cyan,magenta \"npm run dev:notion -w @mindbloom/api\" \"npm run dev:notion-worker -w @mindbloom/api\" \"npm run dev -w @mindbloom/notion-web\"",
     "dev:api": "npm run dev -w @mindbloom/api",
     "dev:web": "npm run dev -w @mindbloom/web",
     "build": "npm run build --workspaces --if-present",
@@ -32,7 +32,8 @@
     "memo:doctor": "npm run memo:doctor -w @mindbloom/api",
     "memo:studio": "npm run memo:studio -w @mindbloom/api",
     "start:api": "npm run start -w @mindbloom/api",
-    "start:notion-api": "npm run start:notion -w @mindbloom/api"
+    "start:notion-api": "npm run start:notion -w @mindbloom/api",
+    "start:notion-worker": "npm run start:notion-worker -w @mindbloom/api"
   },
   "keywords": [
     "memo-grafter",

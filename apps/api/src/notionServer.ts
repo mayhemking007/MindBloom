@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 
 import { closeDb, initializeDb } from "./config/db.js";
-import { notionApiPort } from "./config/env.js";
+import { env, notionApiPort } from "./config/env.js";
 import { createNotionBloomApp } from "./notionApp.js";
 import { shutdownMemoGrafters } from "./memo-grafter/memoGrafter.js";
 import { authStore } from "./services/auth.service.js";
@@ -9,7 +9,8 @@ import { authStore } from "./services/auth.service.js";
 const server = createServer(createNotionBloomApp());
 
 await initializeDb();
-await authStore.seedDevUsers();
+if (env.NODE_ENV !== "production") await authStore.seedDevUsers();
+await authStore.deleteExpiredSessions();
 
 server.on("error", (error: NodeJS.ErrnoException) => {
   if (error.code === "EADDRINUSE") {

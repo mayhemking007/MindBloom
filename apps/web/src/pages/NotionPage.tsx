@@ -67,17 +67,9 @@ export function NotionPage({ brandName = "MindBloom" }: { brandName?: string }) 
     setImportProgress({ completed: 0, total: pageIds.length, currentTitle: "" });
     setError(null);
     try {
-      const failed: Array<{ error?: string }> = [];
-      for (let index = 0; index < pageIds.length; index += 1) {
-        const pageId = pageIds[index]!;
-        setImportProgress({ completed: index, total: pageIds.length, currentTitle: pages.find((page) => page.id === pageId)?.title ?? "Notion page" });
-        const result = await importNotionPages([pageId]);
-        failed.push(...result.results.filter((item) => item.status === "failed"));
-        setImportProgress((current) => ({ ...current, completed: index + 1 }));
-      }
+      await importNotionPages(pageIds);
       setSelected([]);
       await load();
-      if (failed.length) setError(`${failed.length} page${failed.length === 1 ? "" : "s"} could not be imported: ${failed[0]?.error}`);
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : "Import failed");
     } finally {

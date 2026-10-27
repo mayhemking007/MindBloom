@@ -9,7 +9,7 @@ import { authStore, sessionCookieName } from "../services/auth.service.js";
 
 const registerSchema = z.object({
   email: z.string().trim().email().max(240),
-  password: z.string().min(8).max(200),
+  password: z.string().min(10, "Password must be at least 10 characters").max(200),
   displayName: z.string().trim().min(1).max(120).optional(),
 });
 
@@ -52,6 +52,12 @@ authRouter.post("/register", async (req, res, next) => {
         400,
         parsed.error.issues[0]?.message ?? "Invalid body",
       );
+    }
+    if (env.NODE_ENV === "production") {
+      const invitedEmails = new Set((env.NOTION_INVITE_EMAILS ?? "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean));
+      if (!env.NOTION_REGISTRATION_ENABLED || (invitedEmails.size > 0 && !invitedEmails.has(parsed.data.email.toLowerCase()))) {
+        throw new ApiError(403, "Notion Bloom is currently invite-only. Ask the workspace owner for access.");
+      }
     }
 
     let user;

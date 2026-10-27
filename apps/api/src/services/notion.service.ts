@@ -198,12 +198,18 @@ async function ingestPage(page: ExternalNotionDocument, owner: OwnerScope, base:
   }
 }
 
-export async function importNotionPages(pageIds: string[], owner: OwnerScope) {
+export async function importNotionPages(
+  pageIds: string[],
+  owner: OwnerScope,
+  onPageRead?: (page: ExternalNotionDocument) => Promise<void>,
+) {
   const notion = requireNotion();
   const results = [];
   for (const pageId of pageIds) {
     try {
-      const result = await persistPage(await notion.retrievePage(pageId), owner);
+      const page = await notion.retrievePage(pageId);
+      await onPageRead?.(page);
+      const result = await persistPage(page, owner);
       const status = result.unchanged ? "unchanged" as const
         : result.document.status === "failed" ? "failed" as const
         : result.document.status === "pending" ? "processing" as const
@@ -269,6 +275,18 @@ export async function removeNotionDocument(id: string, owner: OwnerScope) {
   const row = await getOwned(id, owner);
   await (await getMemoGrafterForSession(row.memo_session_id)).clearSession();
   await deleteSourceDocument(id, ownerOf(owner));
+}
+
+export async function exportNotionData(owner: OwnerScope) {
+  const documents = await listSourceDocuments(ownerOf(owner));
+  return {
+    exportedAt: new Date().toISOString(),
+    product: "Notion Bloom",
+    documents: await Promise.all(documents.map(async (document) => ({
+      ...toDocument(document),
+      messages: (await listSourceDocumentMessages(document.id)).map(toMessage),
+    }))),
+  };
 }
 
 export async function relatedThoughts(id: string, owner: OwnerScope): Promise<RelatedThought[]> {

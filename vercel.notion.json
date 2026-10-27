@@ -1,0 +1,12 @@
+{
+  "buildCommand": "npm run build -w @mindbloom/notion-web",
+  "outputDirectory": "apps/notion-web/dist",
+  "installCommand": "npm ci",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

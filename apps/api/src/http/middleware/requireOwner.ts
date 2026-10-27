@@ -50,6 +50,16 @@ export async function readOwnerScope(req: {
   };
 }
 
+export async function readAuthenticatedOwner(req: {
+  get(name: string): string | undefined;
+}): Promise<OwnerScope> {
+  const sessionUser = await authStore.getUserForToken(
+    readCookie(req.get("cookie"), sessionCookieName),
+  );
+  if (!sessionUser) throw new ApiError(401, "Authentication is required");
+  return { ownerId: sessionUser.id, ownerKind: "authenticated" };
+}
+
 export function parseEntryId(params: unknown): string {
   const parsed = entryIdParamSchema.safeParse(params);
   if (!parsed.success) {

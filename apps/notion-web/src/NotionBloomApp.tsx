@@ -2,9 +2,10 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "../../web/src/auth/AuthContext";
 import { NotionDocumentPage } from "../../web/src/pages/NotionDocumentPage";
-import { NotionPage } from "../../web/src/pages/NotionPage";
+import { NotionBloomGardenPage } from "./pages/NotionBloomGardenPage";
 import { NotionBloomAuthPage } from "./pages/NotionBloomAuthPage";
 import { NotionBloomLandingPage } from "./pages/NotionBloomLandingPage";
+import { NotionBloomLegalPage } from "./pages/NotionBloomLegalPage";
 import { NotionBloomLayout } from "./layout/NotionBloomLayout";
 
 function RequireAccount() {
@@ -18,9 +19,11 @@ export function NotionBloomApp() {
     <Route index element={<NotionBloomLandingPage />} />
     <Route path="login" element={<NotionBloomAuthPage mode="login" />} />
     <Route path="register" element={<NotionBloomAuthPage mode="register" />} />
+    <Route path="privacy" element={<NotionBloomLegalPage kind="privacy" />} />
+    <Route path="terms" element={<NotionBloomLegalPage kind="terms" />} />
     <Route element={<RequireAccount />}>
       <Route element={<NotionBloomLayout />}>
-        <Route path="notion" element={<NotionPage brandName="Notion Bloom" />} />
+        <Route path="notion" element={<NotionBloomGardenPage />} />
         <Route path="notion/:documentId" element={<NotionDocumentPage brandName="Notion Bloom" />} />
       </Route>
     </Route>
