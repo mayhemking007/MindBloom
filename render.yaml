@@ -18,3 +18,44 @@ services:
         value: text-embedding-3-small
       - key: CORS_ORIGIN
         sync: false
+  - type: web
+    name: notion-bloom-api
+    runtime: node
+    rootDir: .
+    buildCommand: npm ci && npm run build:api
+    startCommand: npm run memo:migrate && npm run start:notion-api
+    healthCheckPath: /health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NOTION_TOKEN
+        sync: false
+      - key: NOTION_CORS_ORIGIN
+        sync: false
+      - key: NOTION_REGISTRATION_ENABLED
+        value: "true"
+      - key: NOTION_INVITE_EMAILS
+        sync: false
+      - key: MEMO_GRAFTER_EMBEDDING_MODEL
+        value: text-embedding-3-small
+  - type: worker
+    name: notion-bloom-worker
+    runtime: node
+    rootDir: .
+    buildCommand: npm ci && npm run build:api
+    startCommand: npm run memo:migrate && npm run start:notion-worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NOTION_TOKEN
+        sync: false
+      - key: MEMO_GRAFTER_EMBEDDING_MODEL
+        value: text-embedding-3-small

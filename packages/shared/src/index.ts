@@ -69,6 +69,24 @@ export interface ImportNotionPageResult {
 }
 export interface ImportNotionPagesResponse { results: ImportNotionPageResult[]; }
 
+export type NotionImportJobStatus = "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled";
+export interface NotionImportJob {
+  id: string;
+  status: NotionImportJobStatus;
+  stage: "queued" | "reading_notion" | "building_memory" | "finished";
+  totalPages: number;
+  completedPages: number;
+  currentPageId: string | null;
+  currentPageTitle: string | null;
+  results: ImportNotionPageResult[];
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+export interface NotionImportJobResponse { job: NotionImportJob; }
+export interface NotionImportJobsResponse { jobs: NotionImportJob[]; }
+
 export interface RelatedThought {
   id: string;
   memoryId: string;

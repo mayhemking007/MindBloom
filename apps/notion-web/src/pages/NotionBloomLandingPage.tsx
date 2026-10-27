@@ -24,7 +24,7 @@ export function NotionBloomLandingPage() {
         <p className="inline-flex items-center gap-2 rounded-full border border-purple-border bg-purple-bg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-purple-text"><Sparkles className="h-3.5 w-3.5" />A thinking layer for Notion</p>
         <h1 className="mt-6 max-w-[720px] font-serif text-[48px] leading-[1.02] tracking-[-0.035em] md:text-[72px]">Let your ideas find each other.</h1>
         <p className="mt-6 max-w-[610px] text-[16px] leading-7 text-bloom-text-secondary md:text-[18px]">Notion Bloom turns the pages you already write into a connected garden of themes, earlier thoughts, and useful context—without making you reorganize your workspace.</p>
-        <div className="mt-8 flex flex-wrap items-center gap-3"><Link to="/notion" className="inline-flex h-12 items-center gap-2 rounded-full bg-bloom-accent px-6 text-[14px] font-semibold text-bloom-on-accent transition-transform hover:-translate-y-0.5">Enter the Notion garden <ArrowRight className="h-4 w-4" /></Link><span className="text-[11px] text-bloom-text-tertiary">Your original Notion pages stay in your workspace.</span></div>
+        <div className="mt-8 flex flex-wrap items-center gap-3"><Link to="/notion" className="inline-flex h-12 items-center gap-2 rounded-full bg-bloom-accent px-6 text-[14px] font-semibold text-bloom-on-accent transition-transform hover:-translate-y-0.5">Enter the Notion garden <ArrowRight className="h-4 w-4" /></Link><span className="max-w-[330px] text-[11px] leading-5 text-bloom-text-tertiary">Your original pages stay in Notion. Pages you import are securely copied and processed to build your garden.</span></div>
       </div>
 
       <div className="relative mx-auto w-full max-w-[480px]">
@@ -36,6 +36,6 @@ export function NotionBloomLandingPage() {
       </div>
     </section>
 
-    <section className="border-t border-bloom-border bg-bloom-surface"><div className="mx-auto grid w-full max-w-[1180px] gap-4 px-5 py-16 md:grid-cols-3 md:px-8">{features.map(({ icon: Icon, title, text }) => <article key={title} className="rounded-bloom border border-bloom-border bg-bloom-bg p-5"><Icon className="h-5 w-5 text-bloom-accent" /><h2 className="mt-4 font-serif text-[20px]">{title}</h2><p className="mt-2 text-[13px] leading-6 text-bloom-text-secondary">{text}</p></article>)}</div></section>
+    <section className="border-t border-bloom-border bg-bloom-surface"><div className="mx-auto grid w-full max-w-[1180px] gap-4 px-5 py-16 md:grid-cols-3 md:px-8">{features.map(({ icon: Icon, title, text }) => <article key={title} className="rounded-bloom border border-bloom-border bg-bloom-bg p-5"><Icon className="h-5 w-5 text-bloom-accent" /><h2 className="mt-4 font-serif text-[20px]">{title}</h2><p className="mt-2 text-[13px] leading-6 text-bloom-text-secondary">{text}</p></article>)}</div><footer className="mx-auto flex w-full max-w-[1180px] items-center gap-4 border-t border-bloom-border px-5 py-6 text-[11px] text-bloom-text-tertiary md:px-8"><span>Notion Bloom private beta</span><Link className="text-bloom-accent" to="/privacy">Privacy</Link><Link className="text-bloom-accent" to="/terms">Terms</Link></footer></section>
   </main>;
 }

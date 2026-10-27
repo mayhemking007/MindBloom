@@ -16,6 +16,9 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().optional(),
   CORS_ORIGIN: z.string().min(1).default("http://localhost:5173"),
   NOTION_CORS_ORIGIN: z.string().min(1).default("http://localhost:5174"),
+  NOTION_REGISTRATION_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  NOTION_INVITE_EMAILS: z.string().optional(),
+  NOTION_AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
 });
 
 export const env = envSchema.parse(process.env);

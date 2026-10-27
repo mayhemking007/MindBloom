@@ -12,6 +12,7 @@ export const appTables = {
   sourceDocuments: "mindbloom_source_documents",
   sourceDocumentSections: "mindbloom_source_document_sections",
   sourceDocumentMessages: "mindbloom_source_document_messages",
+  notionImportJobs: "notion_bloom_import_jobs",
 } as const;
 
 export type AppTableName = (typeof appTables)[keyof typeof appTables];
@@ -63,6 +64,29 @@ export interface SourceDocumentMessageRow {
   role: "user" | "assistant";
   content: string;
   created_at: Date;
+}
+
+export type NotionImportJobStatus = "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled";
+
+export interface NotionImportJobRow {
+  id: string;
+  owner_id: string;
+  owner_kind: "authenticated";
+  page_ids: string[];
+  status: NotionImportJobStatus;
+  total_pages: number;
+  completed_pages: number;
+  current_page_id: string | null;
+  current_page_title: string | null;
+  stage: "queued" | "reading_notion" | "building_memory" | "finished";
+  results: unknown[];
+  last_error: string | null;
+  attempts: number;
+  available_at: Date;
+  locked_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  completed_at: Date | null;
 }
 
 export interface UserRow {
@@ -388,4 +412,31 @@ CREATE TABLE IF NOT EXISTS ${appTables.sourceDocumentMessages} (
 
 CREATE INDEX IF NOT EXISTS mindbloom_source_document_messages_document_created_idx
   ON ${appTables.sourceDocumentMessages} (document_id, created_at);
+
+CREATE TABLE IF NOT EXISTS ${appTables.notionImportJobs} (
+  id text PRIMARY KEY,
+  owner_id text NOT NULL REFERENCES ${appTables.users}(id) ON DELETE CASCADE,
+  owner_kind text NOT NULL DEFAULT 'authenticated' CHECK (owner_kind = 'authenticated'),
+  page_ids text[] NOT NULL,
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','completed','completed_with_errors','failed','cancelled')),
+  total_pages integer NOT NULL,
+  completed_pages integer NOT NULL DEFAULT 0,
+  current_page_id text,
+  current_page_title text,
+  stage text NOT NULL DEFAULT 'queued' CHECK (stage IN ('queued','reading_notion','building_memory','finished')),
+  results jsonb NOT NULL DEFAULT '[]'::jsonb,
+  last_error text,
+  attempts integer NOT NULL DEFAULT 0,
+  available_at timestamptz NOT NULL DEFAULT now(),
+  locked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS notion_bloom_import_jobs_claim_idx
+  ON ${appTables.notionImportJobs} (status, available_at, created_at);
+
+CREATE INDEX IF NOT EXISTS notion_bloom_import_jobs_owner_idx
+  ON ${appTables.notionImportJobs} (owner_id, created_at DESC);
 `;

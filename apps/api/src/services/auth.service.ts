@@ -189,6 +189,10 @@ export const authStore = {
     };
   },
 
+  async deleteExpiredSessions(): Promise<void> {
+    await query(`DELETE FROM ${appTables.authSessions} WHERE expires_at <= now() OR revoked_at IS NOT NULL`);
+  },
+
   async revokeToken(cookieToken: string | undefined): Promise<void> {
     const [sessionId] = cookieToken?.split(".") ?? [];
     if (!sessionId) {
@@ -212,6 +216,7 @@ export const authStore = {
   },
 
   async seedDevUsers(): Promise<void> {
+    if (process.env.NODE_ENV === "production") return;
     for (const email of [
       "demo@mindbloom.local",
       "writer@mindbloom.local",
