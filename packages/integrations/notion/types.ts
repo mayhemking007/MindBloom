@@ -9,6 +9,9 @@ export interface NotionPageSummary {
 export interface NotionDocument extends NotionPageSummary {
   content: string;
   sections: NotionDocumentSection[];
+  truncated?: boolean;
+  unknownBlockIds?: string[];
+  contentApi?: "blocks" | "markdown";
 }
 
 export interface NotionDocumentSection {

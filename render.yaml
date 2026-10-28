@@ -32,8 +32,24 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: NOTION_TOKEN
+      - key: NOTION_CONNECTION_MODE
+        value: oauth
+      - key: NOTION_OAUTH_CLIENT_ID
         sync: false
+      - key: NOTION_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: NOTION_OAUTH_REDIRECT_URI
+        sync: false
+      - key: NOTION_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: NOTION_TOKEN_ENCRYPTION_KEY_VERSION
+        value: v1
+      - key: NOTION_CONTENT_API
+        value: markdown
+      - key: NOTION_MAX_PAGES_PER_IMPORT
+        value: "25"
+      - key: NOTION_DAILY_IMPORT_PAGE_LIMIT
+        value: "250"
       - key: NOTION_CORS_ORIGIN
         sync: false
       - key: NOTION_REGISTRATION_ENABLED
@@ -55,7 +71,23 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: NOTION_TOKEN
+      - key: NOTION_CONNECTION_MODE
+        value: oauth
+      - key: NOTION_OAUTH_CLIENT_ID
         sync: false
+      - key: NOTION_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: NOTION_OAUTH_REDIRECT_URI
+        sync: false
+      - key: NOTION_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: NOTION_TOKEN_ENCRYPTION_KEY_VERSION
+        value: v1
+      - key: NOTION_CONTENT_API
+        value: markdown
+      - key: NOTION_MAX_PAGES_PER_IMPORT
+        value: "25"
+      - key: NOTION_DAILY_IMPORT_PAGE_LIMIT
+        value: "250"
       - key: MEMO_GRAFTER_EMBEDDING_MODEL
         value: text-embedding-3-small

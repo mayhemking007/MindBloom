@@ -21,16 +21,13 @@ import {
   receiptCounts, receiptWarnings, toMemoGrafterDocument,
 } from "./notionIngestion.js";
 import { relatedThoughtSessionIds, selectTopRelatedThoughts } from "./notionThoughts.js";
+import { notionClientFor, withNotionClient } from "./notionConnections.service.js";
 
 function ownerOf(owner: OwnerScope): SourceOwner { return owner; }
-function requireNotion(): NotionIntegration {
-  if (!env.NOTION_TOKEN) throw new ApiError(503, "NOTION_TOKEN is not configured");
-  return new NotionIntegration(env.NOTION_TOKEN);
-}
 function hash(value: string) { return createHash("sha256").update(value).digest("hex"); }
-function sessionId(owner: OwnerScope, externalId: string) { return `mindbloom-notion-${hash(`${owner.ownerKind}:${owner.ownerId}:${externalId}`).slice(0, 32)}`; }
+function sessionId(owner: OwnerScope, externalId: string, connectionId: string | null) { return `mindbloom-notion-${hash(`${owner.ownerKind}:${owner.ownerId}:${connectionId ?? "legacy-internal"}:${externalId}`).slice(0, 32)}`; }
 function toDocument(row: SourceDocumentRow): MindBloomDocument {
-  return { id: row.id, source: row.source, externalId: row.external_id, title: row.title,
+  return { id: row.id, source: row.source, externalId: row.external_id, connectionId: row.connection_id, workspaceId: row.workspace_id, title: row.title,
     content: row.content, sourceUrl: row.source_url, sourceCreatedAt: row.source_created_at.toISOString(),
     sourceUpdatedAt: row.source_updated_at.toISOString(), memoSessionId: row.memo_session_id,
     status: row.status, lastSyncedAt: row.last_synced_at?.toISOString() ?? null,
@@ -70,27 +67,34 @@ async function getOwned(id: string, owner: OwnerScope): Promise<SourceDocumentRo
   return row;
 }
 
-export async function listNotionPages(owner: OwnerScope) {
-  const [pages, imported] = await Promise.all([requireNotion().listAccessiblePages(), listSourceDocuments(ownerOf(owner))]);
+export async function listNotionPages(owner: OwnerScope, connectionId?: string | null) {
+  const resolved = await notionClientFor(owner, connectionId);
+  const selectedConnectionId = resolved.connection?.id ?? null;
+  const [pages, imported] = await Promise.all([withNotionClient(owner, connectionId, (client) => client.listAccessiblePages()), listSourceDocuments(ownerOf(owner), selectedConnectionId)]);
   const byExternal = new Map(imported.map((item) => [item.external_id, item.id]));
   return pages.map((page) => ({ ...page, importedDocumentId: byExternal.get(page.id) ?? null }));
 }
-export async function listNotionDocuments(owner: OwnerScope) { return (await listSourceDocuments(ownerOf(owner))).map(toDocument); }
+export async function listNotionDocuments(owner: OwnerScope, connectionId?: string | null) {
+  return (await listSourceDocuments(ownerOf(owner), connectionId === undefined ? undefined : connectionId)).map(toDocument);
+}
 export async function getNotionDocument(id: string, owner: OwnerScope) { return toDocument(await getOwned(id, owner)); }
 
 export async function updateNotionDocumentContent(id: string, content: string, expectedSourceUpdatedAt: string, owner: OwnerScope) {
   const row = await getOwned(id, owner);
   if (row.status === "pending") throw new ApiError(409, "Wait for the current Notion import to finish before editing");
-  const notion = requireNotion();
-  const current = await notion.retrievePageSummary(row.external_id);
-  const expectedTime = new Date(expectedSourceUpdatedAt).getTime();
-  const storedTime = row.source_updated_at.getTime();
-  const currentTime = new Date(current.updatedAt).getTime();
-  if (expectedTime !== storedTime || currentTime !== storedTime) {
-    throw new ApiError(409, "This page changed in Notion after your last sync. Sync the latest version before saving your edit.");
-  }
+  let updatedPage: ExternalNotionDocument;
   try {
-    await notion.updatePageContent(row.external_id, content);
+    updatedPage = await withNotionClient(owner, row.connection_id, async (notion) => {
+      const current = await notion.retrievePageSummary(row.external_id);
+      const expectedTime = new Date(expectedSourceUpdatedAt).getTime();
+      const storedTime = row.source_updated_at.getTime();
+      const currentTime = new Date(current.updatedAt).getTime();
+      if (expectedTime !== storedTime || currentTime !== storedTime) {
+        throw new ApiError(409, "This page changed in Notion after your last sync. Sync the latest version before saving your edit.");
+      }
+      await notion.updatePageContent(row.external_id, content);
+      return notion.retrievePage(row.external_id);
+    });
   } catch (error) {
     if (error instanceof NotionMarkdownWriteUnsupportedError) {
       throw new ApiError(409, `${error.message}. Edit this page in Notion, then sync it back to Notion Bloom.`);
@@ -99,9 +103,8 @@ export async function updateNotionDocumentContent(id: string, content: string, e
     if (mapped) throw mapped;
     throw error;
   }
-  const updatedPage = await notion.retrievePage(row.external_id);
   try {
-    return (await persistPage(updatedPage, owner, true)).document;
+    return (await persistPage(updatedPage, owner, { id: row.connection_id, workspaceId: row.workspace_id }, true)).document;
   } catch {
     throw new ApiError(502, "The edit was saved to Notion, but Notion Bloom could not refresh its thought graph. Retry the ingestion from the Notion garden.");
   }
@@ -136,14 +139,15 @@ export async function saveMindBloomDocumentContent(id: string, content: string, 
   return (await ingestPage(page, owner, base, `local:${row.external_id}:${contentHash}:${Date.now()}`)).document;
 }
 
-async function persistPage(page: ExternalNotionDocument, owner: OwnerScope, force = false) {
-  const existing = await findSourceDocumentByExternalId(page.id, ownerOf(owner));
+async function persistPage(page: ExternalNotionDocument, owner: OwnerScope, connection: { id: string | null; workspaceId: string | null }, force = false) {
+  const existing = await findSourceDocumentByExternalId(page.id, ownerOf(owner), connection.id);
   const contentHash = hash(`${page.title}\n${page.content}`);
   if (!force && existing?.source_content_hash === contentHash && !existing.has_local_changes && existing.status === "ready") return { document: toDocument(existing), unchanged: true };
   const id = existing?.id ?? randomUUID();
-  const memoSessionId = existing?.memo_session_id ?? sessionId(owner, page.id);
+  const memoSessionId = existing?.memo_session_id ?? sessionId(owner, page.id, connection.id);
   const base = { id, owner_id: owner.ownerId, owner_kind: owner.ownerKind, source: "notion" as const,
-    external_id: page.id, title: page.title, content: page.content, content_hash: contentHash,
+    external_id: page.id, connection_id: connection.id, workspace_id: connection.workspaceId,
+    title: page.title, content: page.content, content_hash: contentHash,
     source_content_hash: contentHash, has_local_changes: false, local_saved_at: null,
     source_url: page.url, source_created_at: new Date(page.createdAt), source_updated_at: new Date(page.updatedAt),
     memo_session_id: memoSessionId, status: "pending" as const,
@@ -161,7 +165,7 @@ async function ingestPage(page: ExternalNotionDocument, owner: OwnerScope, base:
     const core = await getMemoGrafterCore();
     const receipt = await core.ingestDocumentDetailed(toMemoGrafterDocument(page), memoSessionId, {
       ...notionIngestionOptionsFor(page), label: page.title, source: `notion:${page.id}`,
-      tags: [`owner:${owner.ownerId}`, "source:notion", `document:${id}`],
+      tags: [`owner:${owner.ownerId}`, ...(base.workspace_id ? [`workspace:${base.workspace_id}`] : []), ...(base.connection_id ? [`connection:${base.connection_id}`] : []), "source:notion", `document:${id}`],
       idempotencyKey,
     }, { timeoutMs: NOTION_INGESTION_TIMEOUT_MS });
     const successful = isSuccessfulIngestion(receipt.status);
@@ -201,15 +205,17 @@ async function ingestPage(page: ExternalNotionDocument, owner: OwnerScope, base:
 export async function importNotionPages(
   pageIds: string[],
   owner: OwnerScope,
+  connectionId?: string | null,
   onPageRead?: (page: ExternalNotionDocument) => Promise<void>,
 ) {
-  const notion = requireNotion();
+  const resolved = await notionClientFor(owner, connectionId);
+  const connection = { id: resolved.connection?.id ?? null, workspaceId: resolved.connection?.workspace_id ?? null };
   const results = [];
   for (const pageId of pageIds) {
     try {
-      const page = await notion.retrievePage(pageId);
+      const page = await withNotionClient(owner, connectionId, (notion) => notion.retrievePage(pageId));
       await onPageRead?.(page);
-      const result = await persistPage(page, owner);
+      const result = await persistPage(page, owner, connection);
       const status = result.unchanged ? "unchanged" as const
         : result.document.status === "failed" ? "failed" as const
         : result.document.status === "pending" ? "processing" as const
@@ -228,7 +234,8 @@ export async function syncNotionDocument(id: string, owner: OwnerScope, discardL
     throw new ApiError(409, "This page has changes saved only in Notion Bloom. Confirm that you want to discard them before syncing from Notion.");
   }
   try {
-    return (await persistPage(await requireNotion().retrievePage(row.external_id), owner, discardLocalChanges)).document;
+    const page = await withNotionClient(owner, row.connection_id, (notion) => notion.retrievePage(row.external_id));
+    return (await persistPage(page, owner, { id: row.connection_id, workspaceId: row.workspace_id }, discardLocalChanges)).document;
   } catch (error) {
     const mapped = notionApiError(error);
     if (mapped) throw mapped;
@@ -239,7 +246,8 @@ export async function syncNotionDocument(id: string, owner: OwnerScope, discardL
 export async function retryNotionDocument(id: string, owner: OwnerScope) {
   const row = await getOwned(id, owner);
   if (row.has_local_changes) return saveMindBloomDocumentContent(id, row.content, owner);
-  return (await persistPage(await requireNotion().retrievePage(row.external_id), owner, true)).document;
+  const page = await withNotionClient(owner, row.connection_id, (notion) => notion.retrievePage(row.external_id));
+  return (await persistPage(page, owner, { id: row.connection_id, workspaceId: row.workspace_id }, true)).document;
 }
 
 export async function getNotionIngestionStatus(id: string, owner: OwnerScope) {
@@ -291,7 +299,7 @@ export async function exportNotionData(owner: OwnerScope) {
 
 export async function relatedThoughts(id: string, owner: OwnerScope): Promise<RelatedThought[]> {
   const current = await getOwned(id, owner);
-  const documents = await listSourceDocuments(ownerOf(owner));
+  const documents = await listSourceDocuments(ownerOf(owner), current.connection_id);
   const sourceDocuments = documents
     .filter((document) => document.status === "ready")
     .map((document) => ({
@@ -304,7 +312,7 @@ export async function relatedThoughts(id: string, owner: OwnerScope): Promise<Re
   if (!sourceSessionIds.length) return [];
   const result = await retrieveMemoGrafterContext(current.memo_session_id, `${current.title}\n${current.content.slice(0, 4000)}`, {
     scope: "tagged", sessionIds: sourceSessionIds,
-    tags: [`owner:${owner.ownerId}`, "source:notion"], tagMode: "all",
+    tags: [`owner:${owner.ownerId}`, ...(current.workspace_id ? [`workspace:${current.workspace_id}`] : []), "source:notion"], tagMode: "all",
     candidateLimit: 60, limit: 24, episodeLimit: 4, tokenBudget: 1800,
     selection: { maxTopics: 12, relativeScoreFloor: 0.55, scoreGapThreshold: 0.3 },
   });

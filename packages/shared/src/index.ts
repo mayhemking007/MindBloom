@@ -27,6 +27,8 @@ export interface MindBloomDocument {
   id: string;
   source: MindBloomDocumentSource;
   externalId: string;
+  connectionId: string | null;
+  workspaceId: string | null;
   title: string;
   content: string;
   sourceUrl: string;
@@ -73,6 +75,8 @@ export type NotionImportJobStatus = "queued" | "running" | "completed" | "comple
 export interface NotionImportJob {
   id: string;
   status: NotionImportJobStatus;
+  connectionId: string | null;
+  workspaceId: string | null;
   stage: "queued" | "reading_notion" | "building_memory" | "finished";
   totalPages: number;
   completedPages: number;
@@ -86,6 +90,23 @@ export interface NotionImportJob {
 }
 export interface NotionImportJobResponse { job: NotionImportJob; }
 export interface NotionImportJobsResponse { jobs: NotionImportJob[]; }
+
+export type NotionConnectionStatus = "connected" | "refreshing" | "reauthorization_required" | "revoked" | "failed";
+export interface NotionConnection {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceIcon: string | null;
+  status: NotionConnectionStatus;
+  scopes: string[];
+  connectedAt: string;
+  lastVerifiedAt: string | null;
+  lastError: string | null;
+  importedPages: number;
+}
+export interface NotionConnectionsResponse { connections: NotionConnection[]; legacyInternalAvailable: boolean; }
+export interface NotionConnectionResponse { connection: NotionConnection; }
+export interface NotionOAuthStartResponse { authorizationUrl: string; }
 
 export interface RelatedThought {
   id: string;

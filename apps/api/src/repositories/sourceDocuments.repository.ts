@@ -5,10 +5,11 @@ import type { NotionDocumentSection } from "@mindbloom/integrations";
 
 export interface SourceOwner { ownerId: string; ownerKind: "authenticated" | "demo"; }
 
-export async function listSourceDocuments(owner: SourceOwner): Promise<SourceDocumentRow[]> {
+export async function listSourceDocuments(owner: SourceOwner, connectionId?: string | null): Promise<SourceDocumentRow[]> {
+  const connectionClause = connectionId === undefined ? "" : connectionId === null ? " AND connection_id IS NULL" : " AND connection_id=$3";
   const result = await query<SourceDocumentRow>(
-    `SELECT * FROM ${appTables.sourceDocuments} WHERE owner_id=$1 AND owner_kind=$2 ORDER BY source_updated_at DESC`,
-    [owner.ownerId, owner.ownerKind],
+    `SELECT * FROM ${appTables.sourceDocuments} WHERE owner_id=$1 AND owner_kind=$2${connectionClause} ORDER BY source_updated_at DESC`,
+    connectionId && connectionId !== null ? [owner.ownerId, owner.ownerKind, connectionId] : [owner.ownerId, owner.ownerKind],
   );
   return result.rows;
 }
@@ -21,10 +22,11 @@ export async function findSourceDocument(id: string, owner: SourceOwner): Promis
   return result.rows[0] ?? null;
 }
 
-export async function findSourceDocumentByExternalId(externalId: string, owner: SourceOwner): Promise<SourceDocumentRow | null> {
+export async function findSourceDocumentByExternalId(externalId: string, owner: SourceOwner, connectionId: string | null = null): Promise<SourceDocumentRow | null> {
   const result = await query<SourceDocumentRow>(
-    `SELECT * FROM ${appTables.sourceDocuments} WHERE source='notion' AND external_id=$1 AND owner_id=$2 AND owner_kind=$3`,
-    [externalId, owner.ownerId, owner.ownerKind],
+    `SELECT * FROM ${appTables.sourceDocuments} WHERE source='notion' AND external_id=$1 AND owner_id=$2 AND owner_kind=$3
+       AND (($4::text IS NULL AND connection_id IS NULL) OR connection_id=$4)`,
+    [externalId, owner.ownerId, owner.ownerKind, connectionId],
   );
   return result.rows[0] ?? null;
 }
@@ -32,12 +34,13 @@ export async function findSourceDocumentByExternalId(externalId: string, owner: 
 export type SourceDocumentUpsert = Omit<SourceDocumentRow, "created_at" | "updated_at">;
 
 export async function upsertSourceDocument(input: SourceDocumentUpsert): Promise<SourceDocumentRow> {
-  const values = [input.id,input.owner_id,input.owner_kind,input.external_id,input.title,input.content,input.content_hash,input.source_content_hash,input.has_local_changes,input.local_saved_at,input.source_url,input.source_created_at,input.source_updated_at,input.memo_session_id,input.status,input.memo_ingestion_run_id,input.ingestion_status,input.ingestion_phase,JSON.stringify(input.ingestion_counts),JSON.stringify(input.ingestion_warnings),input.ingestion_duration_ms,input.last_synced_at,input.last_error];
+  const values = [input.id,input.owner_id,input.owner_kind,input.external_id,input.connection_id,input.workspace_id,input.title,input.content,input.content_hash,input.source_content_hash,input.has_local_changes,input.local_saved_at,input.source_url,input.source_created_at,input.source_updated_at,input.memo_session_id,input.status,input.memo_ingestion_run_id,input.ingestion_status,input.ingestion_phase,JSON.stringify(input.ingestion_counts),JSON.stringify(input.ingestion_warnings),input.ingestion_duration_ms,input.last_synced_at,input.last_error];
   const result = await query<SourceDocumentRow>(
     `INSERT INTO ${appTables.sourceDocuments}
-      (id,owner_id,owner_kind,source,external_id,title,content,content_hash,source_content_hash,has_local_changes,local_saved_at,source_url,source_created_at,source_updated_at,memo_session_id,status,memo_ingestion_run_id,ingestion_status,ingestion_phase,ingestion_counts,ingestion_warnings,ingestion_duration_ms,last_synced_at,last_error)
-     VALUES ($1,$2,$3,'notion',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,$22,$23)
-     ON CONFLICT (owner_kind,owner_id,source,external_id) DO UPDATE SET
+      (id,owner_id,owner_kind,source,external_id,connection_id,workspace_id,title,content,content_hash,source_content_hash,has_local_changes,local_saved_at,source_url,source_created_at,source_updated_at,memo_session_id,status,memo_ingestion_run_id,ingestion_status,ingestion_phase,ingestion_counts,ingestion_warnings,ingestion_duration_ms,last_synced_at,last_error)
+     VALUES ($1,$2,$3,'notion',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25)
+     ON CONFLICT (owner_kind,owner_id,(COALESCE(connection_id,'legacy-internal')),source,external_id) DO UPDATE SET
+       connection_id=EXCLUDED.connection_id,workspace_id=EXCLUDED.workspace_id,
        title=EXCLUDED.title, content=EXCLUDED.content, content_hash=EXCLUDED.content_hash,
        source_content_hash=EXCLUDED.source_content_hash, has_local_changes=EXCLUDED.has_local_changes,
        local_saved_at=EXCLUDED.local_saved_at,

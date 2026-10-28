@@ -44,6 +44,11 @@ Configure `apps/api/.env`:
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/mindbloom
 OPENAI_API_KEY=sk-...
 NOTION_TOKEN=ntn_...
+NOTION_CONNECTION_MODE=hybrid
+NOTION_OAUTH_CLIENT_ID=...
+NOTION_OAUTH_CLIENT_SECRET=...
+NOTION_OAUTH_REDIRECT_URI=http://localhost:4100/api/notion/oauth/callback
+NOTION_TOKEN_ENCRYPTION_KEY=base64:<base64-encoded-32-byte-key>
 API_PORT=4000
 CORS_ORIGIN=http://localhost:5173
 ```
@@ -85,13 +90,17 @@ API: `http://localhost:4000`
 
 ## Notion Bloom (standalone MVP)
 
-Create an internal integration in Notion, copy its token to `NOTION_TOKEN`, and
-share only the pages you want Notion Bloom to read with that integration. Start
+For local legacy testing, create an internal integration and set `NOTION_TOKEN`.
+For the multi-workspace flow, create a public Notion integration, register
+`http://localhost:4100/api/notion/oauth/callback`, and configure the OAuth and
+encryption variables shown above. Use `hybrid` while migrating, or `oauth` to
+require every user to connect a workspace. Start
 the standalone product with `npm run dev:notion`, open `http://localhost:5174`,
 and use the landing-page CTA to enter the private Notion garden. Its dedicated
 API runs at `http://localhost:4100` and exposes only health, authentication, and
 Notion routes. Imported pages are copied into PostgreSQL and indexed into one MemoGrafter session per
-page; use **Sync now** when a source page changes. Imported content is rendered
+page and workspace; use **Sync now** when a source page changes. The workspace
+switcher keeps imports and retrieval isolated. Imported content is rendered
 as Markdown. **Edit page** provides a Markdown editor and writes supported
 blocks back to Notion before rebuilding the page's thought graph. A save is
 rejected if the source changed after the last sync. Pages containing child

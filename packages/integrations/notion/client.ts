@@ -47,11 +47,39 @@ export function notionBlocksToSections(blocks: NormalizedNotionBlock[]): NotionD
   return sections;
 }
 
+export function markdownToSections(markdown: string): NotionDocumentSection[] {
+  const lines = markdown.split(/\r?\n/);
+  const sections: NotionDocumentSection[] = [];
+  let title: string | undefined;
+  let body: string[] = [];
+  const flush = () => {
+    const content = body.join("\n").trim();
+    if (!content) return;
+    const order = sections.length;
+    const slug = (title ?? "introduction").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "section";
+    sections.push({ id: `markdown:${slug}:${order}`, title, content, blockIds: [], order });
+  };
+  let fenced = false;
+  for (const line of lines) {
+    if (line.trimStart().startsWith("```")) fenced = !fenced;
+    const heading = !fenced ? /^(#{1,4})\s+(.+)$/.exec(line) : null;
+    if (heading) {
+      flush();
+      title = heading[2]?.trim();
+      body = [line];
+    } else body.push(line);
+  }
+  flush();
+  return sections.length ? sections : [{ id: "markdown:introduction:0", content: markdown, blockIds: [], order: 0 }];
+}
+
 export class NotionIntegration {
   private readonly client: Client;
+  private readonly contentApi: "blocks" | "markdown";
 
-  constructor(token: string) {
+  constructor(token: string, options: { contentApi?: "blocks" | "markdown" } = {}) {
     this.client = new Client({ auth: token, notionVersion: NOTION_VERSION });
+    this.contentApi = options.contentApi ?? "markdown";
   }
 
   async listAccessiblePages(): Promise<NotionPageSummary[]> {
@@ -84,6 +112,23 @@ export class NotionIntegration {
     const item = await this.client.pages.retrieve({ page_id: pageId });
     if (!("properties" in item)) throw new Error("Notion returned a partial page");
     const page = item as unknown as Record<string, unknown>;
+    if (this.contentApi === "markdown") {
+      const markdown = await this.client.pages.retrieveMarkdown({ page_id: pageId });
+      if (!markdown.truncated && markdown.unknown_block_ids.length === 0) {
+        return {
+          id: String(page.id),
+          title: notionPageTitle(page),
+          url: String(page.url ?? ""),
+          createdAt: String(page.created_time),
+          updatedAt: String(page.last_edited_time),
+          content: markdown.markdown,
+          sections: markdownToSections(markdown.markdown),
+          truncated: false,
+          unknownBlockIds: [],
+          contentApi: "markdown",
+        };
+      }
+    }
     const blockTree = await this.readChildren(pageId);
     return {
       id: String(page.id),
@@ -93,6 +138,9 @@ export class NotionIntegration {
       updatedAt: String(page.last_edited_time),
       content: blockTree.content,
       sections: notionBlocksToSections(blockTree.blocks),
+      truncated: false,
+      unknownBlockIds: [],
+      contentApi: "blocks",
     };
   }
 
@@ -110,6 +158,18 @@ export class NotionIntegration {
   }
 
   async updatePageContent(pageId: string, markdown: string): Promise<void> {
+    if (this.contentApi === "markdown") {
+      await this.client.pages.updateMarkdown({
+        page_id: pageId,
+        type: "replace_content",
+        replace_content: { new_str: markdown },
+      });
+      return;
+    }
+    await this.updatePageContentWithBlocks(pageId, markdown);
+  }
+
+  private async updatePageContentWithBlocks(pageId: string, markdown: string): Promise<void> {
     const existingBlockIds: string[] = [];
     const unsafeTypes = new Set<string>();
     let startCursor: string | undefined;

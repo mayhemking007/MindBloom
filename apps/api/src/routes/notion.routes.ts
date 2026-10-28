@@ -5,10 +5,16 @@ import { readAuthenticatedOwner } from "../http/middleware/requireOwner.js";
 import { cancelNotionIngestion, exportNotionData, getNotionDocument, getNotionIngestionStatus, listNotionDocuments, listNotionPages, notionBloom, notionDocumentGraph, relatedThoughts, removeNotionDocument, retryNotionDocument, saveMindBloomDocumentContent, syncNotionDocument, updateNotionDocumentContent } from "../services/notion.service.js";
 import { cancelNotionImportJob, enqueueNotionImport, getActiveNotionImportJobs, getNotionImportJob } from "../services/notionImportJobs.service.js";
 import { deleteNotionBloomAccount } from "../services/notionAccount.service.js";
+import { completeNotionOAuth, disconnectNotionConnection, getNotionConnections, startNotionOAuth, verifyNotionConnection } from "../services/notionConnections.service.js";
+import { env } from "../config/env.js";
 
 const idSchema = z.object({ documentId: z.string().uuid() });
 const jobIdSchema = z.object({ jobId: z.string().uuid() });
-const importSchema = z.object({ pageIds: z.array(z.string().trim().min(1)).min(1).max(50) });
+const connectionIdSchema = z.object({ connectionId: z.string().uuid() });
+const connectionQuerySchema = z.object({ connectionId: z.string().uuid().optional() });
+const importSchema = z.object({ connectionId: z.string().uuid().optional(), pageIds: z.array(z.string().trim().min(1)).min(1).max(100) });
+const oauthStartSchema = z.object({ returnPath: z.string().max(500).optional() });
+const oauthCallbackSchema = z.object({ code: z.string().min(1).optional(), state: z.string().min(1), error: z.string().optional() });
 const bloomSchema = z.object({
   question: z.string().trim().min(1).max(4000).optional(),
   thoughtId: z.string().trim().min(1).optional(),
@@ -23,7 +29,34 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 export const notionRouter = Router();
-notionRouter.get("/pages", async (req,res) => res.json({ pages: await listNotionPages(await readAuthenticatedOwner(req)) }));
+notionRouter.get("/connections", async (req, res) => res.json(await getNotionConnections(await readAuthenticatedOwner(req))));
+notionRouter.post("/oauth/start", async (req, res) => {
+  const body = parse(oauthStartSchema, req.body ?? {});
+  res.json({ authorizationUrl: await startNotionOAuth(await readAuthenticatedOwner(req), body.returnPath) });
+});
+notionRouter.get("/oauth/callback", async (req, res) => {
+  const query = parse(oauthCallbackSchema, req.query);
+  const frontendOrigin = env.NOTION_CORS_ORIGIN.split(",")[0]!.trim();
+  if (query.error || !query.code) return res.redirect(`${frontendOrigin}/notion?notion=error&reason=${encodeURIComponent(query.error ?? "missing_code")}`);
+  const result = await completeNotionOAuth(query.code, query.state);
+  const destination = new URL(result.returnPath, frontendOrigin);
+  destination.searchParams.set("notion", "connected");
+  destination.searchParams.set("connectionId", result.connection.id);
+  res.redirect(destination.toString());
+});
+notionRouter.post("/connections/:connectionId/verify", async (req, res) => {
+  const { connectionId } = parse(connectionIdSchema, req.params);
+  res.json({ connection: await verifyNotionConnection(connectionId, await readAuthenticatedOwner(req)) });
+});
+notionRouter.delete("/connections/:connectionId", async (req, res) => {
+  const { connectionId } = parse(connectionIdSchema, req.params);
+  await disconnectNotionConnection(connectionId, await readAuthenticatedOwner(req));
+  res.status(204).end();
+});
+notionRouter.get("/pages", async (req,res) => {
+  const query = parse(connectionQuerySchema, req.query);
+  res.json({ pages: await listNotionPages(await readAuthenticatedOwner(req), query.connectionId) });
+});
 notionRouter.delete("/account", async (req, res) => {
   await deleteNotionBloomAccount(await readAuthenticatedOwner(req));
   res.setHeader("Set-Cookie", "mindbloom_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
@@ -31,7 +64,7 @@ notionRouter.delete("/account", async (req, res) => {
 });
 notionRouter.post("/import", async (req,res) => {
   const body = parse(importSchema, req.body);
-  res.status(202).json({ job: await enqueueNotionImport(body.pageIds, await readAuthenticatedOwner(req)) });
+  res.status(202).json({ job: await enqueueNotionImport(body.pageIds, await readAuthenticatedOwner(req), body.connectionId) });
 });
 notionRouter.get("/imports", async (req,res) => res.json({ jobs: await getActiveNotionImportJobs(await readAuthenticatedOwner(req)) }));
 notionRouter.get("/imports/:jobId", async (req,res) => {
@@ -42,7 +75,10 @@ notionRouter.post("/imports/:jobId/cancel", async (req,res) => {
   const { jobId } = parse(jobIdSchema, req.params);
   res.json({ job: await cancelNotionImportJob(jobId, await readAuthenticatedOwner(req)) });
 });
-notionRouter.get("/documents", async (req,res) => res.json({ documents: await listNotionDocuments(await readAuthenticatedOwner(req)) }));
+notionRouter.get("/documents", async (req,res) => {
+  const query = parse(connectionQuerySchema, req.query);
+  res.json({ documents: await listNotionDocuments(await readAuthenticatedOwner(req), query.connectionId ?? null) });
+});
 notionRouter.get("/export", async (req, res) => {
   const payload = await exportNotionData(await readAuthenticatedOwner(req));
   res.setHeader("Content-Disposition", `attachment; filename=notion-bloom-export-${new Date().toISOString().slice(0, 10)}.json`);

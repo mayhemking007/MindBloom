@@ -13,6 +13,8 @@ export const appTables = {
   sourceDocumentSections: "mindbloom_source_document_sections",
   sourceDocumentMessages: "mindbloom_source_document_messages",
   notionImportJobs: "notion_bloom_import_jobs",
+  notionConnections: "notion_bloom_connections",
+  notionOauthStates: "notion_bloom_oauth_states",
 } as const;
 
 export type AppTableName = (typeof appTables)[keyof typeof appTables];
@@ -23,6 +25,8 @@ export interface SourceDocumentRow {
   owner_kind: "authenticated" | "demo";
   source: "notion";
   external_id: string;
+  connection_id: string | null;
+  workspace_id: string | null;
   title: string;
   content: string;
   content_hash: string;
@@ -72,6 +76,8 @@ export interface NotionImportJobRow {
   id: string;
   owner_id: string;
   owner_kind: "authenticated";
+  connection_id: string | null;
+  workspace_id: string | null;
   page_ids: string[];
   status: NotionImportJobStatus;
   total_pages: number;
@@ -87,6 +93,42 @@ export interface NotionImportJobRow {
   created_at: Date;
   updated_at: Date;
   completed_at: Date | null;
+}
+
+export type NotionConnectionStatus = "connected" | "refreshing" | "reauthorization_required" | "revoked" | "failed";
+
+export interface NotionConnectionRow {
+  id: string;
+  owner_id: string;
+  workspace_id: string;
+  workspace_name: string;
+  workspace_icon: string | null;
+  bot_id: string;
+  connection_type: "oauth";
+  status: NotionConnectionStatus;
+  access_token_ciphertext: string;
+  refresh_token_ciphertext: string | null;
+  token_iv: string;
+  token_auth_tag: string;
+  refresh_token_iv: string | null;
+  refresh_token_auth_tag: string | null;
+  encryption_key_version: string;
+  scopes: string[];
+  connected_at: Date;
+  last_verified_at: Date | null;
+  last_error: string | null;
+  revoked_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface NotionOauthStateRow {
+  state_hash: string;
+  owner_id: string;
+  return_path: string;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Date;
 }
 
 export interface UserRow {
@@ -350,6 +392,8 @@ CREATE TABLE IF NOT EXISTS ${appTables.sourceDocuments} (
   owner_kind text NOT NULL CHECK (owner_kind IN ('authenticated', 'demo')),
   source text NOT NULL CHECK (source IN ('notion')),
   external_id text NOT NULL,
+  connection_id text,
+  workspace_id text,
   title text NOT NULL,
   content text NOT NULL DEFAULT '',
   content_hash text NOT NULL DEFAULT '',
@@ -380,7 +424,14 @@ ALTER TABLE ${appTables.sourceDocuments}
   ADD COLUMN IF NOT EXISTS ingestion_duration_ms integer,
   ADD COLUMN IF NOT EXISTS source_content_hash text NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS has_local_changes boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS local_saved_at timestamptz;
+  ADD COLUMN IF NOT EXISTS local_saved_at timestamptz,
+  ADD COLUMN IF NOT EXISTS connection_id text,
+  ADD COLUMN IF NOT EXISTS workspace_id text;
+
+ALTER TABLE ${appTables.sourceDocuments}
+  DROP CONSTRAINT IF EXISTS mindbloom_source_documents_owner_kind_owner_id_source_external_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS mindbloom_source_documents_connection_external_uidx
+  ON ${appTables.sourceDocuments} (owner_kind, owner_id, COALESCE(connection_id, 'legacy-internal'), source, external_id);
 
 UPDATE ${appTables.sourceDocuments}
 SET source_content_hash = content_hash
@@ -417,6 +468,8 @@ CREATE TABLE IF NOT EXISTS ${appTables.notionImportJobs} (
   id text PRIMARY KEY,
   owner_id text NOT NULL REFERENCES ${appTables.users}(id) ON DELETE CASCADE,
   owner_kind text NOT NULL DEFAULT 'authenticated' CHECK (owner_kind = 'authenticated'),
+  connection_id text,
+  workspace_id text,
   page_ids text[] NOT NULL,
   status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','completed','completed_with_errors','failed','cancelled')),
   total_pages integer NOT NULL,
@@ -434,9 +487,67 @@ CREATE TABLE IF NOT EXISTS ${appTables.notionImportJobs} (
   completed_at timestamptz
 );
 
+ALTER TABLE ${appTables.notionImportJobs}
+  ADD COLUMN IF NOT EXISTS connection_id text,
+  ADD COLUMN IF NOT EXISTS workspace_id text;
+
 CREATE INDEX IF NOT EXISTS notion_bloom_import_jobs_claim_idx
   ON ${appTables.notionImportJobs} (status, available_at, created_at);
 
 CREATE INDEX IF NOT EXISTS notion_bloom_import_jobs_owner_idx
   ON ${appTables.notionImportJobs} (owner_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ${appTables.notionConnections} (
+  id text PRIMARY KEY,
+  owner_id text NOT NULL REFERENCES ${appTables.users}(id) ON DELETE CASCADE,
+  workspace_id text NOT NULL,
+  workspace_name text NOT NULL,
+  workspace_icon text,
+  bot_id text NOT NULL,
+  connection_type text NOT NULL DEFAULT 'oauth' CHECK (connection_type = 'oauth'),
+  status text NOT NULL DEFAULT 'connected' CHECK (status IN ('connected','refreshing','reauthorization_required','revoked','failed')),
+  access_token_ciphertext text NOT NULL,
+  refresh_token_ciphertext text,
+  token_iv text NOT NULL,
+  token_auth_tag text NOT NULL,
+  refresh_token_iv text,
+  refresh_token_auth_tag text,
+  encryption_key_version text NOT NULL,
+  scopes text[] NOT NULL DEFAULT '{}',
+  connected_at timestamptz NOT NULL DEFAULT now(),
+  last_verified_at timestamptz,
+  last_error text,
+  revoked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (owner_id, workspace_id)
+);
+
+CREATE INDEX IF NOT EXISTS notion_bloom_connections_owner_idx
+  ON ${appTables.notionConnections} (owner_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS ${appTables.notionOauthStates} (
+  state_hash text PRIMARY KEY,
+  owner_id text NOT NULL REFERENCES ${appTables.users}(id) ON DELETE CASCADE,
+  return_path text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS notion_bloom_oauth_states_expiry_idx
+  ON ${appTables.notionOauthStates} (expires_at);
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='mindbloom_source_documents_connection_fk') THEN
+    ALTER TABLE ${appTables.sourceDocuments}
+      ADD CONSTRAINT mindbloom_source_documents_connection_fk
+      FOREIGN KEY (connection_id) REFERENCES ${appTables.notionConnections}(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='notion_bloom_import_jobs_connection_fk') THEN
+    ALTER TABLE ${appTables.notionImportJobs}
+      ADD CONSTRAINT notion_bloom_import_jobs_connection_fk
+      FOREIGN KEY (connection_id) REFERENCES ${appTables.notionConnections}(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 `;

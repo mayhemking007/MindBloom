@@ -11,6 +11,13 @@ const envSchema = z.object({
   MEMO_GRAFTER_EMBEDDING_MODEL: z.string().min(1).optional(),
   MEMO_GRAFTER_LLM_MODEL: z.string().min(1).optional(),
   NOTION_TOKEN: z.string().min(1).optional(),
+  NOTION_CONNECTION_MODE: z.enum(["internal", "hybrid", "oauth"]).default("internal"),
+  NOTION_OAUTH_CLIENT_ID: z.string().min(1).optional(),
+  NOTION_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+  NOTION_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  NOTION_TOKEN_ENCRYPTION_KEY: z.string().min(1).optional(),
+  NOTION_TOKEN_ENCRYPTION_KEY_VERSION: z.string().min(1).default("v1"),
+  NOTION_CONTENT_API: z.enum(["blocks", "markdown"]).default("markdown"),
   API_PORT: z.coerce.number().int().positive().default(4000),
   NOTION_API_PORT: z.coerce.number().int().positive().default(4100),
   PORT: z.coerce.number().int().positive().optional(),
@@ -19,6 +26,8 @@ const envSchema = z.object({
   NOTION_REGISTRATION_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
   NOTION_INVITE_EMAILS: z.string().optional(),
   NOTION_AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
+  NOTION_MAX_PAGES_PER_IMPORT: z.coerce.number().int().positive().max(100).default(25),
+  NOTION_DAILY_IMPORT_PAGE_LIMIT: z.coerce.number().int().positive().default(250),
 });
 
 export const env = envSchema.parse(process.env);

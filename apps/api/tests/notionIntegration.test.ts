@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markdownInlineToNotionRichText, markdownToNotionBlocks, notionBlockToMarkdown, notionPageTitle } from "@mindbloom/integrations";
+import { markdownInlineToNotionRichText, markdownToNotionBlocks, markdownToSections, notionBlockToMarkdown, notionPageTitle } from "@mindbloom/integrations";
 
 describe("Notion normalization", () => {
   it("preserves nested checklist content as readable markdown", () => {
@@ -34,6 +34,14 @@ describe("Notion normalization", () => {
       { type: "text", text: { content: "context" }, annotations: { bold: true } },
       { type: "text", text: { content: " with " } },
       { type: "text", text: { content: "MindBloom", link: { url: "https://example.com" } } },
+    ]);
+  });
+
+  it("normalizes Notion Markdown into sections for MemoGrafter", () => {
+    expect(markdownToSections("Opening\n\n# Product\n\nKnowledge resurfacing\n\n## Agent\n\nContextual suggestions")).toMatchObject([
+      { title: undefined, content: "Opening", order: 0 },
+      { title: "Product", content: "# Product\n\nKnowledge resurfacing", order: 1 },
+      { title: "Agent", content: "## Agent\n\nContextual suggestions", order: 2 },
     ]);
   });
 });

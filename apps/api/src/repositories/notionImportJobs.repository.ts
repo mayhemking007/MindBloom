@@ -9,13 +9,13 @@ export interface ImportJobOwner {
   ownerKind: "authenticated";
 }
 
-export async function createImportJob(pageIds: string[], owner: ImportJobOwner): Promise<NotionImportJobRow> {
+export async function createImportJob(pageIds: string[], owner: ImportJobOwner, connection: { id: string; workspaceId: string } | null): Promise<NotionImportJobRow> {
   const result = await query<NotionImportJobRow>(
     `INSERT INTO ${appTables.notionImportJobs}
-      (id, owner_id, owner_kind, page_ids, total_pages)
-     VALUES ($1, $2, 'authenticated', $3, $4)
+      (id, owner_id, owner_kind, connection_id, workspace_id, page_ids, total_pages)
+     VALUES ($1, $2, 'authenticated', $3, $4, $5, $6)
      RETURNING *`,
-    [randomUUID(), owner.ownerId, pageIds, pageIds.length],
+    [randomUUID(), owner.ownerId, connection?.id ?? null, connection?.workspaceId ?? null, pageIds, pageIds.length],
   );
   return result.rows[0]!;
 }
@@ -38,12 +38,27 @@ export async function listActiveImportJobs(owner: ImportJobOwner): Promise<Notio
   return result.rows;
 }
 
+export async function countImportPagesSince(owner: ImportJobOwner, since: Date): Promise<number> {
+  const result = await query<{ pages: string }>(
+    `SELECT COALESCE(SUM(total_pages), 0)::text AS pages
+       FROM ${appTables.notionImportJobs}
+      WHERE owner_id=$1 AND owner_kind='authenticated' AND created_at >= $2 AND status <> 'cancelled'`,
+    [owner.ownerId, since],
+  );
+  return Number(result.rows[0]?.pages ?? 0);
+}
+
 export async function claimNextImportJob(): Promise<NotionImportJobRow | null> {
   return withTransaction(async (client) => {
     const result = await client.query<NotionImportJobRow>(
-      `SELECT * FROM ${appTables.notionImportJobs}
-       WHERE status='queued' AND available_at <= now()
-       ORDER BY created_at
+      `SELECT * FROM ${appTables.notionImportJobs} jobs
+       WHERE jobs.status='queued' AND jobs.available_at <= now()
+         AND NOT EXISTS (
+           SELECT 1 FROM ${appTables.notionImportJobs} running
+           WHERE running.status='running'
+             AND COALESCE(running.connection_id,'legacy-internal')=COALESCE(jobs.connection_id,'legacy-internal')
+         )
+       ORDER BY jobs.created_at
        FOR UPDATE SKIP LOCKED
        LIMIT 1`,
     );
