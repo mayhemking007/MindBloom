@@ -3,7 +3,9 @@ import { appTables } from "../db/schema.js";
 import { ApiError } from "../http/errors.js";
 import { getMemoGrafterForSession } from "../memo-grafter/memoGrafter.js";
 import { listSourceDocuments } from "../repositories/sourceDocuments.repository.js";
+import { listConnections } from "../repositories/notionConnections.repository.js";
 import type { OwnerScope } from "./entries.service.js";
+import { disconnectNotionConnection } from "./notionConnections.service.js";
 
 export async function deleteNotionBloomAccount(owner: OwnerScope): Promise<void> {
   if (owner.ownerKind !== "authenticated") throw new ApiError(401, "Authentication is required");
@@ -13,6 +15,11 @@ export async function deleteNotionBloomAccount(owner: OwnerScope): Promise<void>
     [owner.ownerId],
   );
   if (Number(activeJobs.rows[0]?.count ?? 0) > 0) throw new ApiError(409, "Cancel active imports before deleting your account");
+
+  const connections = await listConnections(owner.ownerId);
+  for (const { row } of connections) {
+    if (row.status !== "revoked") await disconnectNotionConnection(row.id, owner);
+  }
 
   const [documents, entries] = await Promise.all([
     listSourceDocuments({ ownerId: owner.ownerId, ownerKind: "authenticated" }),

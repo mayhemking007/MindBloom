@@ -11,6 +11,6 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": { "@notionhq/client": "^5.7.0" },
+  "dependencies": { "@notionhq/client": "^5.28.0" },
   "devDependencies": { "typescript": "^5.9.3" }
 }

@@ -44,6 +44,9 @@ import type {
   MindBloomDocumentsResponse,
   NotionBloomResponse,
   NotionPagesResponse,
+  NotionConnectionsResponse,
+  NotionConnectionResponse,
+  NotionOAuthStartResponse,
   RelatedThoughtsResponse,
 } from "@mindbloom/shared";
 import { demoStore } from "./demoStore";
@@ -666,17 +669,36 @@ export async function deleteNote(noteId: string): Promise<void> {
 function requireAccount() {
   if (isDemoMode()) throw new Error("Sign in to connect your private Notion workspace.");
 }
-export async function listNotionPages(): Promise<NotionPagesResponse> {
+export async function listNotionConnections(): Promise<NotionConnectionsResponse> {
   requireAccount();
-  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/pages`, credentialOptions));
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/connections`, credentialOptions));
 }
-export async function listNotionDocuments(): Promise<MindBloomDocumentsResponse> {
+export async function startNotionOAuth(returnPath = "/notion"): Promise<NotionOAuthStartResponse> {
   requireAccount();
-  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents`, credentialOptions));
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/oauth/start`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ returnPath }) }));
 }
-export async function importNotionPages(pageIds: string[]): Promise<NotionImportJobResponse> {
+export async function verifyNotionConnection(connectionId: string): Promise<NotionConnectionResponse> {
   requireAccount();
-  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/import`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ pageIds }) }));
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/connections/${connectionId}/verify`, { method: "POST", credentials: "include" }));
+}
+export async function disconnectNotionConnection(connectionId: string): Promise<void> {
+  requireAccount();
+  const response = await fetch(`${apiBaseUrl}/api/notion/connections/${connectionId}`, { method: "DELETE", credentials: "include" });
+  if (!response.ok) await parseJsonResponse<unknown>(response);
+}
+export async function listNotionPages(connectionId?: string): Promise<NotionPagesResponse> {
+  requireAccount();
+  const query = connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : "";
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/pages${query}`, credentialOptions));
+}
+export async function listNotionDocuments(connectionId?: string): Promise<MindBloomDocumentsResponse> {
+  requireAccount();
+  const query = connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : "";
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents${query}`, credentialOptions));
+}
+export async function importNotionPages(pageIds: string[], connectionId?: string): Promise<NotionImportJobResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/import`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ pageIds, ...(connectionId ? { connectionId } : {}) }) }));
 }
 export async function listActiveNotionImports(): Promise<NotionImportJobsResponse> {
   requireAccount();

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createNotionBloomApp } from "../src/notionApp.js";
 import { authStore } from "../src/services/auth.service.js";
+import { upsertOauthConnection } from "../src/repositories/notionConnections.repository.js";
+import { encryptNotionSecret } from "../src/services/notionTokenCrypto.js";
 
 const app = createNotionBloomApp();
 
@@ -44,6 +46,37 @@ describe("standalone Notion Bloom API", () => {
 
     await first.get(`/api/notion/imports/${queued.body.job.id}`).expect(200);
     await second.get(`/api/notion/imports/${queued.body.job.id}`).expect(404);
+  });
+
+  it("creates an OAuth authorization request with an opaque one-time state", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ email: "oauth@example.com", password: "private-beta-oauth" }).expect(201);
+    const response = await agent.post("/api/notion/oauth/start").send({ returnPath: "/notion" }).expect(200);
+    expect(response.body.authorizationUrl).toContain("https://api.notion.com/v1/oauth/authorize");
+    const url = new URL(response.body.authorizationUrl);
+    expect(url.searchParams.get("client_id")).toBe("test-notion-client");
+    expect(url.searchParams.get("state")).toHaveLength(43);
+    await request(app).get("/api/notion/oauth/callback?code=fake&state=not-a-valid-state").expect(400);
+  });
+
+  it("isolates stored workspace connections by account", async () => {
+    const first = request.agent(app);
+    const second = request.agent(app);
+    const firstUser = (await first.post("/api/auth/register").send({ email: "workspace-one@example.com", password: "private-beta-one" }).expect(201)).body.user;
+    await second.post("/api/auth/register").send({ email: "workspace-two@example.com", password: "private-beta-two" }).expect(201);
+    const access = encryptNotionSecret("oauth-access-token");
+    await upsertOauthConnection({
+      ownerId: firstUser.id,
+      workspaceId: "workspace-one",
+      workspaceName: "Private workspace",
+      workspaceIcon: null,
+      botId: "bot-one",
+      access,
+      refresh: null,
+      scopes: [],
+    });
+    expect((await first.get("/api/notion/connections").expect(200)).body.connections).toHaveLength(1);
+    expect((await second.get("/api/notion/connections").expect(200)).body.connections).toHaveLength(0);
   });
 
   it("deletes a Notion Bloom account and invalidates its session", async () => {

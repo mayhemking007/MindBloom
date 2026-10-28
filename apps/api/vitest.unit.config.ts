@@ -9,6 +9,7 @@ export default defineConfig({
       "./tests/openAiAdapters.test.ts",
       "./tests/notionIntegration.test.ts",
       "./tests/notionThoughts.test.ts",
+      "./tests/notionTokenCrypto.test.ts",
     ],
     clearMocks: true,
     restoreMocks: true,

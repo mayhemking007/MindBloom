@@ -1,10 +1,12 @@
 import type { ImportNotionPageResult, NotionImportJob } from "@mindbloom/shared";
 
 import { ApiError } from "../http/errors.js";
+import { env } from "../config/env.js";
 import type { OwnerScope } from "./entries.service.js";
 import {
   cancelImportJob,
   claimNextImportJob,
+  countImportPagesSince,
   createImportJob,
   findImportJob,
   isImportJobCancelled,
@@ -15,6 +17,7 @@ import {
 } from "../repositories/notionImportJobs.repository.js";
 import type { NotionImportJobRow } from "../db/schema.js";
 import { importNotionPages } from "./notion.service.js";
+import { notionClientFor } from "./notionConnections.service.js";
 
 function authenticatedOwner(owner: OwnerScope): ImportJobOwner {
   if (owner.ownerKind !== "authenticated") throw new ApiError(401, "Authentication is required");
@@ -25,6 +28,8 @@ function toJob(row: NotionImportJobRow): NotionImportJob {
   return {
     id: row.id,
     status: row.status,
+    connectionId: row.connection_id,
+    workspaceId: row.workspace_id,
     stage: row.stage,
     totalPages: row.total_pages,
     completedPages: row.completed_pages,
@@ -38,9 +43,22 @@ function toJob(row: NotionImportJobRow): NotionImportJob {
   };
 }
 
-export async function enqueueNotionImport(pageIds: string[], owner: OwnerScope): Promise<NotionImportJob> {
+export async function enqueueNotionImport(pageIds: string[], owner: OwnerScope, connectionId?: string | null): Promise<NotionImportJob> {
   const uniquePageIds = [...new Set(pageIds)];
-  return toJob(await createImportJob(uniquePageIds, authenticatedOwner(owner)));
+  if (uniquePageIds.length > env.NOTION_MAX_PAGES_PER_IMPORT) throw new ApiError(400, `Import at most ${env.NOTION_MAX_PAGES_PER_IMPORT} pages at a time`);
+  const authenticated = authenticatedOwner(owner);
+  const now = new Date();
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const pagesToday = await countImportPagesSince(authenticated, dayStart);
+  if (pagesToday + uniquePageIds.length > env.NOTION_DAILY_IMPORT_PAGE_LIMIT) {
+    throw new ApiError(429, `The daily import limit is ${env.NOTION_DAILY_IMPORT_PAGE_LIMIT} pages. Try again tomorrow.`);
+  }
+  const resolved = await notionClientFor(owner, connectionId);
+  const active = await listActiveImportJobs(authenticated);
+  if (active.some((job) => (job.connection_id ?? null) === (resolved.connection?.id ?? null))) {
+    throw new ApiError(409, "This workspace already has an active import");
+  }
+  return toJob(await createImportJob(uniquePageIds, authenticated, resolved.connection ? { id: resolved.connection.id, workspaceId: resolved.connection.workspace_id } : null));
 }
 
 export async function getNotionImportJob(id: string, owner: OwnerScope): Promise<NotionImportJob> {
@@ -79,7 +97,7 @@ export async function processNextNotionImportJob(): Promise<boolean> {
         results,
       });
 
-      const [result] = await importNotionPages([pageId], owner, async (page) => {
+      const [result] = await importNotionPages([pageId], owner, job.connection_id, async (page) => {
         await updateImportJobProgress(job.id, {
           completedPages: completed,
           currentPageId: pageId,

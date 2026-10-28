@@ -24,8 +24,18 @@ export function createNotionBloomApp() {
   app.get("/health/ready", async (_req, res, next) => {
     try {
       await dbPool.query("SELECT 1");
-      const notionConfigured = Boolean(env.NOTION_TOKEN);
-      res.status(notionConfigured ? 200 : 503).json({ ok: notionConfigured, service: "notion-bloom-api", checks: { database: "ok", notionConfigured } });
+      const oauthConfigured = Boolean(env.NOTION_OAUTH_CLIENT_ID && env.NOTION_OAUTH_CLIENT_SECRET && env.NOTION_OAUTH_REDIRECT_URI && env.NOTION_TOKEN_ENCRYPTION_KEY);
+      const legacyConfigured = Boolean(env.NOTION_TOKEN);
+      const notionConfigured = env.NOTION_CONNECTION_MODE === "oauth"
+        ? oauthConfigured
+        : env.NOTION_CONNECTION_MODE === "hybrid"
+          ? oauthConfigured || legacyConfigured
+          : legacyConfigured;
+      res.status(notionConfigured ? 200 : 503).json({
+        ok: notionConfigured,
+        service: "notion-bloom-api",
+        checks: { database: "ok", notionConfigured, connectionMode: env.NOTION_CONNECTION_MODE, oauthConfigured, legacyConfigured },
+      });
     } catch (error) { next(error); }
   });
 
