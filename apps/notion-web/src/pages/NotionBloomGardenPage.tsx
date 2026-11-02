@@ -1,7 +1,7 @@
-import { BookOpen, Download, FileDown, RefreshCw, RotateCcw, Square, Trash2 } from "lucide-react";
+import { BookOpen, Download, FileDown, MessageCircle, RefreshCw, RotateCcw, Search, Square, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { MindBloomDocument, NotionConnection, NotionImportJob, NotionPageSummary } from "@mindbloom/shared";
+import type { MindBloomDocument, NotionConnection, NotionGardenOverview, NotionImportJob, NotionPageSummary, RelatedThought } from "@mindbloom/shared";
 import {
   cancelNotionImport,
   cancelNotionIngestion,
@@ -17,6 +17,8 @@ import {
   retryNotionIngestion,
   startNotionOAuth,
   disconnectNotionConnection,
+  getNotionGardenOverview,
+  chatWithNotionGarden,
 } from "../../../web/src/lib/api";
 
 function count(document: MindBloomDocument, key: string): number | null {
@@ -25,6 +27,8 @@ function count(document: MindBloomDocument, key: string): number | null {
 }
 
 function ingestionLabel(document: MindBloomDocument): string {
+  if (document.syncState === "conflict") return "Sync conflict — open to review";
+  if (document.syncState === "unavailable") return "No longer available to the Notion connection";
   if (document.status === "ready") {
     const duration = document.ingestion.durationMs ? ` · ${(document.ingestion.durationMs / 1000).toFixed(1)}s` : "";
     return `${count(document, "selected") ?? 0} memories · ${count(document, "topics") ?? 0} topics${duration}`;
@@ -46,6 +50,11 @@ export function NotionBloomGardenPage() {
   const [importJob, setImportJob] = useState<NotionImportJob | null>(null);
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [overview, setOverview] = useState<NotionGardenOverview | null>(null);
+  const [gardenQuestion, setGardenQuestion] = useState("");
+  const [gardenAnswer, setGardenAnswer] = useState<string | null>(null);
+  const [gardenSources, setGardenSources] = useState<RelatedThought[]>([]);
+  const [askingGarden, setAskingGarden] = useState(false);
   const importing = Boolean(importJob && !terminalStatuses.has(importJob.status));
   const activeConnection = connections.find((item) => item.id === activeConnectionId);
   const workspaceUsable = activeConnectionId ? activeConnection?.status === "connected" : legacyAvailable;
@@ -64,16 +73,18 @@ export function NotionBloomGardenPage() {
       setActiveConnectionId(selectedConnection);
       if (selectedConnection) window.localStorage.setItem("notion-bloom-connection", selectedConnection);
       if (!selectedConnection && !connectionResult.legacyInternalAvailable) {
-        setPages([]); setDocuments([]); setImportJob(null); return;
+        setPages([]); setDocuments([]); setImportJob(null); setOverview(null); return;
       }
       const selectedStatus = connectionResult.connections.find((item) => item.id === selectedConnection)?.status;
-      const [pageResult, documentResult, activeImports] = await Promise.all([
+      const [pageResult, documentResult, activeImports, gardenOverview] = await Promise.all([
         selectedConnection && selectedStatus !== "connected" ? Promise.resolve({ pages: [] }) : listNotionPages(selectedConnection),
         listNotionDocuments(selectedConnection),
         listActiveNotionImports(),
+        getNotionGardenOverview(selectedConnection),
       ]);
       setPages(pageResult.pages);
       setDocuments(documentResult.documents);
+      setOverview(gardenOverview);
       setImportJob((current) => current && !terminalStatuses.has(current.status) ? current : activeImports.jobs.find((job) => (job.connectionId ?? undefined) === selectedConnection) ?? null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load Notion");
@@ -87,11 +98,12 @@ export function NotionBloomGardenPage() {
     setLoading(true); setSelected([]); setError(null);
     try {
       const connection = connections.find((item) => item.id === connectionId);
-      const [pageResult, documentResult] = await Promise.all([
+      const [pageResult, documentResult, gardenOverview] = await Promise.all([
         connection && connection.status !== "connected" ? Promise.resolve({ pages: [] }) : listNotionPages(connectionId || undefined),
         listNotionDocuments(connectionId || undefined),
+        getNotionGardenOverview(connectionId || undefined),
       ]);
-      setPages(pageResult.pages); setDocuments(documentResult.documents);
+      setPages(pageResult.pages); setDocuments(documentResult.documents); setOverview(gardenOverview); setGardenAnswer(null); setGardenSources([]);
     } catch (workspaceError) { setError(workspaceError instanceof Error ? workspaceError.message : "Could not open workspace"); }
     finally { setLoading(false); }
   }
@@ -125,7 +137,7 @@ export function NotionBloomGardenPage() {
         setImportJob(job);
         if (terminalStatuses.has(job.status)) {
           const failures = job.results.filter((result) => result.status === "failed");
-          if (failures.length) setError(`${failures.length} page${failures.length === 1 ? "" : "s"} could not be imported: ${failures[0]?.error ?? "Import failed"}`);
+          if (failures.length) setError(`${failures.length} page${failures.length === 1 ? "" : "s"} could not be ${job.kind === "refresh" ? "synchronized" : "imported"}: ${failures[0]?.error ?? "Processing failed"}`);
           void load();
         }
       }).catch((pollError) => setError(pollError instanceof Error ? pollError.message : "Could not read import progress"));
@@ -151,6 +163,17 @@ export function NotionBloomGardenPage() {
       setImportJob(job);
       setSelected([]);
     } catch (importError) { setError(importError instanceof Error ? importError.message : "Import failed"); }
+  }
+
+  async function askGarden() {
+    const question = gardenQuestion.trim();
+    if (!question) return;
+    setAskingGarden(true); setError(null);
+    try {
+      const response = await chatWithNotionGarden(question, activeConnectionId);
+      setGardenAnswer(response.answer); setGardenSources(response.sources);
+    } catch (askError) { setError(askError instanceof Error ? askError.message : "Bloom could not search this garden"); }
+    finally { setAskingGarden(false); }
   }
 
   async function downloadExport() {
@@ -193,7 +216,9 @@ export function NotionBloomGardenPage() {
     <section className="mt-5 flex flex-wrap items-center gap-3 rounded-bloom border border-bloom-border bg-bloom-surface p-4"><label className="text-[11px] font-medium text-bloom-text-secondary">Workspace <select aria-label="Notion workspace" value={activeConnectionId ?? ""} onChange={(event) => void switchWorkspace(event.target.value)} className="ml-2 h-9 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 text-[12px]">{legacyAvailable ? <option value="">Legacy internal workspace</option> : null}{connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.workspaceName}{connection.status !== "connected" ? ` · ${connection.status.replaceAll("_", " ")}` : ""}</option>)}</select></label><button onClick={() => void connectWorkspace()} className="h-9 rounded-bloom-sm bg-bloom-accent px-4 text-[12px] font-medium text-bloom-on-accent">{activeConnection && activeConnection.status !== "connected" ? "Reconnect workspace" : "Connect workspace"}</button>{activeConnection?.status === "connected" ? <button onClick={() => void disconnectWorkspace()} className="h-9 rounded-bloom-sm border border-coral-border bg-coral-bg px-4 text-[12px] text-coral-text">Disconnect</button> : null}<span className="ml-auto text-[11px] text-bloom-text-tertiary">{activeConnection?.status ?? (legacyAvailable ? "internal connection" : "not connected")}</span></section>
     {!activeConnectionId && !legacyAvailable ? <section className="mt-6 rounded-bloom border border-dashed border-bloom-border bg-bloom-surface p-10 text-center"><h2 className="font-serif text-[24px]">Connect your first workspace</h2><p className="mx-auto mt-2 max-w-md text-[13px] leading-6 text-bloom-text-secondary">Notion will ask which pages you want to share. Notion Bloom cannot read pages you do not select.</p><button onClick={() => void connectWorkspace()} className="mt-5 h-10 rounded-bloom-sm bg-bloom-accent px-5 text-[13px] font-medium text-bloom-on-accent">Connect Notion</button></section> : null}
     {error ? <div className="mt-5 rounded-bloom border border-coral-border bg-coral-bg p-4 text-[13px] text-coral-text">{error}</div> : null}
-    {importing && importJob ? <div className="mt-5 rounded-bloom border border-bloom-border bg-bloom-surface p-4"><div className="flex items-center justify-between gap-4"><div><p className="text-[13px] font-medium">{importJob.status === "queued" ? "Import queued" : `Importing ${currentTitle}`}</p><p className="mt-0.5 text-[11px] text-bloom-text-tertiary">{importJob.completedPages} of {importJob.totalPages} pages complete · {importJob.stage.replaceAll("_", " ")}</p></div><button onClick={() => void stopImport()} className="flex items-center gap-1 text-[11px] text-coral-text"><Square className="h-3 w-3" />Cancel</button></div><div role="progressbar" aria-valuemin={0} aria-valuemax={importJob.totalPages} aria-valuenow={importJob.completedPages} className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-bloom-border"><div className="h-full rounded-full bg-bloom-accent transition-[width] duration-300" style={{ width: `${progress}%` }} />{importJob.status === "running" ? <div className="notion-import-sweep absolute inset-y-0 w-1/5 rounded-full bg-bloom-accent/60" /> : null}</div><p className="mt-2 text-[11px] text-bloom-text-tertiary">You can close this page. Processing continues in the background.</p></div> : null}
+    {importing && importJob ? <div className="mt-5 rounded-bloom border border-bloom-border bg-bloom-surface p-4"><div className="flex items-center justify-between gap-4"><div><p className="text-[13px] font-medium">{importJob.status === "queued" ? `${importJob.kind === "refresh" ? "Sync" : "Import"} queued` : `${importJob.kind === "refresh" ? "Syncing" : "Importing"} ${currentTitle}`}</p><p className="mt-0.5 text-[11px] text-bloom-text-tertiary">{importJob.completedPages} of {importJob.totalPages} pages complete · {importJob.stage.replaceAll("_", " ")}</p></div><button onClick={() => void stopImport()} className="flex items-center gap-1 text-[11px] text-coral-text"><Square className="h-3 w-3" />Cancel</button></div><div role="progressbar" aria-valuemin={0} aria-valuemax={importJob.totalPages} aria-valuenow={importJob.completedPages} className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-bloom-border"><div className="h-full rounded-full bg-bloom-accent transition-[width] duration-300" style={{ width: `${progress}%` }} />{importJob.status === "running" ? <div className="notion-import-sweep absolute inset-y-0 w-1/5 rounded-full bg-bloom-accent/60" /> : null}</div><p className="mt-2 text-[11px] text-bloom-text-tertiary">You can close this page. Processing continues in the background.</p></div> : null}
+
+    {overview && overview.documentCount ? <><section className="mt-7 grid gap-4 lg:grid-cols-[1.15fr_.85fr]"><div className="rounded-bloom border border-bloom-border bg-bloom-surface p-5"><div className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-bloom-accent" /><h2 className="font-serif text-[21px]">Ask your garden</h2></div><p className="mt-1 text-[12px] text-bloom-text-tertiary">Bloom searches only the selected workspace and cites the pages it used.</p><div className="mt-4 flex gap-2"><input value={gardenQuestion} onChange={(event) => setGardenQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void askGarden(); }} placeholder="Where have I explored this idea before?" className="h-10 min-w-0 flex-1 rounded-bloom-sm border border-bloom-border bg-bloom-bg px-3 text-[13px] outline-none" /><button onClick={() => void askGarden()} disabled={askingGarden || !gardenQuestion.trim()} aria-label="Ask garden" className="grid h-10 w-10 place-items-center rounded-full bg-bloom-accent text-bloom-on-accent disabled:opacity-40"><Search className="h-4 w-4" /></button></div>{gardenAnswer ? <div className="mt-4 rounded-bloom-sm bg-bloom-bg p-4"><p className="whitespace-pre-wrap text-[13px] leading-6">{gardenAnswer}</p>{gardenSources.length ? <div className="mt-3 flex flex-wrap gap-2">{gardenSources.slice(0, 5).map((source, index) => <Link key={source.id} to={`/notion/${source.documentId}`} className="rounded-full border border-bloom-border px-2.5 py-1 text-[10px] text-bloom-accent">[{index + 1}] {source.documentTitle}</Link>)}</div> : null}</div> : null}</div><div className="rounded-bloom border border-bloom-border bg-bloom-surface p-5"><h2 className="font-serif text-[21px]">Themes growing here</h2><p className="mt-1 text-[12px] text-bloom-text-tertiary">Across {overview.readyDocumentCount} processed page{overview.readyDocumentCount === 1 ? "" : "s"}</p><div className="mt-4 space-y-3">{overview.themes.slice(0, 6).map((theme) => <div key={theme.label}><div className="flex items-center justify-between gap-3"><span className="text-[13px] font-medium">{theme.label}</span><span className="text-[10px] text-bloom-text-tertiary">{theme.documentCount} page{theme.documentCount === 1 ? "" : "s"}</span></div><p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-bloom-text-secondary">{theme.summary}</p></div>)}</div>{overview.needsAttention.length ? <p className="mt-4 rounded-bloom-sm border border-coral-border bg-coral-bg p-2.5 text-[11px] text-coral-text">{overview.needsAttention.length} page{overview.needsAttention.length === 1 ? " needs" : "s need"} sync attention.</p> : null}</div></section>{overview.recentThoughts.length ? <section className="mt-4"><h2 className="font-serif text-[20px]">Thoughts worth resurfacing</h2><div className="mt-3 grid gap-3 md:grid-cols-3">{overview.recentThoughts.slice(0, 6).map((thought) => <Link key={`${thought.documentId}:${thought.id}`} to={`/notion/${thought.documentId}?memoryId=${encodeURIComponent(thought.memoryId)}#thought-map`} className="rounded-bloom border border-bloom-border bg-bloom-surface p-4 transition-opacity hover:opacity-75"><p className="text-[10px] font-semibold uppercase tracking-wide text-bloom-accent">{thought.theme}</p><p className="mt-2 line-clamp-3 text-[12px] leading-5">{thought.text}</p><p className="mt-3 text-[10px] text-bloom-text-tertiary">From {thought.documentTitle}</p></Link>)}</div></section> : null}</> : null}
 
     <section className="mt-7"><div className="mb-3 flex items-center justify-between"><h2 className="font-serif text-[21px]">Imported pages</h2><span className="text-[12px] text-bloom-text-tertiary">{documents.length} pages</span></div><div className="grid gap-3 md:grid-cols-2">{documents.map((document) => <div key={document.id} className="rounded-bloom border border-bloom-border bg-bloom-surface p-4"><Link to={`/notion/${document.id}`} className="block transition-opacity hover:opacity-75"><div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-bloom-accent" /><h3 className="font-medium">{document.title}</h3></div><p className="mt-2 line-clamp-2 text-[12px] leading-5 text-bloom-text-secondary">{document.content || "This page has no text blocks."}</p></Link><div className="mt-3 flex items-center justify-between gap-3"><p className={`text-[11px] ${document.status === "failed" ? "text-coral-text" : "text-bloom-text-tertiary"}`}>{ingestionLabel(document)}</p><div className="flex gap-2">{document.status === "failed" ? <button onClick={() => void runAction(document, "retry")} disabled={actingOn === document.id} className="flex items-center gap-1 text-[11px] text-bloom-accent"><RotateCcw className="h-3 w-3" />Retry</button> : null}{document.status === "pending" && document.ingestion.runId ? <button onClick={() => void runAction(document, "cancel")} disabled={actingOn === document.id} className="flex items-center gap-1 text-[11px] text-coral-text"><Square className="h-3 w-3" />Cancel</button> : null}<button onClick={() => void runAction(document, "delete")} disabled={actingOn === document.id || document.status === "pending"} className="flex items-center gap-1 text-[11px] text-coral-text disabled:opacity-40"><Trash2 className="h-3 w-3" />Remove</button></div></div>{document.ingestion.warnings.length ? <p className="mt-2 text-[11px] text-bloom-text-tertiary">Completed with {document.ingestion.warnings.length} quality warning{document.ingestion.warnings.length === 1 ? "" : "s"}.</p> : null}</div>)}</div>{!loading && !documents.length ? <p className="rounded-bloom border border-dashed border-bloom-border p-8 text-center text-[13px] text-bloom-text-secondary">No pages imported yet.</p> : null}</section>
 

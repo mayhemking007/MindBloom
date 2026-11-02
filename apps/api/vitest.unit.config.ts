@@ -10,6 +10,7 @@ export default defineConfig({
       "./tests/notionIntegration.test.ts",
       "./tests/notionThoughts.test.ts",
       "./tests/notionTokenCrypto.test.ts",
+      "./tests/notionWebhooks.test.ts",
     ],
     clearMocks: true,
     restoreMocks: true,

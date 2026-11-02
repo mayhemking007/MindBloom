@@ -16,6 +16,7 @@
     "memo:migrate": "memo-grafter migrate",
     "memo:doctor": "memo-grafter doctor",
     "memo:studio": "memo-grafter studio",
+    "notion:webhook-token": "tsx src/scripts/notionWebhookToken.ts",
     "typecheck": "tsc -b",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",

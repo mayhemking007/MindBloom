@@ -7,6 +7,7 @@ import { cancelNotionImportJob, enqueueNotionImport, getActiveNotionImportJobs, 
 import { deleteNotionBloomAccount } from "../services/notionAccount.service.js";
 import { completeNotionOAuth, disconnectNotionConnection, getNotionConnections, startNotionOAuth, verifyNotionConnection } from "../services/notionConnections.service.js";
 import { env } from "../config/env.js";
+import { chatWithNotionGarden, deliverNotionComment, notionGardenOverview, recordNotionThoughtFeedback, searchNotionGarden } from "../services/notionGarden.service.js";
 
 const idSchema = z.object({ documentId: z.string().uuid() });
 const jobIdSchema = z.object({ jobId: z.string().uuid() });
@@ -22,6 +23,9 @@ const bloomSchema = z.object({
 const updateDocumentSchema = z.object({ content: z.string().max(100_000), expectedSourceUpdatedAt: z.string().datetime() });
 const saveDocumentSchema = z.object({ content: z.string().max(100_000) });
 const syncDocumentSchema = z.object({ discardLocalChanges: z.boolean().optional().default(false) });
+const gardenSearchSchema = z.object({ connectionId: z.string().uuid().nullable().optional(), query: z.string().trim().min(2).max(2000) });
+const feedbackSchema = z.object({ memoryId: z.string().trim().min(1), useful: z.boolean() });
+const commentSchema = z.object({ content: z.string().trim().min(1).max(1900), memoryId: z.string().trim().min(1).nullable().optional() });
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
   if (!result.success) throw new ApiError(400, result.error.issues[0]?.message ?? "Invalid request");
@@ -56,6 +60,18 @@ notionRouter.delete("/connections/:connectionId", async (req, res) => {
 notionRouter.get("/pages", async (req,res) => {
   const query = parse(connectionQuerySchema, req.query);
   res.json({ pages: await listNotionPages(await readAuthenticatedOwner(req), query.connectionId) });
+});
+notionRouter.get("/garden/overview", async (req, res) => {
+  const query = parse(connectionQuerySchema, req.query);
+  res.json(await notionGardenOverview(await readAuthenticatedOwner(req), query.connectionId ?? null));
+});
+notionRouter.post("/garden/search", async (req, res) => {
+  const body = parse(gardenSearchSchema, req.body);
+  res.json(await searchNotionGarden(await readAuthenticatedOwner(req), body.connectionId ?? null, body.query));
+});
+notionRouter.post("/garden/chat", async (req, res) => {
+  const body = parse(gardenSearchSchema, req.body);
+  res.json(await chatWithNotionGarden(await readAuthenticatedOwner(req), body.connectionId ?? null, body.query));
 });
 notionRouter.delete("/account", async (req, res) => {
   await deleteNotionBloomAccount(await readAuthenticatedOwner(req));
@@ -122,6 +138,15 @@ notionRouter.delete("/documents/:documentId", async (req,res) => {
 notionRouter.get("/documents/:documentId/related", async (req,res) => {
   const { documentId } = parse(idSchema, req.params);
   res.json({ thoughts: await relatedThoughts(documentId, await readAuthenticatedOwner(req)) });
+});
+notionRouter.post("/documents/:documentId/feedback", async (req, res) => {
+  const { documentId } = parse(idSchema, req.params); const body = parse(feedbackSchema, req.body);
+  await recordNotionThoughtFeedback(await readAuthenticatedOwner(req), documentId, body.memoryId, body.useful);
+  res.status(204).end();
+});
+notionRouter.post("/documents/:documentId/comment", async (req, res) => {
+  const { documentId } = parse(idSchema, req.params); const body = parse(commentSchema, req.body);
+  res.json(await deliverNotionComment(await readAuthenticatedOwner(req), documentId, body.content, body.memoryId ?? null));
 });
 notionRouter.post("/documents/:documentId/bloom", async (req,res) => {
   const { documentId } = parse(idSchema, req.params); const body = parse(bloomSchema, req.body);

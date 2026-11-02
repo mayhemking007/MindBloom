@@ -33,7 +33,8 @@
     "memo:studio": "npm run memo:studio -w @mindbloom/api",
     "start:api": "npm run start -w @mindbloom/api",
     "start:notion-api": "npm run start:notion -w @mindbloom/api",
-    "start:notion-worker": "npm run start:notion-worker -w @mindbloom/api"
+    "start:notion-worker": "npm run start:notion-worker -w @mindbloom/api",
+    "notion:webhook-token": "npm run notion:webhook-token -w @mindbloom/api"
   },
   "keywords": [
     "memo-grafter",

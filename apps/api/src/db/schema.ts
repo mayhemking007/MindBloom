@@ -15,6 +15,10 @@ export const appTables = {
   notionImportJobs: "notion_bloom_import_jobs",
   notionConnections: "notion_bloom_connections",
   notionOauthStates: "notion_bloom_oauth_states",
+  notionWebhookConfig: "notion_bloom_webhook_config",
+  notionWebhookEvents: "notion_bloom_webhook_events",
+  notionThoughtFeedback: "notion_bloom_thought_feedback",
+  notionCommentDeliveries: "notion_bloom_comment_deliveries",
 } as const;
 
 export type AppTableName = (typeof appTables)[keyof typeof appTables];
@@ -32,6 +36,9 @@ export interface SourceDocumentRow {
   content_hash: string;
   source_content_hash: string;
   has_local_changes: boolean;
+  sync_conflict: boolean;
+  source_access_status: "available" | "unavailable";
+  last_webhook_at: Date | null;
   local_saved_at: Date | null;
   source_url: string;
   source_created_at: Date;
@@ -78,6 +85,8 @@ export interface NotionImportJobRow {
   owner_kind: "authenticated";
   connection_id: string | null;
   workspace_id: string | null;
+  job_kind: "import" | "refresh";
+  trigger_event_id: string | null;
   page_ids: string[];
   status: NotionImportJobStatus;
   total_pages: number;
@@ -399,6 +408,9 @@ CREATE TABLE IF NOT EXISTS ${appTables.sourceDocuments} (
   content_hash text NOT NULL DEFAULT '',
   source_content_hash text NOT NULL DEFAULT '',
   has_local_changes boolean NOT NULL DEFAULT false,
+  sync_conflict boolean NOT NULL DEFAULT false,
+  source_access_status text NOT NULL DEFAULT 'available' CHECK (source_access_status IN ('available','unavailable')),
+  last_webhook_at timestamptz,
   local_saved_at timestamptz,
   source_url text NOT NULL DEFAULT '',
   source_created_at timestamptz NOT NULL,
@@ -424,6 +436,9 @@ ALTER TABLE ${appTables.sourceDocuments}
   ADD COLUMN IF NOT EXISTS ingestion_duration_ms integer,
   ADD COLUMN IF NOT EXISTS source_content_hash text NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS has_local_changes boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS sync_conflict boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS source_access_status text NOT NULL DEFAULT 'available',
+  ADD COLUMN IF NOT EXISTS last_webhook_at timestamptz,
   ADD COLUMN IF NOT EXISTS local_saved_at timestamptz,
   ADD COLUMN IF NOT EXISTS connection_id text,
   ADD COLUMN IF NOT EXISTS workspace_id text;
@@ -470,6 +485,8 @@ CREATE TABLE IF NOT EXISTS ${appTables.notionImportJobs} (
   owner_kind text NOT NULL DEFAULT 'authenticated' CHECK (owner_kind = 'authenticated'),
   connection_id text,
   workspace_id text,
+  job_kind text NOT NULL DEFAULT 'import' CHECK (job_kind IN ('import','refresh')),
+  trigger_event_id text,
   page_ids text[] NOT NULL,
   status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','completed','completed_with_errors','failed','cancelled')),
   total_pages integer NOT NULL,
@@ -489,7 +506,9 @@ CREATE TABLE IF NOT EXISTS ${appTables.notionImportJobs} (
 
 ALTER TABLE ${appTables.notionImportJobs}
   ADD COLUMN IF NOT EXISTS connection_id text,
-  ADD COLUMN IF NOT EXISTS workspace_id text;
+  ADD COLUMN IF NOT EXISTS workspace_id text,
+  ADD COLUMN IF NOT EXISTS job_kind text NOT NULL DEFAULT 'import',
+  ADD COLUMN IF NOT EXISTS trigger_event_id text;
 
 CREATE INDEX IF NOT EXISTS notion_bloom_import_jobs_claim_idx
   ON ${appTables.notionImportJobs} (status, available_at, created_at);
@@ -537,6 +556,52 @@ CREATE TABLE IF NOT EXISTS ${appTables.notionOauthStates} (
 
 CREATE INDEX IF NOT EXISTS notion_bloom_oauth_states_expiry_idx
   ON ${appTables.notionOauthStates} (expires_at);
+
+CREATE TABLE IF NOT EXISTS ${appTables.notionWebhookConfig} (
+  id text PRIMARY KEY,
+  verification_token_ciphertext text NOT NULL,
+  token_iv text NOT NULL,
+  token_auth_tag text NOT NULL,
+  encryption_key_version text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ${appTables.notionWebhookEvents} (
+  event_id text PRIMARY KEY,
+  event_type text NOT NULL,
+  workspace_id text,
+  entity_id text,
+  payload jsonb NOT NULL,
+  status text NOT NULL DEFAULT 'received' CHECK (status IN ('received','queued','ignored','failed')),
+  error text,
+  received_at timestamptz NOT NULL DEFAULT now(),
+  processed_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS notion_bloom_webhook_events_received_idx
+  ON ${appTables.notionWebhookEvents} (received_at DESC);
+
+CREATE TABLE IF NOT EXISTS ${appTables.notionThoughtFeedback} (
+  id text PRIMARY KEY,
+  owner_id text NOT NULL REFERENCES ${appTables.users}(id) ON DELETE CASCADE,
+  connection_id text REFERENCES ${appTables.notionConnections}(id) ON DELETE CASCADE,
+  document_id text REFERENCES ${appTables.sourceDocuments}(id) ON DELETE CASCADE,
+  memory_id text NOT NULL,
+  useful boolean NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (owner_id, document_id, memory_id)
+);
+
+CREATE TABLE IF NOT EXISTS ${appTables.notionCommentDeliveries} (
+  id text PRIMARY KEY,
+  owner_id text NOT NULL REFERENCES ${appTables.users}(id) ON DELETE CASCADE,
+  document_id text NOT NULL REFERENCES ${appTables.sourceDocuments}(id) ON DELETE CASCADE,
+  memory_id text,
+  content_hash text NOT NULL,
+  notion_comment_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (document_id, content_hash)
+);
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='mindbloom_source_documents_connection_fk') THEN

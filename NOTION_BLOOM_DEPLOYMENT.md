@@ -25,6 +25,8 @@ Set these on both the API and worker unless a setting is described as API-only:
 - `NOTION_CONTENT_API=markdown`
 - `NOTION_MAX_PAGES_PER_IMPORT=25`
 - `NOTION_DAILY_IMPORT_PAGE_LIMIT=250`
+- `NOTION_WEBHOOK_SETUP_ENABLED=false`
+- `NOTION_WEBHOOK_DEBOUNCE_SECONDS=45`
 
 The API also needs `NOTION_CORS_ORIGIN`, set to the exact frontend origin (comma-separated origins are supported), and the registration settings. Keep the encryption key and version identical on the API and worker. Never expose the client secret or encryption key to Vite.
 
@@ -44,5 +46,11 @@ Use sibling custom domains such as `app.notionbloom.example` and `api.notionbloo
 6. Verify `/health/live` and `/health/ready`; readiness reports the selected connection mode.
 7. Connect two test workspaces, import a page from each, and confirm workspace switching does not mix documents.
 8. Revoke one connection in Notion and confirm Notion Bloom reports that reconnection is required without exposing credentials.
+
+## Automatic synchronization
+
+Create a Notion webhook subscription pointing to `https://<api-domain>/api/notion/webhooks` and subscribe to `page.content_updated`, `page.properties_updated`, `page.moved`, `page.deleted`, and `page.undeleted`. Temporarily set `NOTION_WEBHOOK_SETUP_ENABLED=true` for the initial verification delivery. The API encrypts and stores the first verification token. Run `npm run notion:webhook-token` in a secure deployment shell, paste that value into Notion's verification dialog, and immediately set the setup flag back to `false`. The command intentionally prints the secret, so do not copy its output into logs or support messages. Subsequent deliveries require a valid `X-Notion-Signature`, are deduplicated by event ID, and refresh only pages the user already imported.
+
+The default 45-second debounce combines rapid edits before rebuilding the page graph. Keep the API and worker running against the same database for automatic synchronization.
 
 OAuth access and refresh tokens are encrypted with AES-256-GCM before storage. Rotating the encryption key requires a re-encryption migration; changing only the version makes old credentials intentionally unreadable.

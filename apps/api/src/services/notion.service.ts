@@ -31,7 +31,7 @@ function toDocument(row: SourceDocumentRow): MindBloomDocument {
     content: row.content, sourceUrl: row.source_url, sourceCreatedAt: row.source_created_at.toISOString(),
     sourceUpdatedAt: row.source_updated_at.toISOString(), memoSessionId: row.memo_session_id,
     status: row.status, lastSyncedAt: row.last_synced_at?.toISOString() ?? null,
-    syncState: row.has_local_changes ? "local_changes" : "in_sync",
+    syncState: row.source_access_status === "unavailable" ? "unavailable" : row.sync_conflict ? "conflict" : row.has_local_changes ? "local_changes" : "in_sync",
     localSavedAt: row.local_saved_at?.toISOString() ?? null,
     lastError: row.last_error, ingestion: {
       runId: row.memo_ingestion_run_id,
@@ -128,6 +128,9 @@ export async function saveMindBloomDocumentContent(id: string, content: string, 
     content,
     content_hash: contentHash,
     has_local_changes: contentHash !== row.source_content_hash,
+    sync_conflict: row.sync_conflict,
+    source_access_status: row.source_access_status,
+    last_webhook_at: row.last_webhook_at,
     local_saved_at: contentHash !== row.source_content_hash ? new Date() : null,
     status: "pending" as const,
     memo_ingestion_run_id: null,
@@ -142,13 +145,13 @@ export async function saveMindBloomDocumentContent(id: string, content: string, 
 async function persistPage(page: ExternalNotionDocument, owner: OwnerScope, connection: { id: string | null; workspaceId: string | null }, force = false) {
   const existing = await findSourceDocumentByExternalId(page.id, ownerOf(owner), connection.id);
   const contentHash = hash(`${page.title}\n${page.content}`);
-  if (!force && existing?.source_content_hash === contentHash && !existing.has_local_changes && existing.status === "ready") return { document: toDocument(existing), unchanged: true };
+  if (!force && existing?.source_content_hash === contentHash && !existing.has_local_changes && !existing.sync_conflict && existing.source_access_status === "available" && existing.status === "ready") return { document: toDocument(existing), unchanged: true };
   const id = existing?.id ?? randomUUID();
   const memoSessionId = existing?.memo_session_id ?? sessionId(owner, page.id, connection.id);
   const base = { id, owner_id: owner.ownerId, owner_kind: owner.ownerKind, source: "notion" as const,
     external_id: page.id, connection_id: connection.id, workspace_id: connection.workspaceId,
     title: page.title, content: page.content, content_hash: contentHash,
-    source_content_hash: contentHash, has_local_changes: false, local_saved_at: null,
+    source_content_hash: contentHash, has_local_changes: false, sync_conflict: false, source_access_status: "available" as const, last_webhook_at: existing?.last_webhook_at ?? null, local_saved_at: null,
     source_url: page.url, source_created_at: new Date(page.createdAt), source_updated_at: new Date(page.updatedAt),
     memo_session_id: memoSessionId, status: "pending" as const,
     memo_ingestion_run_id: null, ingestion_status: "accepted" as const, ingestion_phase: "accepted" as const,

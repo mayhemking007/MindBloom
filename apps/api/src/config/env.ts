@@ -28,6 +28,8 @@ const envSchema = z.object({
   NOTION_AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
   NOTION_MAX_PAGES_PER_IMPORT: z.coerce.number().int().positive().max(100).default(25),
   NOTION_DAILY_IMPORT_PAGE_LIMIT: z.coerce.number().int().positive().default(250),
+  NOTION_WEBHOOK_SETUP_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  NOTION_WEBHOOK_DEBOUNCE_SECONDS: z.coerce.number().int().min(5).max(300).default(45),
 });
 
 export const env = envSchema.parse(process.env);

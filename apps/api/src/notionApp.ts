@@ -7,12 +7,14 @@ import { authRouter } from "./routes/auth.routes.js";
 import { notionRouter } from "./routes/notion.routes.js";
 import { dbPool } from "./config/db.js";
 import { notionAuthRateLimit, notionCsrfGuard, notionSecurityHeaders, requestContext } from "./http/middleware/notionSecurity.js";
+import { notionWebhookHandler } from "./routes/notionWebhook.routes.js";
 
 export function createNotionBloomApp() {
   const app = express();
   app.set("trust proxy", 1);
   app.use(requestContext);
   app.use(notionSecurityHeaders);
+  app.post("/api/notion/webhooks", express.raw({ type: "application/json", limit: "256kb" }), notionWebhookHandler);
   app.use(express.json({ limit: "128kb" }));
   app.use(cors({ origin: env.NOTION_CORS_ORIGIN.split(",").map((value) => value.trim()), credentials: true }));
   app.use(notionCsrfGuard);
