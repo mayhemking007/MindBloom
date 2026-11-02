@@ -9,13 +9,13 @@ export interface ImportJobOwner {
   ownerKind: "authenticated";
 }
 
-export async function createImportJob(pageIds: string[], owner: ImportJobOwner, connection: { id: string; workspaceId: string } | null): Promise<NotionImportJobRow> {
+export async function createImportJob(pageIds: string[], owner: ImportJobOwner, connection: { id: string; workspaceId: string } | null, kind: "import" | "refresh" = "import", triggerEventId: string | null = null, availableAt: Date | null = null): Promise<NotionImportJobRow> {
   const result = await query<NotionImportJobRow>(
     `INSERT INTO ${appTables.notionImportJobs}
-      (id, owner_id, owner_kind, connection_id, workspace_id, page_ids, total_pages)
-     VALUES ($1, $2, 'authenticated', $3, $4, $5, $6)
+      (id, owner_id, owner_kind, connection_id, workspace_id, page_ids, total_pages, job_kind, trigger_event_id, available_at)
+     VALUES ($1, $2, 'authenticated', $3, $4, $5, $6, $7, $8, COALESCE($9,now()))
      RETURNING *`,
-    [randomUUID(), owner.ownerId, connection?.id ?? null, connection?.workspaceId ?? null, pageIds, pageIds.length],
+    [randomUUID(), owner.ownerId, connection?.id ?? null, connection?.workspaceId ?? null, pageIds, pageIds.length, kind, triggerEventId, availableAt],
   );
   return result.rows[0]!;
 }
@@ -42,7 +42,7 @@ export async function countImportPagesSince(owner: ImportJobOwner, since: Date):
   const result = await query<{ pages: string }>(
     `SELECT COALESCE(SUM(total_pages), 0)::text AS pages
        FROM ${appTables.notionImportJobs}
-      WHERE owner_id=$1 AND owner_kind='authenticated' AND created_at >= $2 AND status <> 'cancelled'`,
+      WHERE owner_id=$1 AND owner_kind='authenticated' AND job_kind='import' AND created_at >= $2 AND status <> 'cancelled'`,
     [owner.ownerId, since],
   );
   return Number(result.rows[0]?.pages ?? 0);
@@ -99,6 +99,16 @@ export async function finishImportJob(
        completed_at=now(), locked_at=null, updated_at=now()
      WHERE id=$1 AND status='running'`,
     [id, status, JSON.stringify(results), lastError],
+  );
+}
+
+export async function retryImportJob(id: string, error: string, delaySeconds: number): Promise<void> {
+  await query(
+    `UPDATE ${appTables.notionImportJobs}
+        SET status='queued',stage='queued',completed_pages=0,current_page_id=null,current_page_title=null,
+            results='[]'::jsonb,last_error=$2,available_at=now()+($3 * interval '1 second'),locked_at=null,updated_at=now()
+      WHERE id=$1 AND status='running'`,
+    [id, error, delaySeconds],
   );
 }
 

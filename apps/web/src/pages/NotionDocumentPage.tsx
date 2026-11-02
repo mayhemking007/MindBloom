@@ -1,10 +1,10 @@
-import { ArrowLeft, ArrowRight, ExternalLink, Eye, MessageCircle, Pencil, RefreshCw, Save, Send, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, Eye, MessageCircle, Pencil, RefreshCw, Save, Send, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { GraphSnapshotResponse, MindBloomDocument, NotionBloomMessage, RelatedThought } from "@mindbloom/shared";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { MapViews } from "../components/map/MapViews";
-import { askNotionBloom, getNotionDocument, getNotionGraph, getNotionRelated, saveNotionDocument, syncNotionDocument, updateNotionDocument } from "../lib/api";
+import { askNotionBloom, getNotionDocument, getNotionGraph, getNotionRelated, saveNotionDocument, sendNotionComment, sendNotionThoughtFeedback, syncNotionDocument, updateNotionDocument } from "../lib/api";
 
 export function NotionDocumentPage({ brandName = "MindBloom" }: { brandName?: string }) {
   const { documentId = "" } = useParams();
@@ -45,7 +45,7 @@ export function NotionDocumentPage({ brandName = "MindBloom" }: { brandName?: st
   }, [focusMemoryId, graph]);
 
   async function sync() {
-    const discardLocalChanges = doc?.syncState === "local_changes";
+    const discardLocalChanges = doc?.syncState === "local_changes" || doc?.syncState === "conflict";
     if (discardLocalChanges && !window.confirm(`This will discard the version saved in ${brandName} and replace it with the current Notion page. Continue?`)) return;
     setBusy(true);
     setError(null);
@@ -84,6 +84,22 @@ export function NotionDocumentPage({ brandName = "MindBloom" }: { brandName?: st
     } finally {
       setBusy(false);
     }
+  }
+
+  async function rateThought(thought: RelatedThought, useful: boolean) {
+    try { await sendNotionThoughtFeedback(documentId, thought.memoryId, useful); }
+    catch (feedbackError) { setError(feedbackError instanceof Error ? feedbackError.message : "Could not save feedback"); }
+  }
+
+  async function sendThoughtToNotion(thought: RelatedThought) {
+    const content = `Bloom insight: ${thought.text}\n\nEarlier context: ${thought.documentTitle}${thought.sectionTitle ? ` — ${thought.sectionTitle}` : ""}\nExplore in Notion Bloom: ${window.location.origin}/notion/${thought.documentId}?memoryId=${encodeURIComponent(thought.memoryId)}`;
+    if (!window.confirm(`Send this comment to Notion?\n\n${content}`)) return;
+    setBusy(true); setError(null);
+    try {
+      const result = await sendNotionComment(documentId, content, thought.memoryId);
+      window.alert(result.duplicate ? "This insight was already sent to Notion." : "Insight sent to Notion as a comment.");
+    } catch (commentError) { setError(commentError instanceof Error ? commentError.message : "Could not send the comment to Notion"); }
+    finally { setBusy(false); }
   }
 
   function cancelEdit() {
@@ -142,7 +158,7 @@ export function NotionDocumentPage({ brandName = "MindBloom" }: { brandName?: st
           <div ref={mapRef} id="thought-map" className="mt-6 scroll-mt-6">{graph ? <MapViews snapshot={graph} focusMemoryId={focusMemoryId} /> : null}</div>
         </section>
         <aside className="space-y-6">
-          <section className="rounded-bloom border border-bloom-border bg-bloom-surface p-5"><h2 className="font-serif text-[20px]">Related thoughts</h2><p className="mt-1 text-[12px] text-bloom-text-tertiary">The strongest individual thoughts from your earlier writing.</p><div className="mt-4 space-y-3">{related.map((thought) => <div key={thought.id} className="rounded-bloom-sm bg-bloom-bg p-3"><button type="button" aria-expanded={expandedThoughtId === thought.id} onClick={() => setExpandedThoughtId((current) => current === thought.id ? null : thought.id)} className="w-full text-left"><p className="text-[10px] font-semibold uppercase tracking-wide text-bloom-accent">{thought.theme} · {thought.memoryType}</p><p className="mt-1 text-[13px] font-medium leading-5 text-bloom-text">{thought.text}</p><p className="mt-2 text-[11px] text-bloom-text-tertiary">From {thought.documentTitle}{thought.sectionTitle ? ` · ${thought.sectionTitle}` : ""}</p></button>{expandedThoughtId === thought.id ? <div className="mt-3 grid grid-cols-2 gap-2 border-t border-bloom-border pt-3"><Link to={`/notion/${thought.documentId}?memoryId=${encodeURIComponent(thought.memoryId)}#thought-map`} className="flex items-center justify-center gap-1.5 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-2 py-2 text-[11px] font-medium"><ArrowRight className="h-3.5 w-3.5" />Go to page</Link><button type="button" onClick={() => void chatWithThought(thought)} disabled={busy} className="flex items-center justify-center gap-1.5 rounded-bloom-sm bg-bloom-accent px-2 py-2 text-[11px] font-medium text-bloom-on-accent disabled:opacity-40"><MessageCircle className="h-3.5 w-3.5" />Chat with Bloom</button></div> : null}</div>)}{!related.length ? <p className="text-[12px] leading-5 text-bloom-text-secondary">No cross-page match was found yet. Related thoughts appear after at least two imported pages finish processing and share meaningful concepts.</p> : null}</div></section>
+          <section className="rounded-bloom border border-bloom-border bg-bloom-surface p-5"><h2 className="font-serif text-[20px]">Related thoughts</h2><p className="mt-1 text-[12px] text-bloom-text-tertiary">The strongest individual thoughts from your earlier writing.</p><div className="mt-4 space-y-3">{related.map((thought) => <div key={thought.id} className="rounded-bloom-sm bg-bloom-bg p-3"><button type="button" aria-expanded={expandedThoughtId === thought.id} onClick={() => setExpandedThoughtId((current) => current === thought.id ? null : thought.id)} className="w-full text-left"><p className="text-[10px] font-semibold uppercase tracking-wide text-bloom-accent">{thought.theme} · {thought.memoryType}</p><p className="mt-1 text-[13px] font-medium leading-5 text-bloom-text">{thought.text}</p><p className="mt-2 text-[11px] text-bloom-text-tertiary">From {thought.documentTitle}{thought.sectionTitle ? ` · ${thought.sectionTitle}` : ""}</p></button>{expandedThoughtId === thought.id ? <div className="mt-3 border-t border-bloom-border pt-3"><div className="grid grid-cols-2 gap-2"><Link to={`/notion/${thought.documentId}?memoryId=${encodeURIComponent(thought.memoryId)}#thought-map`} className="flex items-center justify-center gap-1.5 rounded-bloom-sm border border-bloom-border bg-bloom-surface px-2 py-2 text-[11px] font-medium"><ArrowRight className="h-3.5 w-3.5" />Go to page</Link><button type="button" onClick={() => void chatWithThought(thought)} disabled={busy} className="flex items-center justify-center gap-1.5 rounded-bloom-sm bg-bloom-accent px-2 py-2 text-[11px] font-medium text-bloom-on-accent disabled:opacity-40"><MessageCircle className="h-3.5 w-3.5" />Chat with Bloom</button></div><div className="mt-2 flex items-center gap-2"><button aria-label="Useful thought" onClick={() => void rateThought(thought, true)} className="grid h-8 w-8 place-items-center rounded-full border border-bloom-border"><ThumbsUp className="h-3.5 w-3.5" /></button><button aria-label="Not useful" onClick={() => void rateThought(thought, false)} className="grid h-8 w-8 place-items-center rounded-full border border-bloom-border"><ThumbsDown className="h-3.5 w-3.5" /></button>{doc?.connectionId ? <button onClick={() => void sendThoughtToNotion(thought)} disabled={busy} className="ml-auto flex h-8 items-center gap-1.5 rounded-bloom-sm border border-bloom-border px-2.5 text-[10px]"><Send className="h-3 w-3" />Send to Notion</button> : null}</div></div> : null}</div>)}{!related.length ? <p className="text-[12px] leading-5 text-bloom-text-secondary">No cross-page match was found yet. Related thoughts appear after at least two imported pages finish processing and share meaningful concepts.</p> : null}</div></section>
           <section ref={bloomRef} className="scroll-mt-6 rounded-bloom border border-bloom-border bg-bloom-surface p-5"><h2 className="font-serif text-[20px]">Bloom with this page</h2><div className="mt-4 max-h-[320px] space-y-3 overflow-auto">{messages.map((message) => <div key={message.id} className={`rounded-bloom-sm p-3 text-[12px] leading-5 ${message.role === "user" ? "ml-8 bg-bloom-accent-bg" : "mr-4 bg-bloom-bg"}`}>{message.content}</div>)}</div><form onSubmit={ask} className="mt-4 flex items-end gap-2"><textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="What connects this to my earlier thinking?" rows={2} className="min-w-0 flex-1 resize-none rounded-bloom-sm border border-bloom-border bg-bloom-bg p-3 text-[12px] outline-none" /><button disabled={busy || !question.trim()} aria-label="Ask Bloom" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-bloom-accent text-bloom-on-accent disabled:opacity-40"><Send className="h-3.5 w-3.5" /></button></form></section>
         </aside>
       </div>

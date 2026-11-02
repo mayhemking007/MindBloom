@@ -169,6 +169,15 @@ export class NotionIntegration {
     await this.updatePageContentWithBlocks(pageId, markdown);
   }
 
+  async createPageComment(pageId: string, content: string): Promise<string> {
+    const response = await this.client.comments.create({
+      parent: { page_id: pageId },
+      rich_text: [{ type: "text", text: { content: content.slice(0, 1_900) } }],
+      display_name: { type: "integration" },
+    });
+    return response.id;
+  }
+
   private async updatePageContentWithBlocks(pageId: string, markdown: string): Promise<void> {
     const existingBlockIds: string[] = [];
     const unsafeTypes = new Set<string>();

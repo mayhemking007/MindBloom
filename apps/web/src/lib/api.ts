@@ -48,6 +48,10 @@ import type {
   NotionConnectionResponse,
   NotionOAuthStartResponse,
   RelatedThoughtsResponse,
+  NotionGardenOverview,
+  NotionGardenSearchResponse,
+  NotionGardenChatResponse,
+  NotionCommentDeliveryResponse,
 } from "@mindbloom/shared";
 import { demoStore } from "./demoStore";
 
@@ -696,6 +700,19 @@ export async function listNotionDocuments(connectionId?: string): Promise<MindBl
   const query = connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : "";
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents${query}`, credentialOptions));
 }
+export async function getNotionGardenOverview(connectionId?: string): Promise<NotionGardenOverview> {
+  requireAccount();
+  const query = connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : "";
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/garden/overview${query}`, credentialOptions));
+}
+export async function searchNotionGarden(query: string, connectionId?: string): Promise<NotionGardenSearchResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/garden/search`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ query, connectionId: connectionId ?? null }) }));
+}
+export async function chatWithNotionGarden(query: string, connectionId?: string): Promise<NotionGardenChatResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/garden/chat`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ query, connectionId: connectionId ?? null }) }));
+}
 export async function importNotionPages(pageIds: string[], connectionId?: string): Promise<NotionImportJobResponse> {
   requireAccount();
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/import`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ pageIds, ...(connectionId ? { connectionId } : {}) }) }));
@@ -743,6 +760,15 @@ export async function cancelNotionIngestion(documentId: string): Promise<MindBlo
 export async function getNotionRelated(documentId: string): Promise<RelatedThoughtsResponse> {
   requireAccount();
   return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/related`, credentialOptions));
+}
+export async function sendNotionThoughtFeedback(documentId: string, memoryId: string, useful: boolean): Promise<void> {
+  requireAccount();
+  const response = await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/feedback`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ memoryId, useful }) });
+  if (!response.ok) await parseJsonResponse<unknown>(response);
+}
+export async function sendNotionComment(documentId: string, content: string, memoryId?: string): Promise<NotionCommentDeliveryResponse> {
+  requireAccount();
+  return parseJsonResponse(await fetch(`${apiBaseUrl}/api/notion/documents/${documentId}/comment`, { method: "POST", headers: jsonHeaders(), credentials: "include", body: JSON.stringify({ content, memoryId: memoryId ?? null }) }));
 }
 export async function askNotionBloom(documentId: string, question?: string, thoughtId?: string): Promise<NotionBloomResponse> {
   requireAccount();

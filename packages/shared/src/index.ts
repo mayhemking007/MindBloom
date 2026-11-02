@@ -38,7 +38,7 @@ export interface MindBloomDocument {
   status: MindBloomDocumentStatus;
   ingestion: MindBloomIngestionSummary;
   lastSyncedAt: string | null;
-  syncState: "in_sync" | "local_changes";
+  syncState: "in_sync" | "local_changes" | "conflict" | "unavailable";
   localSavedAt: string | null;
   lastError: string | null;
   createdAt: string;
@@ -77,6 +77,7 @@ export interface NotionImportJob {
   status: NotionImportJobStatus;
   connectionId: string | null;
   workspaceId: string | null;
+  kind: "import" | "refresh";
   stage: "queued" | "reading_notion" | "building_memory" | "finished";
   totalPages: number;
   completedPages: number;
@@ -135,6 +136,26 @@ export interface NotionBloomResponse {
   messages: NotionBloomMessage[];
   sources: RelatedThought[];
 }
+
+export interface NotionGardenTheme {
+  label: string;
+  summary: string;
+  occurrences: number;
+  documentCount: number;
+}
+export interface NotionGardenThought extends RelatedThought { importance: number; createdAt: string; }
+export interface NotionGardenOverview {
+  workspaceId: string | null;
+  documentCount: number;
+  readyDocumentCount: number;
+  needsAttention: MindBloomDocument[];
+  themes: NotionGardenTheme[];
+  recentThoughts: NotionGardenThought[];
+}
+export interface NotionGardenSearchResponse { thoughts: RelatedThought[]; }
+export interface NotionGardenChatResponse { answer: string; sources: RelatedThought[]; }
+export interface NotionThoughtFeedbackRequest { useful: boolean; }
+export interface NotionCommentDeliveryResponse { commentId: string; duplicate: boolean; }
 
 export interface ChatRequest {
   sessionId: string;

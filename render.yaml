@@ -50,6 +50,10 @@ services:
         value: "25"
       - key: NOTION_DAILY_IMPORT_PAGE_LIMIT
         value: "250"
+      - key: NOTION_WEBHOOK_SETUP_ENABLED
+        value: "false"
+      - key: NOTION_WEBHOOK_DEBOUNCE_SECONDS
+        value: "45"
       - key: NOTION_CORS_ORIGIN
         sync: false
       - key: NOTION_REGISTRATION_ENABLED

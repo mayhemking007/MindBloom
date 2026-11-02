@@ -34,11 +34,11 @@ export async function findSourceDocumentByExternalId(externalId: string, owner: 
 export type SourceDocumentUpsert = Omit<SourceDocumentRow, "created_at" | "updated_at">;
 
 export async function upsertSourceDocument(input: SourceDocumentUpsert): Promise<SourceDocumentRow> {
-  const values = [input.id,input.owner_id,input.owner_kind,input.external_id,input.connection_id,input.workspace_id,input.title,input.content,input.content_hash,input.source_content_hash,input.has_local_changes,input.local_saved_at,input.source_url,input.source_created_at,input.source_updated_at,input.memo_session_id,input.status,input.memo_ingestion_run_id,input.ingestion_status,input.ingestion_phase,JSON.stringify(input.ingestion_counts),JSON.stringify(input.ingestion_warnings),input.ingestion_duration_ms,input.last_synced_at,input.last_error];
+  const values = [input.id,input.owner_id,input.owner_kind,input.external_id,input.connection_id,input.workspace_id,input.title,input.content,input.content_hash,input.source_content_hash,input.has_local_changes,input.local_saved_at,input.source_url,input.source_created_at,input.source_updated_at,input.memo_session_id,input.status,input.memo_ingestion_run_id,input.ingestion_status,input.ingestion_phase,JSON.stringify(input.ingestion_counts),JSON.stringify(input.ingestion_warnings),input.ingestion_duration_ms,input.last_synced_at,input.last_error,input.sync_conflict,input.source_access_status];
   const result = await query<SourceDocumentRow>(
     `INSERT INTO ${appTables.sourceDocuments}
-      (id,owner_id,owner_kind,source,external_id,connection_id,workspace_id,title,content,content_hash,source_content_hash,has_local_changes,local_saved_at,source_url,source_created_at,source_updated_at,memo_session_id,status,memo_ingestion_run_id,ingestion_status,ingestion_phase,ingestion_counts,ingestion_warnings,ingestion_duration_ms,last_synced_at,last_error)
-     VALUES ($1,$2,$3,'notion',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25)
+      (id,owner_id,owner_kind,source,external_id,connection_id,workspace_id,title,content,content_hash,source_content_hash,has_local_changes,local_saved_at,source_url,source_created_at,source_updated_at,memo_session_id,status,memo_ingestion_run_id,ingestion_status,ingestion_phase,ingestion_counts,ingestion_warnings,ingestion_duration_ms,last_synced_at,last_error,sync_conflict,source_access_status)
+     VALUES ($1,$2,$3,'notion',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27)
      ON CONFLICT (owner_kind,owner_id,(COALESCE(connection_id,'legacy-internal')),source,external_id) DO UPDATE SET
        connection_id=EXCLUDED.connection_id,workspace_id=EXCLUDED.workspace_id,
        title=EXCLUDED.title, content=EXCLUDED.content, content_hash=EXCLUDED.content_hash,
@@ -49,10 +49,31 @@ export async function upsertSourceDocument(input: SourceDocumentUpsert): Promise
        memo_ingestion_run_id=EXCLUDED.memo_ingestion_run_id, ingestion_status=EXCLUDED.ingestion_status,
        ingestion_phase=EXCLUDED.ingestion_phase, ingestion_counts=EXCLUDED.ingestion_counts,
        ingestion_warnings=EXCLUDED.ingestion_warnings, ingestion_duration_ms=EXCLUDED.ingestion_duration_ms,
-       last_synced_at=EXCLUDED.last_synced_at, last_error=EXCLUDED.last_error, updated_at=now()
+       last_synced_at=EXCLUDED.last_synced_at, last_error=EXCLUDED.last_error,
+       sync_conflict=EXCLUDED.sync_conflict,source_access_status=EXCLUDED.source_access_status,updated_at=now()
      RETURNING *`, values,
   );
   return result.rows[0]!;
+}
+
+export async function markSourceDocumentSyncState(id: string, input: { conflict?: boolean; unavailable?: boolean; error?: string | null }): Promise<void> {
+  await query(
+    `UPDATE ${appTables.sourceDocuments}
+        SET sync_conflict=COALESCE($2,sync_conflict),
+            source_access_status=CASE WHEN $3::boolean IS NULL THEN source_access_status WHEN $3 THEN 'unavailable' ELSE 'available' END,
+            last_error=$4,updated_at=now()
+      WHERE id=$1`,
+    [id, input.conflict ?? null, input.unavailable ?? null, input.error ?? null],
+  );
+}
+
+export async function acceptSourceDocumentWebhook(id: string, timestamp: Date): Promise<boolean> {
+  const result = await query(
+    `UPDATE ${appTables.sourceDocuments} SET last_webhook_at=$2
+      WHERE id=$1 AND (last_webhook_at IS NULL OR last_webhook_at <= $2)`,
+    [id, timestamp],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function markSourceDocumentFailed(id: string, message: string): Promise<void> {

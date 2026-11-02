@@ -13,11 +13,13 @@ import {
   listActiveImportJobs,
   updateImportJobProgress,
   finishImportJob,
+  retryImportJob,
   type ImportJobOwner,
 } from "../repositories/notionImportJobs.repository.js";
 import type { NotionImportJobRow } from "../db/schema.js";
 import { importNotionPages } from "./notion.service.js";
 import { notionClientFor } from "./notionConnections.service.js";
+import { findSourceDocumentByExternalId, markSourceDocumentSyncState } from "../repositories/sourceDocuments.repository.js";
 
 function authenticatedOwner(owner: OwnerScope): ImportJobOwner {
   if (owner.ownerKind !== "authenticated") throw new ApiError(401, "Authentication is required");
@@ -30,6 +32,7 @@ function toJob(row: NotionImportJobRow): NotionImportJob {
     status: row.status,
     connectionId: row.connection_id,
     workspaceId: row.workspace_id,
+    kind: row.job_kind,
     stage: row.stage,
     totalPages: row.total_pages,
     completedPages: row.completed_pages,
@@ -80,6 +83,7 @@ export async function cancelNotionImportJob(id: string, owner: OwnerScope): Prom
 export async function processNextNotionImportJob(): Promise<boolean> {
   const job = await claimNextImportJob();
   if (!job) return false;
+  console.log(JSON.stringify({ level: "info", service: "notion-bloom-worker", event: "job_started", jobId: job.id, kind: job.job_kind, workspaceId: job.workspace_id, attempt: job.attempts }));
 
   const owner: OwnerScope = { ownerId: job.owner_id, ownerKind: "authenticated" };
   const results = [...(job.results as ImportNotionPageResult[])];
@@ -97,6 +101,16 @@ export async function processNextNotionImportJob(): Promise<boolean> {
         results,
       });
 
+      const existing = job.job_kind === "refresh"
+        ? await findSourceDocumentByExternalId(pageId, { ownerId: owner.ownerId, ownerKind: owner.ownerKind }, job.connection_id)
+        : null;
+      if (existing?.has_local_changes) {
+        await markSourceDocumentSyncState(existing.id, { conflict: true, error: "Notion changed while this page has local Notion Bloom edits." });
+        results.push({ pageId, document: null, status: "failed", error: "Sync conflict: review local changes before syncing from Notion." });
+        completed += 1;
+        await updateImportJobProgress(job.id, { completedPages: completed, currentPageId: null, currentPageTitle: existing.title, stage: "finished", results });
+        continue;
+      }
       const [result] = await importNotionPages([pageId], owner, job.connection_id, async (page) => {
         await updateImportJobProgress(job.id, {
           completedPages: completed,
@@ -106,6 +120,9 @@ export async function processNextNotionImportJob(): Promise<boolean> {
           results,
         });
       });
+      if (existing && result?.status === "failed" && /deleted|no longer shared|does not have access|not found/i.test(result.error ?? "")) {
+        await markSourceDocumentSyncState(existing.id, { unavailable: true, error: result.error ?? "This page is no longer available in Notion." });
+      }
       if (result) results.push(result);
       completed += 1;
       await updateImportJobProgress(job.id, {
@@ -118,9 +135,21 @@ export async function processNextNotionImportJob(): Promise<boolean> {
     }
 
     const hasErrors = results.some((result) => result.status === "failed");
+    const transientFailure = results.find((result) => result.status === "failed" && /rate limit|temporar|timeout|timed out|service unavailable|gateway|overload|429|503|504|529/i.test(result.error ?? ""));
+    if (job.job_kind === "refresh" && transientFailure && job.attempts < 3) {
+      await retryImportJob(job.id, transientFailure.error ?? "Transient Notion refresh failure", 30 * (2 ** Math.max(0, job.attempts - 1)));
+      console.warn(JSON.stringify({ level: "warn", service: "notion-bloom-worker", event: "job_retry_scheduled", jobId: job.id, attempt: job.attempts }));
+      return true;
+    }
     await finishImportJob(job.id, hasErrors ? "completed_with_errors" : "completed", results);
+    console.log(JSON.stringify({ level: hasErrors ? "warn" : "info", service: "notion-bloom-worker", event: "job_finished", jobId: job.id, kind: job.job_kind, completedPages: completed, failures: results.filter((result) => result.status === "failed").length }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Import worker failed";
+    if (job.job_kind === "refresh" && job.attempts < 3) {
+      await retryImportJob(job.id, message, 30 * (2 ** Math.max(0, job.attempts - 1)));
+      console.warn(JSON.stringify({ level: "warn", service: "notion-bloom-worker", event: "job_retry_scheduled", jobId: job.id, attempt: job.attempts }));
+      return true;
+    }
     await finishImportJob(job.id, "failed", results, message);
   }
   return true;

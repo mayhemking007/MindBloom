@@ -18,6 +18,8 @@ const api = vi.hoisted(() => ({
   exportNotionData: vi.fn(),
   startNotionOAuth: vi.fn(),
   disconnectNotionConnection: vi.fn(),
+  getNotionGardenOverview: vi.fn(),
+  chatWithNotionGarden: vi.fn(),
 }));
 
 vi.mock("../../../web/src/lib/api", () => api);
@@ -31,7 +33,8 @@ describe("Notion Bloom garden", () => {
     api.listNotionPages.mockResolvedValue({ pages: [{ id: "page-1", title: "Ideas", url: "https://notion.so/1", createdAt: "2026-10-27T00:00:00.000Z", updatedAt: "2026-10-27T00:00:00.000Z", importedDocumentId: null }] });
     api.listNotionDocuments.mockResolvedValue({ documents: [] });
     api.listActiveNotionImports.mockResolvedValue({ jobs: [] });
-    api.importNotionPages.mockResolvedValue({ job: { id: "10000000-0000-4000-8000-000000000001", status: "queued", connectionId: null, workspaceId: null, stage: "queued", totalPages: 1, completedPages: 0, currentPageId: null, currentPageTitle: null, results: [], lastError: null, createdAt: "2026-10-27T00:00:00.000Z", updatedAt: "2026-10-27T00:00:00.000Z", completedAt: null } });
+    api.getNotionGardenOverview.mockResolvedValue({ workspaceId: null, documentCount: 0, readyDocumentCount: 0, needsAttention: [], themes: [], recentThoughts: [] });
+    api.importNotionPages.mockResolvedValue({ job: { id: "10000000-0000-4000-8000-000000000001", status: "queued", connectionId: null, workspaceId: null, kind: "import", stage: "queued", totalPages: 1, completedPages: 0, currentPageId: null, currentPageTitle: null, results: [], lastError: null, createdAt: "2026-10-27T00:00:00.000Z", updatedAt: "2026-10-27T00:00:00.000Z", completedAt: null } });
   });
 
   it("queues selected pages and explains that background processing continues", async () => {
